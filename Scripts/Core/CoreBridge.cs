@@ -10,6 +10,10 @@ public partial class CoreBridge : Node
     private readonly GameMetrics _metrics = new();
     private readonly DifficultyDirector _director = new();
 
+    // Hold/Reserve is kept simple and based on piece kind string.
+    private PieceData _holdPiece = null;
+    private bool _holdUsed = false;
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -24,12 +28,16 @@ public partial class CoreBridge : Node
         return b;
     }
 
-    // Compatibility API for callers without board context.
-    public PieceData PeekNextPiece() => _generator.Peek(null, _director.GetIdealPieceChance(_config));
+    // NOTE:
+    // These non-board methods are kept for compatibility,
+    // but they use an empty board. Prefer *ForBoard variants in gameplay/UI.
+    public PieceData PeekNextPiece() =>
+        _generator.Peek(CreateBoard(), _director.GetIdealPieceChance(_config));
 
-    // Compatibility API for callers without board context.
-    public PieceData PopNextPiece() => _generator.Pop(null, _director.GetIdealPieceChance(_config));
+    public PieceData PopNextPiece() =>
+        _generator.Pop(CreateBoard(), _director.GetIdealPieceChance(_config));
 
+    // Board-aware preview used by UI / gameplay.
     public PieceData PeekNextPieceForBoard(BoardModel board)
     {
         return _generator.Peek(board, _director.GetIdealPieceChance(_config));
@@ -39,10 +47,6 @@ public partial class CoreBridge : Node
     {
         return _generator.Pop(board, _director.GetIdealPieceChance(_config));
     }
-
-    // Hold/Reserve is kept simple and based on piece kind string.
-    private PieceData _holdPiece = null;
-    private bool _holdUsed = false;
 
     public PieceData HoldSwap(PieceData current)
     {
@@ -57,7 +61,7 @@ public partial class CoreBridge : Node
         if (_holdPiece == null)
         {
             _holdPiece = PieceGenerator.MakePiece(current.Kind);
-            return _generator.Pop(null, _director.GetIdealPieceChance(_config));
+            return PopNextPiece();
         }
 
         var outPiece = _holdPiece;
@@ -67,7 +71,8 @@ public partial class CoreBridge : Node
 
     public void ResetHoldUsage() => _holdUsed = false;
 
-    public PieceData GetHoldPiece() => _holdPiece == null ? null : PieceGenerator.MakePiece(_holdPiece.Kind);
+    public PieceData GetHoldPiece() =>
+        _holdPiece == null ? null : PieceGenerator.MakePiece(_holdPiece.Kind);
 
     public void RegisterSuccessfulPlacement(int clearedCount, float moveTimeSec, float boardFillRatio)
     {
