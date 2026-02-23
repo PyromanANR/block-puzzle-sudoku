@@ -252,14 +252,19 @@ func _build_ui() -> void:
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	root_frame.add_child(title_label)
 
+	var root_margin = MarginContainer.new()
+	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root_margin.add_theme_constant_override("margin_left", 24)
+	root_margin.add_theme_constant_override("margin_right", 24)
+	root_margin.add_theme_constant_override("margin_top", 80)
+	root_margin.add_theme_constant_override("margin_bottom", 24)
+	root_frame.add_child(root_margin)
+
 	var main_v = VBoxContainer.new()
-	main_v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	main_v.offset_top = 80
-	main_v.offset_left = 24
-	main_v.offset_right = -24
-	main_v.offset_bottom = -24
+	main_v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main_v.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	main_v.add_theme_constant_override("separation", 14)
-	root_frame.add_child(main_v)
+	root_margin.add_child(main_v)
 
 	var top_row = HBoxContainer.new()
 	top_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -268,7 +273,7 @@ func _build_ui() -> void:
 	main_v.add_child(top_row)
 
 	board_panel = Panel.new()
-	board_panel.custom_minimum_size = Vector2(760, 680)
+	board_panel.custom_minimum_size = Vector2(620, 680)
 	board_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	board_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	board_panel.add_theme_stylebox_override("panel", _style_board_panel())
@@ -636,13 +641,38 @@ func _draw_preview(target: Panel, piece) -> void:
 	if piece == null:
 		return
 
-	var frame = target.size - Vector2(20, 20)
-	var preview_cell_size = int(clamp(float(cell_size) * 0.72, 16.0, 38.0))
+	var inner_w = max(target.size.x, target.custom_minimum_size.x) - 20.0
+	var inner_h = max(target.size.y, target.custom_minimum_size.y) - 20.0
+	if inner_w <= 0.0 or inner_h <= 0.0:
+		return
+	var frame = Vector2(inner_w, inner_h)
+	var desired_cell = int(clamp(float(cell_size) * 0.75, 14.0, 34.0))
+	var preview_cell_size = _fitted_cell_size(piece, desired_cell, frame, 0.92)
 	var pv = _make_piece_preview(piece, preview_cell_size, frame)
 	var center = CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	target.add_child(center)
 	center.add_child(pv)
+
+
+func _fitted_cell_size(piece, desired_cell: int, frame: Vector2, fit_ratio: float = 0.9) -> int:
+	var min_x = 999
+	var min_y = 999
+	var max_x = -999
+	var max_y = -999
+	for c in piece.get("Cells"):
+		min_x = min(min_x, int(c.x))
+		min_y = min(min_y, int(c.y))
+		max_x = max(max_x, int(c.x))
+		max_y = max(max_y, int(c.y))
+
+	var bbox_w_cells = max(1, max_x - min_x + 1)
+	var bbox_h_cells = max(1, max_y - min_y + 1)
+	var fit_w = frame.x / float(bbox_w_cells)
+	var fit_h = frame.y / float(bbox_h_cells)
+	var fit_cell = int(floor(min(fit_w, fit_h) * fit_ratio))
+	fit_cell = max(8, fit_cell)
+	return min(desired_cell, fit_cell)
 
 
 func _spawn_falling_piece() -> void:
@@ -677,11 +707,8 @@ func _well_geometry() -> Dictionary:
 			"pile_bottom": 90.0
 		}
 
-	var pile_zone_h = full_h * 0.55
-	var pile_bottom_logic = full_h - PILE_PAD
-	var pile_top_logic = pile_bottom_logic - pile_zone_h
 	var fall_top = FALL_PAD
-	var fall_bottom = pile_top_logic - 10.0
+	var fall_bottom = drop_h - 120.0
 	if fall_bottom < fall_top + 40.0:
 		fall_bottom = fall_top + 40.0
 
@@ -768,7 +795,7 @@ func _redraw_well() -> void:
 	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
 	var dynamic_h = max(46.0, min(76.0, per_slot - SLOT_GAP))
-	var slot_preview_cell = int(clamp(float(cell_size) * 0.80, 16.0, 42.0))
+	var slot_preview_cell = int(clamp(float(cell_size) * 0.64, 12.0, 34.0))
 
 	for slot_i in range(pile_max):
 		var y = pile_bottom - dynamic_h - float(slot_i) * (dynamic_h + SLOT_GAP)
@@ -798,8 +825,9 @@ func _redraw_well() -> void:
 			if is_active:
 				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
 
-			var preview = _make_piece_preview(p, slot_preview_cell, Vector2(slot.size.x - 8, slot.size.y - 8))
-
+			var slot_frame = Vector2(slot.size.x - 10, slot.size.y - 10)
+			var slot_cell = _fitted_cell_size(p, slot_preview_cell, slot_frame, 0.9)
+			var preview = _make_piece_preview(p, slot_cell, slot_frame)
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
 		elif is_active:
@@ -811,9 +839,11 @@ func _redraw_well() -> void:
 			slot.add_child(empty)
 
 	if fall_piece != null and not is_game_over:
-		var drop_cell_size = int(clamp(float(cell_size) * 0.82, 18.0, 46.0))
+		var drop_cell_size = int(clamp(float(cell_size) * 0.66, 14.0, 34.0))
 		var fall_frame_w = min(drop_w - 20.0, 230.0)
-		var fall = _make_piece_preview(fall_piece, drop_cell_size, Vector2(fall_frame_w, 120))
+		var fall_frame = Vector2(fall_frame_w, 120)
+		var fitted_drop_cell = _fitted_cell_size(fall_piece, drop_cell_size, fall_frame, 0.9)
+		var fall = _make_piece_preview(fall_piece, fitted_drop_cell, fall_frame)
 		var fx = (drop_w - fall.size.x) * 0.5
 		var fy = clamp(fall_y, fall_top, fall_bottom)
 		fall.position = Vector2(fx, fy)
