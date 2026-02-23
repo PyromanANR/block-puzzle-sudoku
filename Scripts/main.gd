@@ -1,5 +1,7 @@
 extends Control
 
+const BoardGridOverlay = preload("res://Scripts/BoardGridOverlay.gd")
+
 # ============================================================
 # TETRIS SUDOKU (UI v2)
 # - Top row: Board (left) + HUD (right)
@@ -28,6 +30,7 @@ var board_start := Vector2.ZERO
 var board_cells := []
 var board_hl := []
 var color_grid := []
+var board_grid_overlay: Control
 
 # ----------------------------
 # Gameplay
@@ -140,7 +143,7 @@ func _apply_balance_well_settings() -> void:
 	var s: Dictionary = core.call("GetWellSettings")
 	pile_max = int(s.get("pile_max", pile_max))
 	pile_selectable = int(s.get("top_selectable", pile_selectable))
-	pile_visible = int(s.get("pile_visible", pile_visible))
+	pile_visible = pile_max
 	danger_start_ratio = float(s.get("danger_start_ratio", danger_start_ratio))
 	danger_end_ratio = float(s.get("danger_end_ratio", danger_end_ratio))
 
@@ -192,6 +195,8 @@ func _build_ui() -> void:
 
 	root_frame = Panel.new()
 	root_frame.clip_contents = true
+	if Skin != null:
+		root_frame.theme = Skin.get_theme()
 	root_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_frame.add_theme_stylebox_override("panel", _style_cartridge_frame())
 	add_child(root_frame)
@@ -207,8 +212,8 @@ func _build_ui() -> void:
 	title_label.offset_left = 20
 	title_label.offset_right = -20
 	title_label.offset_bottom = 70
-	title_label.add_theme_font_size_override("font_size", 44)
-	title_label.add_theme_color_override("font_color", Color(0.08, 0.08, 0.08))
+	title_label.add_theme_font_size_override("font_size", Skin.get_font_size("title", 44) if Skin != null else 44)
+	title_label.add_theme_color_override("font_color", Skin.get_color("text_primary", Color(0.08, 0.08, 0.08)) if Skin != null else Color(0.08, 0.08, 0.08))
 	root_frame.add_child(title_label)
 
 	# Main vertical layout: top row (board+hud) + bottom row (well full width)
@@ -284,6 +289,14 @@ func _build_ui() -> void:
 	btn_exit.pressed.connect(_on_exit)
 	btn_row.add_child(btn_exit)
 
+	var skills_title := Label.new()
+	skills_title.text = "Skills"
+	skills_title.add_theme_font_size_override("font_size", 20)
+	hv.add_child(skills_title)
+	hv.add_child(_build_skill_card("Reroll", 5, 1))
+	hv.add_child(_build_skill_card("Freeze", 10, 3))
+	hv.add_child(_build_skill_card("Clear", 20, 6))
+
 	# Spacer
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -345,6 +358,50 @@ func _hud_line(k: String, v: String) -> Label:
 	l.add_theme_font_size_override("font_size", 22)
 	l.add_theme_color_override("font_color", Color(0.10, 0.10, 0.10))
 	return l
+
+
+func _build_skill_card(label_text: String, req_level: int, progress_level: int) -> Control:
+	var panel := Panel.new()
+	panel.custom_minimum_size = Vector2(0, 76)
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 8
+	row.offset_right = -8
+	row.offset_top = 8
+	row.offset_bottom = -8
+	row.add_theme_constant_override("separation", 8)
+	panel.add_child(row)
+
+	var icon := ColorRect.new()
+	icon.custom_minimum_size = Vector2(34, 34)
+	icon.color = Color(0.95, 0.82, 0.35, 0.95)
+	row.add_child(icon)
+
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(col)
+
+	var t := Label.new()
+	t.text = "%s (%d)" % [label_text, req_level]
+	col.add_child(t)
+
+	if progress_level >= req_level:
+		var ready := Label.new()
+		ready.text = "Ready"
+		col.add_child(ready)
+	else:
+		var pb := ProgressBar.new()
+		pb.max_value = req_level
+		pb.value = progress_level
+		pb.show_percentage = false
+		pb.custom_minimum_size = Vector2(0, 14)
+		col.add_child(pb)
+		var lock := Label.new()
+		lock.text = "Locked until %d" % req_level
+		lock.add_theme_font_size_override("font_size", 12)
+		col.add_child(lock)
+
+	return panel
 
 
 func _show_game_over_overlay() -> void:
@@ -426,22 +483,12 @@ func _build_board_grid() -> void:
 		board_cells.append(row)
 		board_hl.append(row2)
 
-	# Visual helper: explicit 3x3 block boundaries over the board.
-	var overlay_color := Color(0.86, 0.63, 0.32, 0.95)
-	for i in [0, 3, 6, 9]:
-		var vline := ColorRect.new()
-		vline.color = overlay_color
-		vline.position = board_start + Vector2(i * cell_size - 2, 0)
-		vline.size = Vector2(4, BOARD_SIZE * cell_size - 2)
-		vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		board_panel.add_child(vline)
-
-		var hline := ColorRect.new()
-		hline.color = overlay_color
-		hline.position = board_start + Vector2(0, i * cell_size - 2)
-		hline.size = Vector2(BOARD_SIZE * cell_size - 2, 4)
-		hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		board_panel.add_child(hline)
+	board_grid_overlay = BoardGridOverlay.new()
+	board_grid_overlay.position = board_start
+	board_grid_overlay.size = Vector2(BOARD_SIZE * cell_size, BOARD_SIZE * cell_size)
+	board_grid_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	board_grid_overlay.call("configure", BOARD_SIZE, cell_size)
+	board_panel.add_child(board_grid_overlay)
 
 	_refresh_board_visual()
 
@@ -564,17 +611,32 @@ func _redraw_well() -> void:
 		danger_h = 10
 		danger_a = 0.50
 
+	var danger_shadow := ColorRect.new()
+	danger_shadow.color = Color(0.4, 0.0, 0.0, 0.35)
+	danger_shadow.position = Vector2(0, pile_top + 2)
+	danger_shadow.size = Vector2(w, danger_h + 4)
+	danger_shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_draw.add_child(danger_shadow)
+
 	var danger := ColorRect.new()
-	danger.color = Color(0.9, 0.2, 0.2, danger_a)
+	danger.color = Color(0.95, 0.20, 0.20, max(0.45, danger_a + 0.15))
 	danger.position = Vector2(0, pile_top)
-	danger.size = Vector2(w, danger_h)
+	danger.size = Vector2(w, danger_h + 2)
 	danger.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_draw.add_child(danger)
+
+	var danger_lbl := Label.new()
+	danger_lbl.text = "DANGER"
+	danger_lbl.add_theme_font_size_override("font_size", 14)
+	danger_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.85))
+	danger_lbl.position = Vector2(w - 96, pile_top - 18)
+	danger_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_draw.add_child(danger_lbl)
 
 	# Label
 	var hint := Label.new()
 	hint.text = "Reserve slots: yellow = selectable, grey = locked"
-	hint.add_theme_font_size_override("font_size", 16)
+	hint.add_theme_font_size_override("font_size", 18)
 	hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	hint.position = Vector2(14, 6)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -583,7 +645,7 @@ func _redraw_well() -> void:
 	# WELL counter (X / MAX)
 	var well_stat := Label.new()
 	well_stat.text = "WELL: %d / %d" % [pile.size(), pile_max]
-	well_stat.add_theme_font_size_override("font_size", 16)
+	well_stat.add_theme_font_size_override("font_size", 18)
 	well_stat.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
 	well_stat.position = Vector2(14, 26)
 	well_stat.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -611,18 +673,18 @@ func _redraw_well() -> void:
 	bar_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_draw.add_child(bar_fg)
 
-	# --- Draw visible stack slots (TOP 3 active + grey depth preview) ---
+	# --- Draw stack slots exactly equal to difficulty capacity ---
 	var slot_w = w - 20.0
-	var base_y = pile_bottom - SLOT_H
+	var available_h = max(120.0, pile_bottom - pile_top - 12.0)
+	var per_slot = available_h / float(max(1, pile_max))
+	var dynamic_h = max(44.0, min(SLOT_H, per_slot - SLOT_GAP))
 
-	for slot_i in range(pile_visible):
-		# slot_i=0 is top of visible area, increases downward
-		var y = base_y - float(slot_i) * (SLOT_H + SLOT_GAP)
-		if y < pile_top:
-			break
+	for slot_i in range(pile_max):
+		# slot_i=0 is top selectable layer (closest to danger line)
+		var y = pile_bottom - dynamic_h - float(slot_i) * (dynamic_h + SLOT_GAP)
 
 		var slot := Panel.new()
-		slot.size = Vector2(slot_w, SLOT_H)
+		slot.size = Vector2(slot_w, dynamic_h)
 		slot.position = Vector2(10, y)
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
 		well_draw.add_child(slot)
@@ -647,13 +709,14 @@ func _redraw_well() -> void:
 			if is_active:
 				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
 
-			var preview := _make_piece_preview(p, 18, Vector2(slot.size.x, slot.size.y))
+			var mini := max(18, int(cell_size * 0.82))
+			var preview := _make_piece_preview(p, mini, Vector2(slot.size.x, slot.size.y))
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
 		else:
 			var empty := Label.new()
 			empty.text = "EMPTY"
-			empty.add_theme_font_size_override("font_size", 12)
+			empty.add_theme_font_size_override("font_size", 16)
 			empty.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 			empty.position = Vector2(10, 18)
 			empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -941,17 +1004,9 @@ func _make_piece_preview(piece, mini: int, frame: Vector2 = Vector2(140, 90)) ->
 
 
 func _color_for_kind(kind: String) -> Color:
-	match kind:
-		"I": return Color(0.00, 0.85, 0.95)
-		"O": return Color(0.98, 0.85, 0.20)
-		"T": return Color(0.75, 0.35, 0.95)
-		"S": return Color(0.25, 0.90, 0.35)
-		"Z": return Color(0.95, 0.25, 0.35)
-		"J": return Color(0.20, 0.55, 0.98)
-		"L": return Color(0.98, 0.55, 0.20)
-		"Dot", "DominoH", "DominoV", "TriLineH", "TriLineV", "TriL", "Square2", "Plus5":
-			return Color(0.98, 0.73, 0.32)
-		_:   return COLOR_FILLED
+	if Skin != null:
+		return Skin.get_piece_color(kind)
+	return COLOR_FILLED
 
 
 # ============================================================
@@ -959,7 +1014,7 @@ func _color_for_kind(kind: String) -> Color:
 # ============================================================
 func _style_cartridge_frame() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.96, 0.86, 0.20)
+	s.bg_color = Skin.get_color("cartridge_bg", Color(0.96, 0.86, 0.20)) if Skin != null else Color(0.96, 0.86, 0.20)
 	s.border_width_left = 8
 	s.border_width_right = 8
 	s.border_width_top = 8
@@ -974,7 +1029,7 @@ func _style_cartridge_frame() -> StyleBoxFlat:
 
 func _style_board_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.32, 0.16, 0.06)
+	s.bg_color = Skin.get_color("board_bg", Color(0.32, 0.16, 0.06)) if Skin != null else Color(0.32, 0.16, 0.06)
 	s.border_width_left = 6
 	s.border_width_right = 6
 	s.border_width_top = 6
@@ -989,7 +1044,7 @@ func _style_board_panel() -> StyleBoxFlat:
 
 func _style_hud_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.92, 0.92, 0.92)
+	s.bg_color = Skin.get_color("hud_bg", Color(0.92, 0.92, 0.92)) if Skin != null else Color(0.92, 0.92, 0.92)
 	s.border_width_left = 6
 	s.border_width_right = 6
 	s.border_width_top = 6
@@ -1004,7 +1059,7 @@ func _style_hud_panel() -> StyleBoxFlat:
 
 func _style_bottom_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.20, 0.20, 0.20)
+	s.bg_color = Skin.get_color("well_bg", Color(0.20, 0.20, 0.20)) if Skin != null else Color(0.20, 0.20, 0.20)
 	s.border_width_left = 4
 	s.border_width_right = 4
 	s.border_width_top = 4

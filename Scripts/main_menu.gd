@@ -20,6 +20,8 @@ func _build_ui() -> void:
 
 	var root := Panel.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if Skin != null:
+		root.theme = Skin.get_theme()
 	add_child(root)
 
 	var v := VBoxContainer.new()

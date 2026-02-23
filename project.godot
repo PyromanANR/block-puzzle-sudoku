@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Core="*res://Scripts/Core/CoreBridge.cs"
 Save="*res://Scripts/SaveManager.gd"
+Skin="*res://Scripts/SkinManager.gd"
 
 [display]
 

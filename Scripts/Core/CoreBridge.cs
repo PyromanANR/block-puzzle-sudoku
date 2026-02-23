@@ -9,14 +9,13 @@ public partial class CoreBridge : Node
     private PieceGenerator _generator;
     private readonly GameMetrics _metrics = new();
     private readonly DifficultyDirector _director = new();
-    private ulong _startMs;
+    private int _startMs;
 
     private BoardModel _activeBoard;
     private float _smoothedFallSpeed;
-
     private float _lastTargetSpeed;
-    private ulong _lastSpeedCalcMs;
-    private ulong _lastDebugSpeedLogMs;
+    private int _lastSpeedCalcMs;
+    private int _lastDebugSpeedLogMs;
 
     private string _difficulty = "Medium";
     private bool _noMercy = false;
