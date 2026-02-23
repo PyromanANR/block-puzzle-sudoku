@@ -1,0 +1,16 @@
+{
+  "BaseFallSpeed": 16.0,
+  "LevelSpeedGrowth": 1.12,
+  "DdaMinFallMultiplier": 0.85,
+  "DdaMaxFallMultiplier": 1.20,
+  "IdealPieceChanceEarly": 0.85,
+  "IdealPieceChanceLate": 0.45,
+  "PityEveryNSpawns": 7,
+  "CandidateTopBand": 3,
+  "TargetMoveTimeSec": 2.4,
+  "FillDangerThreshold": 0.72,
+  "DdaRatePerMove": 0.08,
+  "MaxRerollsPerRound": 0,
+  "CancelDragPenalty": 0.02,
+  "SimulationMaxMoves": 250
+}
