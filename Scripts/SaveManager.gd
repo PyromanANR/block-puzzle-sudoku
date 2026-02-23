@@ -24,6 +24,9 @@ func defaults() -> Dictionary:
 
 		"music_volume": 1.0, # 0..1
 		"sfx_volume": 1.0,   # 0..1
+
+		"difficulty": "Medium",
+		"no_mercy": false,
 	}
 
 func load_save() -> void:
@@ -123,3 +126,25 @@ func set_music_volume(v: float) -> void:
 
 func set_sfx_volume(v: float) -> void:
 	data["sfx_volume"] = clamp(v, 0.0, 1.0)
+
+
+# -------------------------
+# Difficulty settings
+# -------------------------
+func get_current_difficulty() -> String:
+	return String(data.get("difficulty", "Medium"))
+
+
+func get_no_mercy() -> bool:
+	return bool(data.get("no_mercy", false))
+
+
+func set_difficulty(difficulty: String) -> void:
+	var d := difficulty.capitalize()
+	if d != "Easy" and d != "Medium" and d != "Hard":
+		d = "Medium"
+	data["difficulty"] = d
+
+
+func set_no_mercy(v: bool) -> void:
+	data["no_mercy"] = v

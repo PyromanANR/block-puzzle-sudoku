@@ -9,8 +9,8 @@ extends Control
 # - Ghost always visible while dragging
 # Requires CoreBridge.cs:
 #   - CreateBoard()
-#   - PopNextPiece()
-#   - PeekNextPiece()
+#   - PopNextPieceForBoard(board)
+#   - PeekNextPieceForBoard(board)
 # ============================================================
 
 # ----------------------------
@@ -42,6 +42,7 @@ var selected_piece = null
 var selected_from_pile_index: int = -1
 var dragging: bool = false
 var drag_anchor: Vector2i = Vector2i(-999, -999)
+var drag_start_ms: int = 0
 
 # ----------------------------
 # Ghost (always visible)
@@ -82,14 +83,19 @@ const COLOR_EMPTY := Color(0.15, 0.15, 0.15, 1.0)
 const COLOR_FILLED := Color(0.82, 0.82, 0.90, 1.0)
 const HL_OK := Color(0.10, 0.85, 0.20, 0.60)
 const HL_BAD := Color(0.95, 0.20, 0.20, 0.60)
+const RETRO_GRID_BASE := Color(0.21, 0.10, 0.04, 1.0)
+const RETRO_GRID_DARK := Color(0.16, 0.07, 0.03, 1.0)
+const RETRO_GRID_BORDER := Color(0.60, 0.36, 0.18, 1.0)
 
 # ----------------------------
 # Well / pile
 # ----------------------------
 var pile: Array = []
-const PILE_MAX := 8
-const PILE_SELECTABLE := 3
-const PILE_VISIBLE := 8
+var pile_max: int = 8
+var pile_selectable: int = 3
+var pile_visible: int = 8
+var danger_start_ratio: float = 0.68
+var danger_end_ratio: float = 0.88
 
 # Zones inside well
 const FALL_PAD := 12
@@ -115,6 +121,8 @@ func _ready() -> void:
 		push_error("Core autoload not found.")
 		return
 
+	_apply_balance_well_settings()
+
 	board = core.call("CreateBoard")
 	board.call("Reset")
 
@@ -126,6 +134,15 @@ func _ready() -> void:
 
 	_start_round()
 	set_process(true)
+
+
+func _apply_balance_well_settings() -> void:
+	var s: Dictionary = core.call("GetWellSettings")
+	pile_max = int(s.get("pile_max", pile_max))
+	pile_selectable = int(s.get("top_selectable", pile_selectable))
+	pile_visible = int(s.get("pile_visible", pile_visible))
+	danger_start_ratio = float(s.get("danger_start_ratio", danger_start_ratio))
+	danger_end_ratio = float(s.get("danger_end_ratio", danger_end_ratio))
 
 
 func _start_round() -> void:
@@ -346,8 +363,9 @@ func _hide_game_over_overlay() -> void:
 
 
 func _on_settings() -> void:
-	# Placeholder: later you can open Settings scene/popup
-	print("Settings clicked")
+	# Debug utility: quick simulation snapshot from CoreBridge.
+	var sim6 := core.call("RunSimulationBatch", 120, 42)
+	print("Balance sim default:", sim6)
 
 
 func _on_exit() -> void:
@@ -408,6 +426,23 @@ func _build_board_grid() -> void:
 		board_cells.append(row)
 		board_hl.append(row2)
 
+	# Visual helper: explicit 3x3 block boundaries over the board.
+	var overlay_color := Color(0.86, 0.63, 0.32, 0.95)
+	for i in [0, 3, 6, 9]:
+		var vline := ColorRect.new()
+		vline.color = overlay_color
+		vline.position = board_start + Vector2(i * cell_size - 2, 0)
+		vline.size = Vector2(4, BOARD_SIZE * cell_size - 2)
+		vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		board_panel.add_child(vline)
+
+		var hline := ColorRect.new()
+		hline.color = overlay_color
+		hline.position = board_start + Vector2(0, i * cell_size - 2)
+		hline.size = Vector2(BOARD_SIZE * cell_size - 2, 4)
+		hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		board_panel.add_child(hline)
+
 	_refresh_board_visual()
 
 
@@ -431,7 +466,7 @@ func _refresh_board_visual() -> void:
 # Next preview
 # ============================================================
 func _update_previews() -> void:
-	_draw_preview(next_box, core.call("PeekNextPiece"))
+	_draw_preview(next_box, core.call("PeekNextPieceForBoard", board))
 
 
 func _draw_preview(target: Panel, piece) -> void:
@@ -452,14 +487,14 @@ func _draw_preview(target: Panel, piece) -> void:
 # Fix #2: fall zone never overlaps pile zone
 # ============================================================
 func _spawn_falling_piece() -> void:
-	fall_piece = core.call("PopNextPiece")
+	fall_piece = core.call("PopNextPieceForBoard", board)
 	fall_y = 10.0
 	_update_previews()
 
 
 func _lock_falling_to_pile() -> void:
 	pile.append(fall_piece)
-	if pile.size() > PILE_MAX:
+	if pile.size() > pile_max:
 		_trigger_game_over()
 		return
 	_spawn_falling_piece()
@@ -517,15 +552,15 @@ func _redraw_well() -> void:
 	var w = float(g["w"])
 
 	# How full the well is
-	var fill_ratio = clamp(float(pile.size()) / float(PILE_MAX), 0.0, 1.0)
+	var fill_ratio = clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
 
 	# Danger line at pile_top (stronger when near full)
 	var danger_h := 4
 	var danger_a := 0.25
-	if fill_ratio >= 0.70:
+	if fill_ratio >= danger_start_ratio:
 		danger_h = 6
 		danger_a = 0.35
-	if fill_ratio >= 0.90:
+	if fill_ratio >= danger_end_ratio:
 		danger_h = 10
 		danger_a = 0.50
 
@@ -538,7 +573,7 @@ func _redraw_well() -> void:
 
 	# Label
 	var hint := Label.new()
-	hint.text = "Pick only TOP 3 (grey = locked)"
+	hint.text = "Reserve slots: yellow = selectable, grey = locked"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	hint.position = Vector2(14, 6)
@@ -547,7 +582,7 @@ func _redraw_well() -> void:
 
 	# WELL counter (X / MAX)
 	var well_stat := Label.new()
-	well_stat.text = "WELL: %d / %d" % [pile.size(), PILE_MAX]
+	well_stat.text = "WELL: %d / %d" % [pile.size(), pile_max]
 	well_stat.add_theme_font_size_override("font_size", 16)
 	well_stat.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
 	well_stat.position = Vector2(14, 26)
@@ -564,9 +599,9 @@ func _redraw_well() -> void:
 	well_draw.add_child(bar_bg)
 
 	var bar_col := Color(0.2, 0.9, 0.2, 0.75)
-	if fill_ratio >= 0.70:
+	if fill_ratio >= danger_start_ratio:
 		bar_col = Color(0.95, 0.85, 0.2, 0.75)
-	if fill_ratio >= 0.90:
+	if fill_ratio >= danger_end_ratio:
 		bar_col = Color(0.95, 0.2, 0.2, 0.80)
 
 	var bar_fg := ColorRect.new()
@@ -580,7 +615,7 @@ func _redraw_well() -> void:
 	var slot_w = w - 20.0
 	var base_y = pile_bottom - SLOT_H
 
-	for slot_i in range(PILE_VISIBLE):
+	for slot_i in range(pile_visible):
 		# slot_i=0 is top of visible area, increases downward
 		var y = base_y - float(slot_i) * (SLOT_H + SLOT_GAP)
 		if y < pile_top:
@@ -593,13 +628,19 @@ func _redraw_well() -> void:
 		well_draw.add_child(slot)
 
 		var pile_index = (pile.size() - 1) - slot_i
-		var is_active = slot_i < PILE_SELECTABLE
+		var is_active = slot_i < pile_selectable
 
 		if is_active:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
 		else:
-			slot.add_theme_stylebox_override("panel", _style_stack_slot())
-			slot.modulate = Color(0.55, 0.55, 0.55, 1.0)
+			slot.add_theme_stylebox_override("panel", _style_stack_slot_locked())
+			var lock_lbl := Label.new()
+			lock_lbl.text = "LOCKED"
+			lock_lbl.add_theme_font_size_override("font_size", 11)
+			lock_lbl.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75, 0.9))
+			lock_lbl.position = Vector2(8, 6)
+			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot.add_child(lock_lbl)
 
 		if pile_index >= 0:
 			var p = pile[pile_index]
@@ -644,8 +685,6 @@ func _on_falling_piece_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		selected_piece = fall_piece
 		selected_from_pile_index = -1
-		_spawn_falling_piece()
-		_redraw_well()
 		_start_drag_selected()
 
 
@@ -657,6 +696,7 @@ func _start_drag_selected() -> void:
 		return
 	dragging = true
 	drag_anchor = Vector2i(-999, -999)
+	drag_start_ms = Time.get_ticks_msec()
 	_build_ghost_for_piece(selected_piece)
 	ghost_root.visible = true
 
@@ -669,16 +709,21 @@ func _finish_drag() -> void:
 	drag_anchor = Vector2i(-999, -999)
 	_clear_highlight()
 
-	if anchor.x != -999 and selected_piece != null:
-		_try_place_piece(selected_piece, anchor.x, anchor.y)
+	var was_selected := selected_piece != null
+	var placed := false
+	if anchor.x != -999 and was_selected:
+		placed = _try_place_piece(selected_piece, anchor.x, anchor.y)
+
+	if was_selected and not placed:
+		core.call("RegisterCancelledDrag")
 
 	selected_piece = null
 	selected_from_pile_index = -1
 
 
-func _try_place_piece(piece, ax: int, ay: int) -> void:
+func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	if not bool(board.call("CanPlace", piece, ax, ay)):
-		return
+		return false
 
 	var result: Dictionary = board.call("PlaceAndClear", piece, ax, ay)
 
@@ -705,10 +750,17 @@ func _try_place_piece(piece, ax: int, ay: int) -> void:
 	# Remove from pile if it came from pile
 	if selected_from_pile_index >= 0 and selected_from_pile_index < pile.size():
 		pile.remove_at(selected_from_pile_index)
+	else:
+		# Falling piece is consumed only after successful placement.
+		_spawn_falling_piece()
+
+	var move_time_sec := max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
+	core.call("RegisterSuccessfulPlacement", int(result.get("cleared_count", 0)), move_time_sec, _board_fill_ratio())
 
 	_refresh_board_visual()
 	_update_hud()
 	_redraw_well()
+	return true
 
 
 func _on_board_cell_input(event: InputEvent, x: int, y: int) -> void:
@@ -738,11 +790,9 @@ func _process(delta: float) -> void:
 	_update_time()
 	_update_difficulty()
 
-	# Falling speed (very slow at start)
-	var base_fall := 16.0
-	var accel := pow(1.12, float(level - 1))
-	var fall_speed := base_fall * accel
-	speed_ui = accel
+	# Falling speed is driven by DifficultyDirector + level curve from Core.
+	var fall_speed := float(core.call("GetFallSpeed", float(level)))
+	speed_ui = fall_speed / 16.0
 	lbl_speed.text = "Speed: %.2f" % speed_ui
 
 	var geom = _well_geometry()
@@ -775,6 +825,15 @@ func _process(delta: float) -> void:
 			_finish_drag()
 
 
+func _board_fill_ratio() -> float:
+	var occ := 0
+	for y in range(BOARD_SIZE):
+		for x in range(BOARD_SIZE):
+			if int(board.call("GetCell", x, y)) != 0:
+				occ += 1
+	return float(occ) / float(BOARD_SIZE * BOARD_SIZE)
+
+
 # ============================================================
 # HUD
 # ============================================================
@@ -787,7 +846,7 @@ func _update_time() -> void:
 
 
 func _update_difficulty() -> void:
-	level = 1 + int(score / 120)
+	level = int(core.call("GetLevelForScore", score))
 	lbl_level.text = "Level: %d" % level
 
 
@@ -890,6 +949,8 @@ func _color_for_kind(kind: String) -> Color:
 		"Z": return Color(0.95, 0.25, 0.35)
 		"J": return Color(0.20, 0.55, 0.98)
 		"L": return Color(0.98, 0.55, 0.20)
+		"Dot", "DominoH", "DominoV", "TriLineH", "TriLineV", "TriL", "Square2", "Plus5":
+			return Color(0.98, 0.73, 0.32)
 		_:   return COLOR_FILLED
 
 
@@ -913,12 +974,12 @@ func _style_cartridge_frame() -> StyleBoxFlat:
 
 func _style_board_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.72, 0.72, 0.72)
+	s.bg_color = Color(0.32, 0.16, 0.06)
 	s.border_width_left = 6
 	s.border_width_right = 6
 	s.border_width_top = 6
 	s.border_width_bottom = 6
-	s.border_color = Color(0.18, 0.18, 0.18)
+	s.border_color = Color(0.75, 0.45, 0.18)
 	s.corner_radius_top_left = 10
 	s.corner_radius_top_right = 10
 	s.corner_radius_bottom_left = 10
@@ -973,14 +1034,19 @@ func _style_preview_box() -> StyleBoxFlat:
 
 func _style_cell_empty(x: int, y: int) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.16, 0.16, 0.16)
-	var thick := (x % 3 == 0 or y % 3 == 0)
-	var bw := 2 if thick else 1
-	s.border_width_left = bw
-	s.border_width_top = bw
-	s.border_width_right = 1
-	s.border_width_bottom = 1
-	s.border_color = Color(0.28, 0.28, 0.28)
+	var in_block_dark := ((x / 3) + (y / 3)) % 2 == 1
+	s.bg_color = RETRO_GRID_DARK if in_block_dark else RETRO_GRID_BASE
+
+	var thick_left := (x % 3 == 0)
+	var thick_top := (y % 3 == 0)
+	var thick_right := ((x + 1) % 3 == 0)
+	var thick_bottom := ((y + 1) % 3 == 0)
+
+	s.border_width_left = 3 if thick_left else 1
+	s.border_width_top = 3 if thick_top else 1
+	s.border_width_right = 3 if thick_right else 1
+	s.border_width_bottom = 3 if thick_bottom else 1
+	s.border_color = RETRO_GRID_BORDER
 	return s
 
 
@@ -1012,7 +1078,15 @@ func _style_stack_slot() -> StyleBoxFlat:
 
 func _style_stack_slot_selectable() -> StyleBoxFlat:
 	var s := _style_stack_slot()
-	s.border_color = Color(0.85, 0.85, 0.30)
+	s.border_color = Color(0.92, 0.86, 0.25)
+	s.bg_color = Color(0.16, 0.16, 0.18, 1.0)
+	return s
+
+
+func _style_stack_slot_locked() -> StyleBoxFlat:
+	var s := _style_stack_slot()
+	s.border_color = Color(0.34, 0.34, 0.34)
+	s.bg_color = Color(0.06, 0.06, 0.07, 1.0)
 	return s
 
 
