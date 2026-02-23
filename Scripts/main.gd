@@ -75,6 +75,7 @@ var lbl_score: Label
 var lbl_speed: Label
 var lbl_level: Label
 var lbl_time: Label
+var lbl_debug: Label
 var next_box: Panel
 
 var btn_settings: Button
@@ -116,6 +117,25 @@ const SLOT_GAP := 6
 var fall_piece = null
 var fall_y: float = 10.0
 var frozen_left: float = 0.0
+var spawn_wait_until_ms = 0
+var pending_spawn_piece = false
+var fast_next_trigger_count = 0
+var rescue_trigger_count = 0
+var auto_slow_until_ms = 0
+var auto_slow_trigger_count = 0
+var micro_freeze_until_ms = 0
+var clear_flash_left = 0.0
+var clear_flash_cells = []
+var rescue_eligible_until_ms = 0
+var rescue_from_well_pending = false
+var panic_sfx_cooldown_ms = 0
+var well_header_pulse_left = 0.0
+var time_scale_reason = "Normal"
+var sfx_players = {}
+var missing_sfx_warned = {}
+
+const NORMAL_RESPAWN_DELAY_MS = 260
+const FAST_RESPAWN_DELAY_MS = 80
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -169,6 +189,7 @@ func _ready() -> void:
 	board.call("Reset")
 
 	start_ms = Time.get_ticks_msec()
+	_audio_setup()
 
 	_build_ui()
 	await get_tree().process_frame
@@ -193,6 +214,21 @@ func _start_round() -> void:
 	level = 1
 	speed_ui = 1.0
 	frozen_left = 0.0
+	spawn_wait_until_ms = 0
+	pending_spawn_piece = false
+	fast_next_trigger_count = 0
+	rescue_trigger_count = 0
+	auto_slow_until_ms = 0
+	auto_slow_trigger_count = 0
+	micro_freeze_until_ms = 0
+	clear_flash_left = 0.0
+	clear_flash_cells.clear()
+	rescue_eligible_until_ms = 0
+	rescue_from_well_pending = false
+	panic_sfx_cooldown_ms = 0
+	well_header_pulse_left = 0.0
+	time_scale_reason = "Normal"
+	Engine.time_scale = 1.0
 
 	pile.clear()
 	board.call("Reset")
@@ -225,11 +261,131 @@ func _trigger_game_over() -> void:
 	_show_game_over_overlay()
 
 
+
+
+func _wire_button_sfx(btn) -> void:
+	btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	btn.pressed.connect(func(): _play_sfx("ui_click"))
+
+func _audio_setup() -> void:
+	_ensure_sfx("ui_hover", "res://Assets/Audio/ui_hover.wav", -12.0)
+	_ensure_sfx("ui_click", "res://Assets/Audio/ui_click.wav", -10.0)
+	_ensure_sfx("pick", "res://Assets/Audio/pick_piece.wav", -11.0)
+	_ensure_sfx("place", "res://Assets/Audio/place_piece.wav", -9.0)
+	_ensure_sfx("invalid", "res://Assets/Audio/invalid_drop.wav", -9.0)
+	_ensure_sfx("well_enter", "res://Assets/Audio/well_enter.wav", -6.0)
+	_ensure_sfx("clear", "res://Assets/Audio/clear.wav", -7.0)
+	_ensure_sfx("panic", "res://Assets/Audio/panic_tick.wav", -14.0)
+
+
+func _ensure_sfx(key, path, volume_db) -> void:
+	if sfx_players.has(key):
+		return
+	if not ResourceLoader.exists(path):
+		_warn_missing_sfx_once(key, path)
+		return
+	var p = AudioStreamPlayer.new()
+	p.bus = "Master"
+	p.volume_db = volume_db
+	p.stream = load(path)
+	if p.stream == null:
+		_warn_missing_sfx_once(key, path)
+		return
+	add_child(p)
+	sfx_players[key] = p
+
+
+func _warn_missing_sfx_once(key, path) -> void:
+	if missing_sfx_warned.has(key):
+		return
+	missing_sfx_warned[key] = true
+	if OS.is_debug_build():
+		push_warning("Missing SFX '%s' at %s (audio skipped)." % [key, path])
+
+
+func _play_sfx(key) -> void:
+	if not sfx_players.has(key):
+		return
+	var p = sfx_players[key]
+	if p != null and p.stream != null:
+		p.play()
+
+
+func _set_time_scale(reason, scale) -> void:
+	if reason == "Normal":
+		Engine.time_scale = 1.0
+		time_scale_reason = "Normal"
+		return
+	Engine.time_scale = clamp(scale, 0.05, 1.0)
+	time_scale_reason = reason
+
+
+func _update_time_scale_runtime() -> void:
+	var now = Time.get_ticks_msec()
+	if micro_freeze_until_ms > now:
+		_set_time_scale("MicroFreeze", 0.15)
+		return
+	if auto_slow_until_ms > now:
+		_set_time_scale("AutoSlow", float(core.call("GetAutoSlowScale")))
+		return
+	if dragging and selected_from_pile_index >= 0 and selected_piece != null:
+		var slow = float(core.call("GetWellDragTimeScale", _well_fill_ratio()))
+		_set_time_scale("WellDrag", slow)
+		return
+	_set_time_scale("Normal", 1.0)
+
+
+func _well_fill_ratio() -> float:
+	if pile_max <= 0:
+		return 0.0
+	return clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
+
+
+func _schedule_next_falling_piece(use_fast_next) -> void:
+	pending_spawn_piece = true
+	var now = Time.get_ticks_msec()
+	if use_fast_next:
+		spawn_wait_until_ms = now + FAST_RESPAWN_DELAY_MS
+		fast_next_trigger_count += 1
+		print("[FAST-NEXT] triggered count=%d" % fast_next_trigger_count)
+	else:
+		spawn_wait_until_ms = now + NORMAL_RESPAWN_DELAY_MS
+
+
+func _trigger_micro_freeze() -> void:
+	var sec = float(core.call("GetMicroFreezeSec"))
+	micro_freeze_until_ms = Time.get_ticks_msec() + int(sec * 1000.0)
+
+
+func _trigger_auto_slow_if_needed() -> void:
+	if core.call("ShouldTriggerAutoSlow", _board_fill_ratio(), _well_fill_ratio()):
+		auto_slow_trigger_count += 1
+		var dur = float(core.call("GetAutoSlowDurationSec"))
+		auto_slow_until_ms = Time.get_ticks_msec() + int(dur * 1000.0)
+		print("[AUTO-SLOW] trigger count=%d" % auto_slow_trigger_count)
+
+
+func _update_debug_overlay() -> void:
+	if lbl_debug == null:
+		return
+	var elapsed = float(core.call("GetElapsedMinutesForDebug"))
+	var knee_target = float(core.call("GetKneeTargetMultiplier"))
+	var tail_mul = float(core.call("GetPostKneeTailMultiplier"))
+	var fast_next_chance = float(core.call("GetFastNextChanceCurrent"))
+	var speed_mult = 0.0
+	if level > 0:
+		var level_growth = pow(float(core.call("GetLevelSpeedGrowth")), float(level - 1))
+		speed_mult = float(core.call("GetDisplayedFallSpeed")) / max(0.001, float(core.call("GetBaseFallSpeed")) * level_growth)
+	lbl_debug.text = "DBG\nmin: %.2f  speedMul: %.2f\nknee target: %.2f  tail: %.3f\nwell fill: %.2f  time_scale: %.2f (%s)\nfast-next: %.1f%%  triggers: %d\nrescue triggers: %d  auto-slow: %d" % [elapsed, speed_mult, knee_target, tail_mul, _well_fill_ratio(), Engine.time_scale, time_scale_reason, fast_next_chance * 100.0, fast_next_trigger_count, rescue_trigger_count, auto_slow_trigger_count]
+
+
 # ============================================================
 # UI build (new layout)
 # ============================================================
 func _build_ui() -> void:
 	for ch in get_children():
+		if ch is AudioStreamPlayer:
+			continue
 		ch.queue_free()
 
 	root_frame = Panel.new()
@@ -325,6 +481,12 @@ func _build_ui() -> void:
 	next_box.add_theme_stylebox_override("panel", _style_preview_box())
 	hv.add_child(next_box)
 
+	lbl_debug = Label.new()
+	lbl_debug.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl_debug.add_theme_font_size_override("font_size", _skin_font_size("small", 14))
+	lbl_debug.custom_minimum_size = Vector2(0, 150)
+	hv.add_child(lbl_debug)
+
 	var skills_title = Label.new()
 	skills_title.text = "Skills"
 	skills_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
@@ -350,6 +512,7 @@ func _build_ui() -> void:
 	btn_settings.add_theme_stylebox_override("pressed", _style_gamepad_button_pressed())
 	btn_settings.add_theme_stylebox_override("focus", _style_gamepad_button_hover())
 	btn_settings.pressed.connect(_on_settings)
+	_wire_button_sfx(btn_settings)
 	btn_row.add_child(btn_settings)
 
 	btn_exit = Button.new()
@@ -360,6 +523,7 @@ func _build_ui() -> void:
 	btn_exit.add_theme_stylebox_override("pressed", _style_gamepad_button_pressed())
 	btn_exit.add_theme_stylebox_override("focus", _style_gamepad_button_hover())
 	btn_exit.pressed.connect(_on_exit)
+	_wire_button_sfx(btn_exit)
 	btn_row.add_child(btn_exit)
 
 	well_panel = Panel.new()
@@ -649,6 +813,13 @@ func _refresh_board_visual() -> void:
 				color_grid[y][x] = null
 
 			board_hl[y][x].color = Color(0, 0, 0, 0)
+	if clear_flash_left > 0.0:
+		var a = clamp(clear_flash_left * 3.8, 0.0, 0.8)
+		for pos in clear_flash_cells:
+			var fx = int(pos.x)
+			var fy = int(pos.y)
+			if fx >= 0 and fx < BOARD_SIZE and fy >= 0 and fy < BOARD_SIZE:
+				board_hl[fy][fx].color = Color(1.0, 1.0, 0.45, a)
 
 
 # ============================================================
@@ -725,6 +896,7 @@ func _fitted_cell_size(piece, desired_cell: int, frame: Vector2, fit_ratio: floa
 func _spawn_falling_piece() -> void:
 	fall_piece = core.call("PopNextPieceForBoard", board)
 	fall_y = 10.0
+	pending_spawn_piece = false
 	next_box.queue_redraw()
 	_update_previews()
 
@@ -732,10 +904,13 @@ func _lock_falling_to_pile() -> void:
 	if selected_piece == fall_piece:
 		_force_cancel_drag("CommittedToWell", true)
 	pile.append(fall_piece)
+	_play_sfx("well_enter")
+	_trigger_micro_freeze()
+	well_header_pulse_left = 0.35
 	if pile.size() > pile_max:
 		_trigger_game_over()
 		return
-	_spawn_falling_piece()
+	_schedule_next_falling_piece(false)
 
 
 func _well_geometry() -> Dictionary:
@@ -818,6 +993,9 @@ func _redraw_well() -> void:
 	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
 	slots_header.position = Vector2(8, 4)
 	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+	var pulse_alpha = clamp(well_header_pulse_left * 2.4, 0.0, 0.75)
+	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45, 0.85 + pulse_alpha * 0.2))
+	slots_header.scale = Vector2(1.0 + pulse_alpha * 0.08, 1.0 + pulse_alpha * 0.08)
 	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_header)
 
@@ -908,6 +1086,7 @@ func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		selected_piece = pile[pile_index]
 		selected_from_pile_index = pile_index
+		_play_sfx("pick")
 		_start_drag_selected()
 
 
@@ -917,6 +1096,7 @@ func _on_falling_piece_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		selected_piece = fall_piece
 		selected_from_pile_index = -1
+		_play_sfx("pick")
 		_start_drag_selected()
 
 
@@ -926,6 +1106,9 @@ func _on_falling_piece_input(event: InputEvent) -> void:
 func _start_drag_selected() -> void:
 	if selected_piece == null:
 		return
+	if selected_from_pile_index >= 0:
+		rescue_from_well_pending = true
+		rescue_eligible_until_ms = Time.get_ticks_msec() + int(float(core.call("GetRescueWindowSec")) * 1000.0)
 	dragging = true
 	drag_anchor = Vector2i(-999, -999)
 	drag_start_ms = Time.get_ticks_msec()
@@ -947,6 +1130,7 @@ func _finish_drag() -> void:
 		placed = _try_place_piece(selected_piece, anchor.x, anchor.y)
 
 	if was_selected and not placed:
+		_play_sfx("invalid")
 		core.call("RegisterCancelledDrag")
 
 	selected_piece = null
@@ -966,6 +1150,7 @@ func _force_cancel_drag(reason: String = "", committed: bool = false) -> void:
 
 func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	if not bool(board.call("CanPlace", piece, ax, ay)):
+		_play_sfx("invalid")
 		return false
 
 	var result: Dictionary = board.call("PlaceAndClear", piece, ax, ay)
@@ -988,7 +1173,8 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 			color_grid[py][px] = null
 
 	score += int(piece.get("Cells").size())
-	score += int(result.get("cleared_count", 0)) * 2
+	var cleared_count = int(result.get("cleared_count", 0))
+	score += cleared_count * 2
 
 	# Remove from pile if it came from pile
 	if selected_from_pile_index >= 0 and selected_from_pile_index < pile.size():
@@ -997,10 +1183,23 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	else:
 		# Falling piece is consumed only after successful placement.
 		_force_cancel_drag("CommittedToBoard", true)
-		_spawn_falling_piece()
+		var use_fast_next = bool(core.call("ConsumeFastNextBoost"))
+		_schedule_next_falling_piece(use_fast_next)
 
 	var move_time_sec = max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
-	core.call("RegisterSuccessfulPlacement", int(result.get("cleared_count", 0)), move_time_sec, _board_fill_ratio())
+	core.call("RegisterSuccessfulPlacement", cleared_count, move_time_sec, _board_fill_ratio())
+	_play_sfx("place")
+	if cleared_count > 0:
+		_play_sfx("clear")
+		clear_flash_left = 0.20
+		clear_flash_cells = cleared
+		if rescue_from_well_pending and Time.get_ticks_msec() <= rescue_eligible_until_ms:
+			score += int(core.call("GetRescueScoreBonus"))
+			core.call("TriggerRescueStability")
+			rescue_trigger_count += 1
+			print("[RESCUE] triggered count=%d" % rescue_trigger_count)
+	rescue_from_well_pending = false
+	_trigger_auto_slow_if_needed()
 
 	_refresh_board_visual()
 	_update_hud()
@@ -1032,27 +1231,45 @@ func _process(delta: float) -> void:
 	if is_game_over:
 		return
 
+	if well_header_pulse_left > 0.0:
+		well_header_pulse_left = max(0.0, well_header_pulse_left - delta)
+	if clear_flash_left > 0.0:
+		clear_flash_left = max(0.0, clear_flash_left - delta)
+		_refresh_board_visual()
+
+	if rescue_from_well_pending and Time.get_ticks_msec() > rescue_eligible_until_ms:
+		rescue_from_well_pending = false
+	if _well_fill_ratio() >= 0.82 and Time.get_ticks_msec() >= panic_sfx_cooldown_ms:
+		panic_sfx_cooldown_ms = Time.get_ticks_msec() + 1800
+		_play_sfx("panic")
+		well_header_pulse_left = 0.25
+
 	_update_time()
 	_update_difficulty()
+	_update_time_scale_runtime()
 
 	# Falling speed is driven by DifficultyDirector + level curve from Core.
-	var fall_speed := float(core.call("GetFallSpeed", float(level)))
+	var fall_speed = float(core.call("GetFallSpeed", float(level)))
 	speed_ui = fall_speed / 16.0
 	lbl_speed.text = "Speed: %.2f" % speed_ui
 
-	var geom = _well_geometry()
-	var fall_bottom = float(geom["fall_bottom"])
+	if pending_spawn_piece and Time.get_ticks_msec() >= spawn_wait_until_ms:
+		_spawn_falling_piece()
 
-	fall_y += fall_speed * delta
-	if fall_y > fall_bottom:
-		_lock_falling_to_pile()
+	if not pending_spawn_piece:
+		var geom = _well_geometry()
+		var fall_bottom = float(geom["fall_bottom"])
+		fall_y += fall_speed * delta
+		if fall_y > fall_bottom:
+			_lock_falling_to_pile()
 
 	_redraw_well()
+	_update_debug_overlay()
 
 	# Drag: ghost always visible
 	if dragging and selected_piece != null:
-		var mouse := get_viewport().get_mouse_position()
-		var cell := _mouse_to_board_cell(mouse)
+		var mouse = get_viewport().get_mouse_position()
+		var cell = _mouse_to_board_cell(mouse)
 
 		if cell.x == -1:
 			drag_anchor = Vector2i(-999, -999)
@@ -1060,7 +1277,7 @@ func _process(delta: float) -> void:
 			ghost_root.visible = true
 			ghost_root.global_position = mouse - ghost_bbox_size * 0.5
 		else:
-			var top_left := board_panel.global_position + board_start + Vector2(cell.x * cell_size, cell.y * cell_size)
+			var top_left = board_panel.global_position + board_start + Vector2(cell.x * cell_size, cell.y * cell_size)
 			ghost_root.visible = true
 			ghost_root.global_position = top_left
 			drag_anchor = cell
@@ -1107,6 +1324,13 @@ func _clear_highlight() -> void:
 	for y in range(BOARD_SIZE):
 		for x in range(BOARD_SIZE):
 			board_hl[y][x].color = Color(0, 0, 0, 0)
+	if clear_flash_left > 0.0:
+		var a = clamp(clear_flash_left * 3.8, 0.0, 0.8)
+		for pos in clear_flash_cells:
+			var fx = int(pos.x)
+			var fy = int(pos.y)
+			if fx >= 0 and fx < BOARD_SIZE and fy >= 0 and fy < BOARD_SIZE:
+				board_hl[fy][fx].color = Color(1.0, 1.0, 0.45, a)
 
 
 func _highlight_piece(piece, ax: int, ay: int) -> void:

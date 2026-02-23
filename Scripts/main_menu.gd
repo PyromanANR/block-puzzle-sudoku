@@ -7,19 +7,62 @@ var popup_difficulty: PopupPanel
 var opt_difficulty: OptionButton
 var chk_no_mercy: CheckBox
 var lbl_no_mercy_help: Label
+var sfx_players = {}
+var missing_sfx_warned = {}
 
 
 func _skin_manager():
 	return get_node_or_null("/root/SkinManager")
 
 
+
+func _audio_setup() -> void:
+	_ensure_sfx("ui_hover", "res://Assets/Audio/ui_hover.wav", -12.0)
+	_ensure_sfx("ui_click", "res://Assets/Audio/ui_click.wav", -10.0)
+
+
+func _ensure_sfx(key, path, volume_db) -> void:
+	if sfx_players.has(key):
+		return
+	if not ResourceLoader.exists(path):
+		_warn_missing_sfx_once(key, path)
+		return
+	var p = AudioStreamPlayer.new()
+	p.bus = "Master"
+	p.volume_db = volume_db
+	p.stream = load(path)
+	if p.stream == null:
+		_warn_missing_sfx_once(key, path)
+		return
+	add_child(p)
+	sfx_players[key] = p
+
+
+func _warn_missing_sfx_once(key, path) -> void:
+	if missing_sfx_warned.has(key):
+		return
+	missing_sfx_warned[key] = true
+	if OS.is_debug_build():
+		push_warning("Missing SFX '%s' at %s (audio skipped)." % [key, path])
+
+
+func _play_sfx(key) -> void:
+	if not sfx_players.has(key):
+		return
+	var p = sfx_players[key]
+	if p != null and p.stream != null:
+		p.play()
+
 func _ready() -> void:
+	_audio_setup()
 	_build_ui()
 	_refresh_difficulty_label()
 
 
 func _build_ui() -> void:
 	for ch in get_children():
+		if ch is AudioStreamPlayer:
+			continue
 		ch.queue_free()
 
 	var root := Panel.new()
@@ -57,9 +100,11 @@ func _build_ui() -> void:
 
 
 func _menu_button(text: String, cb: Callable) -> Button:
-	var b := Button.new()
+	var b = Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(380, 56)
+	b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	b.pressed.connect(func(): _play_sfx("ui_click"))
 	b.pressed.connect(cb)
 	return b
 
@@ -89,10 +134,13 @@ func _build_difficulty_popup(root: Control) -> void:
 	opt_difficulty.add_item("Medium")
 	opt_difficulty.add_item("Hard")
 	opt_difficulty.item_selected.connect(_on_difficulty_selected)
+	opt_difficulty.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	v.add_child(opt_difficulty)
 
 	chk_no_mercy = CheckBox.new()
 	chk_no_mercy.text = "No Mercy"
+	chk_no_mercy.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	chk_no_mercy.pressed.connect(func(): _play_sfx("ui_click"))
 	v.add_child(chk_no_mercy)
 
 	lbl_no_mercy_help = Label.new()
@@ -106,11 +154,15 @@ func _build_difficulty_popup(root: Control) -> void:
 
 	var apply := Button.new()
 	apply.text = "Apply"
+	apply.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	apply.pressed.connect(func(): _play_sfx("ui_click"))
 	apply.pressed.connect(_on_apply_difficulty)
 	btns.add_child(apply)
 
 	var cancel := Button.new()
 	cancel.text = "Cancel"
+	cancel.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	cancel.pressed.connect(func(): _play_sfx("ui_click"))
 	cancel.pressed.connect(func(): popup_difficulty.hide())
 	btns.add_child(cancel)
 
