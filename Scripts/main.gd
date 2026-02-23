@@ -1,6 +1,8 @@
 extends Control
 
 const BoardGridOverlay = preload("res://Scripts/BoardGridOverlay.gd")
+const MAIN_MENU_SCENE = "res://Scenes/MainMenu.tscn"
+const MAIN_SCENE = "res://Scenes/Main.tscn"
 
 # ============================================================
 # TETRIS SUDOKU (UI v2)
@@ -77,6 +79,7 @@ var next_box: Panel
 
 var btn_settings: Button
 var btn_exit: Button
+var exit_dialog: AcceptDialog
 
 # Game Over overlay
 var overlay_dim: ColorRect
@@ -437,6 +440,15 @@ func _build_ui() -> void:
 	overlay_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(overlay_text)
 
+	exit_dialog = AcceptDialog.new()
+	exit_dialog.title = "Exit"
+	exit_dialog.dialog_text = "What would you like to do?"
+	exit_dialog.add_button("Main Menu", false, "main_menu")
+	exit_dialog.add_button("Restart", false, "restart")
+	exit_dialog.add_button("Cancel", true, "cancel")
+	exit_dialog.custom_action.connect(_on_exit_dialog_action)
+	root_frame.add_child(exit_dialog)
+
 
 func _hud_line(k: String, v: String) -> Label:
 	var l = Label.new()
@@ -516,7 +528,19 @@ func _on_settings() -> void:
 
 
 func _on_exit() -> void:
-	get_tree().quit()
+	exit_dialog.popup_centered(Vector2i(380, 180))
+
+
+func _on_exit_dialog_action(action: StringName) -> void:
+	if action == "main_menu":
+		get_tree().change_scene_to_file(MAIN_MENU_SCENE)
+	elif action == "restart":
+		if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == MAIN_SCENE:
+			get_tree().reload_current_scene()
+		else:
+			_start_round()
+			set_process(true)
+	exit_dialog.hide()
 
 
 # ============================================================
@@ -638,21 +662,44 @@ func _draw_preview(target: Panel, piece) -> void:
 	for ch in target.get_children():
 		ch.queue_free()
 
+	target.queue_redraw()
 	if piece == null:
 		return
 
-	var inner_w = max(target.size.x, target.custom_minimum_size.x) - 20.0
-	var inner_h = max(target.size.y, target.custom_minimum_size.y) - 20.0
-	if inner_w <= 0.0 or inner_h <= 0.0:
+	var target_size = Vector2(max(target.size.x, target.custom_minimum_size.x), max(target.size.y, target.custom_minimum_size.y))
+	var preview_size = target_size - Vector2(20, 20)
+	if preview_size.x <= 0.0 or preview_size.y <= 0.0:
 		return
-	var frame = Vector2(inner_w, inner_h)
+
 	var desired_cell = int(clamp(float(cell_size) * 0.75, 14.0, 34.0))
-	var preview_cell_size = _fitted_cell_size(piece, desired_cell, frame, 0.92)
-	var pv = _make_piece_preview(piece, preview_cell_size, frame)
-	var center = CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	target.add_child(center)
-	center.add_child(pv)
+	var preview_cell_size = _fitted_cell_size(piece, desired_cell, preview_size, 0.92)
+
+	var min_x = 999
+	var min_y = 999
+	var max_x = -999
+	var max_y = -999
+	for c in piece.get("Cells"):
+		min_x = min(min_x, int(c.x))
+		min_y = min(min_y, int(c.y))
+		max_x = max(max_x, int(c.x))
+		max_y = max(max_y, int(c.y))
+
+	var bbox_px_w = (max_x - min_x + 1) * preview_cell_size
+	var bbox_px_h = (max_y - min_y + 1) * preview_cell_size
+	var offset = (preview_size - Vector2(bbox_px_w, bbox_px_h)) * 0.5 - Vector2(min_x, min_y) * preview_cell_size
+
+	var pv = Control.new()
+	pv.size = preview_size
+	pv.position = (target_size - preview_size) * 0.5
+	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var col = _color_for_kind(String(piece.get("Kind")))
+	for c in piece.get("Cells"):
+		var b = _bevel_block(col, preview_cell_size - 2)
+		b.position = offset + Vector2(int(c.x) * preview_cell_size, int(c.y) * preview_cell_size)
+		pv.add_child(b)
+
+	target.add_child(pv)
 
 
 func _fitted_cell_size(piece, desired_cell: int, frame: Vector2, fit_ratio: float = 0.9) -> int:
@@ -678,9 +725,12 @@ func _fitted_cell_size(piece, desired_cell: int, frame: Vector2, fit_ratio: floa
 func _spawn_falling_piece() -> void:
 	fall_piece = core.call("PopNextPieceForBoard", board)
 	fall_y = 10.0
+	next_box.queue_redraw()
 	_update_previews()
 
 func _lock_falling_to_pile() -> void:
+	if selected_piece == fall_piece:
+		_force_cancel_drag("CommittedToWell", true)
 	pile.append(fall_piece)
 	if pile.size() > pile_max:
 		_trigger_game_over()
@@ -903,6 +953,17 @@ func _finish_drag() -> void:
 	selected_from_pile_index = -1
 
 
+func _force_cancel_drag(reason: String = "", committed: bool = false) -> void:
+	dragging = false
+	ghost_root.visible = false
+	drag_anchor = Vector2i(-999, -999)
+	_clear_highlight()
+	if committed:
+		selected_piece = null
+		selected_from_pile_index = -1
+
+
+
 func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	if not bool(board.call("CanPlace", piece, ax, ay)):
 		return false
@@ -932,11 +993,13 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	# Remove from pile if it came from pile
 	if selected_from_pile_index >= 0 and selected_from_pile_index < pile.size():
 		pile.remove_at(selected_from_pile_index)
+		_force_cancel_drag("CommittedToBoard", true)
 	else:
 		# Falling piece is consumed only after successful placement.
+		_force_cancel_drag("CommittedToBoard", true)
 		_spawn_falling_piece()
 
-	var move_time_sec = max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
+	var move_time_sec := max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
 	core.call("RegisterSuccessfulPlacement", int(result.get("cleared_count", 0)), move_time_sec, _board_fill_ratio())
 
 	_refresh_board_visual()
