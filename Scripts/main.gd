@@ -9,8 +9,8 @@ extends Control
 # - Ghost always visible while dragging
 # Requires CoreBridge.cs:
 #   - CreateBoard()
-#   - PopNextPiece()
-#   - PeekNextPiece()
+#   - PopNextPieceForBoard(board)
+#   - PeekNextPieceForBoard(board)
 # ============================================================
 
 # ----------------------------
@@ -42,6 +42,7 @@ var selected_piece = null
 var selected_from_pile_index: int = -1
 var dragging: bool = false
 var drag_anchor: Vector2i = Vector2i(-999, -999)
+var drag_start_ms: int = 0
 
 # ----------------------------
 # Ghost (always visible)
@@ -349,8 +350,9 @@ func _hide_game_over_overlay() -> void:
 
 
 func _on_settings() -> void:
-	# Placeholder: later you can open Settings scene/popup
-	print("Settings clicked")
+	# Debug utility: quick simulation snapshot from CoreBridge.
+	var sim := core.call("RunSimulationBatch", 200, 42)
+	print("Balance sim:", sim)
 
 
 func _on_exit() -> void:
@@ -658,6 +660,7 @@ func _start_drag_selected() -> void:
 		return
 	dragging = true
 	drag_anchor = Vector2i(-999, -999)
+	drag_start_ms = Time.get_ticks_msec()
 	_build_ghost_for_piece(selected_piece)
 	ghost_root.visible = true
 
@@ -670,16 +673,21 @@ func _finish_drag() -> void:
 	drag_anchor = Vector2i(-999, -999)
 	_clear_highlight()
 
-	if anchor.x != -999 and selected_piece != null:
-		_try_place_piece(selected_piece, anchor.x, anchor.y)
+	var was_selected := selected_piece != null
+	var placed := false
+	if anchor.x != -999 and was_selected:
+		placed = _try_place_piece(selected_piece, anchor.x, anchor.y)
+
+	if was_selected and not placed:
+		core.call("RegisterCancelledDrag")
 
 	selected_piece = null
 	selected_from_pile_index = -1
 
 
-func _try_place_piece(piece, ax: int, ay: int) -> void:
+func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	if not bool(board.call("CanPlace", piece, ax, ay)):
-		return
+		return false
 
 	var result: Dictionary = board.call("PlaceAndClear", piece, ax, ay)
 
@@ -710,9 +718,13 @@ func _try_place_piece(piece, ax: int, ay: int) -> void:
 		# Falling piece is consumed only after successful placement.
 		_spawn_falling_piece()
 
+	var move_time_sec := max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
+	core.call("RegisterSuccessfulPlacement", int(result.get("cleared_count", 0)), move_time_sec, _board_fill_ratio())
+
 	_refresh_board_visual()
 	_update_hud()
 	_redraw_well()
+	return true
 
 
 func _on_board_cell_input(event: InputEvent, x: int, y: int) -> void:
@@ -742,11 +754,9 @@ func _process(delta: float) -> void:
 	_update_time()
 	_update_difficulty()
 
-	# Falling speed (very slow at start)
-	var base_fall := 16.0
-	var accel := pow(1.12, float(level - 1))
-	var fall_speed := base_fall * accel
-	speed_ui = accel
+	# Falling speed is driven by DifficultyDirector + level curve from Core.
+	var fall_speed := float(core.call("GetFallSpeed", float(level)))
+	speed_ui = fall_speed / 16.0
 	lbl_speed.text = "Speed: %.2f" % speed_ui
 
 	var geom = _well_geometry()
@@ -777,6 +787,15 @@ func _process(delta: float) -> void:
 
 		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			_finish_drag()
+
+
+func _board_fill_ratio() -> float:
+	var occ := 0
+	for y in range(BOARD_SIZE):
+		for x in range(BOARD_SIZE):
+			if int(board.call("GetCell", x, y)) != 0:
+				occ += 1
+	return float(occ) / float(BOARD_SIZE * BOARD_SIZE)
 
 
 # ============================================================
