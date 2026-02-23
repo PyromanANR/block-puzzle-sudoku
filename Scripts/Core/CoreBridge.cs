@@ -1,193 +1,223 @@
 using Godot;
-using System;
-using System.Collections.Generic;
+using Godot.Collections;
 
 public partial class CoreBridge : Node
 {
-    private enum Kind { I, O, T, S, Z, J, L }
-    // Training bias (early game helper)
-    private int _trainingLeft = 24; // first ~24 spawns are easier
-
     private readonly RandomNumberGenerator _rng = new();
 
-    // Library: Kind -> base cells
-    private Dictionary<Kind, Vector2I[]> _lib;
+    private BalanceConfig _config;
+    private PieceGenerator _generator;
+    private readonly GameMetrics _metrics = new();
+    private readonly DifficultyDirector _director = new();
+    private int _startMs;
 
-    // 7-bag queue
-    private readonly List<Kind> _bag = new();
-    private readonly Queue<Kind> _queue = new();
+    private BoardModel _activeBoard;
+    private float _smoothedFallSpeed;
+    private float _lastTargetSpeed;
+    private int _lastSpeedCalcMs;
+    private int _lastDebugSpeedLogMs;
 
-    // Hold / Reserve
-    private Kind? _hold = null;
-    private bool _holdUsed = false;
+    private string _difficulty = "Medium";
+    private bool _noMercy = false;
 
     public override void _Ready()
     {
         _rng.Randomize();
-        _lib = BuildLibrary();
+        _config = BalanceConfig.LoadOrDefault("res://Scripts/Core/balance_config.json");
+        _generator = new PieceGenerator(_rng, _config);
 
-        // Prime queue with at least 2 pieces
-        EnsureQueue(2);
+        _startMs = Time.GetTicksMsec();
+        _lastSpeedCalcMs = _startMs;
+        _lastDebugSpeedLogMs = _startMs;
+        ApplyDifficultyFromSave();
+        _smoothedFallSpeed = _config.BaseFallSpeed;
+        _lastTargetSpeed = _smoothedFallSpeed;
     }
 
-    // --- Board factory (used by GDScript) ---
+
+    public void ApplyDifficultyFromSave()
+    {
+        var save = GetNodeOrNull<Node>("/root/Save");
+        if (save == null)
+            return;
+
+        _difficulty = save.Call("get_current_difficulty").AsString();
+        _noMercy = save.Call("get_no_mercy").AsBool();
+
+        float maxSpeedMultiplier = 9.0f;
+        int pileMax = 7;
+        int topSelectable = 2;
+
+        if (_difficulty == "Easy")
+        {
+            maxSpeedMultiplier = 8.0f;
+            pileMax = 8;
+            topSelectable = 3;
+        }
+        else if (_difficulty == "Hard")
+        {
+            maxSpeedMultiplier = 10.0f;
+            pileMax = 6;
+            topSelectable = _noMercy ? 0 : 1;
+        }
+
+        _config.PileMax = pileMax;
+        _config.WellSize = pileMax;
+        _config.TopSelectable = topSelectable;
+        _config.MaxFallSpeedCap = _config.BaseFallSpeed * maxSpeedMultiplier;
+    }
+
     public BoardModel CreateBoard()
     {
         var b = new BoardModel();
         b.Reset();
+        _activeBoard = b;
         return b;
     }
 
-    // --- Next / Peek ---
-    public PieceData PeekNextPiece()
+    // Compatibility API for callers without explicit board argument.
+    public PieceData PeekNextPiece() => _generator.Peek(_activeBoard, ComputeIdealChance());
+
+    // Compatibility API for callers without explicit board argument.
+    public PieceData PopNextPiece() => _generator.Pop(_activeBoard, ComputeIdealChance());
+
+    public PieceData PeekNextPieceForBoard(BoardModel board)
     {
-        EnsureQueue(1);
-        return MakePiece(_queue.Peek());
+        return _generator.Peek(board, ComputeIdealChance());
     }
 
-    public PieceData PopNextPiece()
+    public PieceData PopNextPieceForBoard(BoardModel board)
     {
-        EnsureQueue(1);
-        var k = _queue.Dequeue();
-        EnsureQueue(1);
-        return MakePiece(k);
+        return _generator.Pop(board, ComputeIdealChance());
     }
 
-    // --- Hold/Reserve (Swap) ---
-    // Call when player presses Swap button for currently selected piece.
-    // Returns the new piece to use (may be the same if swap not allowed).
+    private PieceData _holdPiece = null;
+    private bool _holdUsed = false;
+
     public PieceData HoldSwap(PieceData current)
     {
-        if (current == null) return null;
+        if (current == null)
+            return null;
 
-        // Only once per "turn" (until placement happens)
         if (_holdUsed)
             return current;
 
         _holdUsed = true;
 
-        var curKind = ParseKind(current.Kind);
+        if (_holdPiece == null)
+        {
+            _holdPiece = PieceGenerator.MakePiece(current.Kind);
+            return _generator.Pop(_activeBoard, ComputeIdealChance());
+        }
 
-        if (_hold == null)
-        {
-            _hold = curKind;
-            // If hold was empty, take next from queue
-            return PopNextPiece();
-        }
-        else
-        {
-            var outKind = _hold.Value;
-            _hold = curKind;
-            return MakePiece(outKind);
-        }
+        var outPiece = _holdPiece;
+        _holdPiece = PieceGenerator.MakePiece(current.Kind);
+        return outPiece;
     }
 
-    // Call after a successful placement on board
-    public void ResetHoldUsage()
+    public void ResetHoldUsage() => _holdUsed = false;
+
+    public PieceData GetHoldPiece() => _holdPiece == null ? null : PieceGenerator.MakePiece(_holdPiece.Kind);
+
+    public void RegisterSuccessfulPlacement(int clearedCount, float moveTimeSec, float boardFillRatio)
     {
+        _metrics.RegisterMove(moveTimeSec, clearedCount, boardFillRatio);
+        _generator.RegisterMoveOutcome(clearedCount);
+        _director.Update(_metrics.Snapshot(), _config);
         _holdUsed = false;
+
+#if DEBUG
+        var dbg = _generator.GetDebugSnapshot(ComputeIdealChance());
+        GD.Print($"[BALANCE] secSinceWell={dbg["lastWellSecondsAgo"]:0.0}, piecesSinceWell={dbg["piecesSinceWell"]}, ideal={dbg["currentIdealChance"]:0.00}, pity={dbg["pityTriggers"]}, targetSpeed={_lastTargetSpeed:0.00}, displayedSpeed={_smoothedFallSpeed:0.00}");
+#endif
     }
 
-    public PieceData GetHoldPiece()
+    public void RegisterCancelledDrag()
     {
-        return _hold == null ? null : MakePiece(_hold.Value);
+        _metrics.RegisterCancelledDrag();
+        _director.Update(_metrics.Snapshot(), _config);
     }
 
-    private Kind WeightedTrainingPick()
+    public float GetFallSpeed(float level)
     {
-        // More O/I/T early, fewer S/Z early
-        // weights sum = 100
-        int roll = _rng.RandiRange(1, 100);
-        if (roll <= 28) return Kind.O;        // 28%
-        if (roll <= 50) return Kind.I;        // 22%
-        if (roll <= 66) return Kind.T;        // 16%
-        if (roll <= 78) return Kind.L;        // 12%
-        if (roll <= 90) return Kind.J;        // 12%
-        if (roll <= 95) return Kind.S;        // 5%
-        return Kind.Z;                         // 5%
-    }
+        var levelGrowth = Mathf.Pow(_config.LevelSpeedGrowth, Mathf.Max(0f, level - 1f));
+        var elapsedMinutes = GetElapsedMinutes();
+        var timeGrowth = 1.0f + _config.TimeSpeedRampPerMinute * elapsedMinutes;
 
-    // --- Helpers ---
-    private void EnsureQueue(int count)
-    {
-        while (_queue.Count < count)
+        var target = _config.BaseFallSpeed * levelGrowth * timeGrowth * _director.GetFallMultiplier(_config);
+        target = Mathf.Min(target, _config.MaxFallSpeedCap);
+        _lastTargetSpeed = target;
+
+        var now = Time.GetTicksMsec();
+        var dt = Mathf.Max(0.001f, (now - _lastSpeedCalcMs) / 1000.0f);
+        _lastSpeedCalcMs = now;
+        var maxDelta = _config.MaxFallSpeedDeltaPerSec * dt;
+        _smoothedFallSpeed = Mathf.MoveToward(_smoothedFallSpeed, target, maxDelta);
+
+#if DEBUG
+        if (now - _lastDebugSpeedLogMs >= 1000)
         {
-            Kind k;
-
-            if (_trainingLeft > 0)
-            {
-                k = WeightedTrainingPick();
-                _trainingLeft--;
-            }
-            else
-            {
-                if (_bag.Count == 0) RefillBag();
-                var idx = _rng.RandiRange(0, _bag.Count - 1);
-                k = _bag[idx];
-                _bag.RemoveAt(idx);
-            }
-
-            _queue.Enqueue(k);
+            _lastDebugSpeedLogMs = now;
+            var capReached = target >= _config.MaxFallSpeedCap - 0.001f;
+            GD.Print($"[SPEED] target={target:0.00}, smoothed={_smoothedFallSpeed:0.00}, level={level:0.0}, elapsedMin={elapsedMinutes:0.00}, capReached={capReached}");
         }
+#endif
+
+        return _smoothedFallSpeed;
     }
 
-    private void RefillBag()
+    public int GetLevelForScore(int score)
     {
-        _bag.Clear();
-        _bag.AddRange(new[] { Kind.I, Kind.O, Kind.T, Kind.S, Kind.Z, Kind.J, Kind.L });
-        // Shuffle-ish by RNG removal in EnsureQueue (good enough)
+        return 1 + Mathf.Max(0, score) / Mathf.Max(1, _config.PointsPerLevel);
     }
 
-    private PieceData MakePiece(Kind k)
+    public Dictionary GetWellSettings()
     {
-        var p = new PieceData();
-        p.Kind = k.ToString(); // "I".."L"
-
-        foreach (var c in _lib[k])
-            p.Cells.Add(c);
-
-        return p;
-    }
-
-    private static Kind ParseKind(string s)
-    {
-        if (Enum.TryParse<Kind>(s, out var k))
-            return k;
-        return Kind.T;
-    }
-
-    private static Dictionary<Kind, Vector2I[]> BuildLibrary()
-    {
-        // Using a simple orientation for each tetromino
-        // Coordinates are relative to (0,0).
-        return new Dictionary<Kind, Vector2I[]>
+        return new Dictionary
         {
-            // I: ####
-            { Kind.I, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(2,0), new Vector2I(3,0) } },
-
-            // O: ##
-            //    ##
-            { Kind.O, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(0,1), new Vector2I(1,1) } },
-
-            // T: ###
-            //     #
-            { Kind.T, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(2,0), new Vector2I(1,1) } },
-
-            // S:  ##
-            //    ##
-            { Kind.S, new [] { new Vector2I(1,0), new Vector2I(2,0), new Vector2I(0,1), new Vector2I(1,1) } },
-
-            // Z: ##
-            //     ##
-            { Kind.Z, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(1,1), new Vector2I(2,1) } },
-
-            // J: #
-            //    ###
-            { Kind.J, new [] { new Vector2I(0,0), new Vector2I(0,1), new Vector2I(1,1), new Vector2I(2,1) } },
-
-            // L:   #
-            //    ###
-            { Kind.L, new [] { new Vector2I(2,0), new Vector2I(0,1), new Vector2I(1,1), new Vector2I(2,1) } },
+            { "well_size", _config.WellSize },
+            { "pile_max", _config.PileMax },
+            { "top_selectable", _config.TopSelectable },
+            { "pile_visible", _config.PileVisible },
+            { "danger_start_ratio", _config.DangerLineStartRatio },
+            { "danger_end_ratio", _config.DangerLineEndRatio }
         };
+    }
+
+    public Dictionary GetDifficultySnapshot()
+    {
+        var m = _metrics.Snapshot();
+        var dbg = _generator.GetDebugSnapshot(ComputeIdealChance());
+        return new Dictionary
+        {
+            { "difficulty01", _director.Difficulty01 },
+            { "ideal_chance", dbg["currentIdealChance"] },
+            { "avg_move_time", m.AvgMoveTimeSec },
+            { "avg_fill", m.AvgBoardFill },
+            { "cancel_rate", m.CancelRate },
+            { "last_well_seconds", dbg["lastWellSecondsAgo"] },
+            { "pieces_since_well", dbg["piecesSinceWell"] },
+            { "pity_triggers", dbg["pityTriggers"] },
+            { "target_speed", _lastTargetSpeed },
+            { "displayed_speed", _smoothedFallSpeed }
+        };
+    }
+
+    public Dictionary RunSimulationBatch(int games, int seed = 1)
+    {
+        return SimulationRunner.RunBatch(_config, games, seed);
+    }
+
+    private float ComputeIdealChance()
+    {
+        var fromDda = _director.GetIdealPieceChance(_config);
+        var elapsedMinutes = GetElapsedMinutes();
+        var decayed = fromDda - _config.IdealChanceDecayPerMinute * elapsedMinutes;
+        return Mathf.Clamp(decayed, _config.IdealChanceFloor, 1.0f);
+    }
+
+    private float GetElapsedMinutes()
+    {
+        return Mathf.Max(0f, (Time.GetTicksMsec() - _startMs) / 60000.0f);
     }
 }
