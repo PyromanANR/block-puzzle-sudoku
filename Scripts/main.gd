@@ -523,7 +523,7 @@ func _hide_game_over_overlay() -> void:
 
 func _on_settings() -> void:
 	# Debug utility: quick simulation snapshot from CoreBridge.
-	var sim6 := core.call("RunSimulationBatch", 120, 42)
+	var sim6 = core.call("RunSimulationBatch", 120, 42)
 	print("Balance sim default:", sim6)
 
 
