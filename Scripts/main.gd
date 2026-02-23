@@ -506,7 +506,7 @@ func _hide_game_over_overlay() -> void:
 
 func _on_settings() -> void:
 	# Debug utility: quick simulation snapshot from CoreBridge.
-	var sim6 := core.call("RunSimulationBatch", 120, 42)
+	var sim6 = core.call("RunSimulationBatch", 120, 42)
 	print("Balance sim default:", sim6)
 
 
@@ -799,6 +799,8 @@ func _redraw_well() -> void:
 				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
 
 			var preview = _make_piece_preview(p, slot_preview_cell, Vector2(slot.size.x - 8, slot.size.y - 8))
+			var mini = max(18, int(cell_size * 0.82))
+			var preview := _make_piece_preview(p, mini, Vector2(slot.size.x, slot.size.y))
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
 		elif is_active:
@@ -905,7 +907,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		# Falling piece is consumed only after successful placement.
 		_spawn_falling_piece()
 
-	var move_time_sec := max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
+	var move_time_sec = max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
 	core.call("RegisterSuccessfulPlacement", int(result.get("cleared_count", 0)), move_time_sec, _board_fill_ratio())
 
 	_refresh_board_visual()
