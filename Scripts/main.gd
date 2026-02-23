@@ -115,6 +115,38 @@ var reroll_uses_left: int = 1
 var freeze_uses_left: int = 1
 
 
+func _skin_manager():
+	return get_node_or_null("/root/SkinManager")
+
+
+func _skin_theme():
+	var sm = _skin_manager()
+	if sm != null:
+		return sm.get_theme()
+	return null
+
+
+func _skin_color(key: String, fallback: Color) -> Color:
+	var sm = _skin_manager()
+	if sm != null:
+		return sm.get_color(key, fallback)
+	return fallback
+
+
+func _skin_font_size(key: String, fallback: int) -> int:
+	var sm = _skin_manager()
+	if sm != null:
+		return sm.get_font_size(key, fallback)
+	return fallback
+
+
+func _skin_piece_color(kind: String) -> Color:
+	var sm = _skin_manager()
+	if sm != null:
+		return sm.get_piece_color(kind)
+	return COLOR_FILLED
+
+
 # ============================================================
 # Entry
 # ============================================================
@@ -195,116 +227,123 @@ func _build_ui() -> void:
 
 	root_frame = Panel.new()
 	root_frame.clip_contents = true
-	if SkinManager != null and SkinManager.get_theme() != null:
-		root_frame.theme = SkinManager.get_theme()
+	var skin_theme = _skin_theme()
+	if skin_theme != null:
+		root_frame.theme = skin_theme
 	root_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_frame.add_theme_stylebox_override("panel", _style_cartridge_frame())
 	add_child(root_frame)
 
-	# Title
 	title_label = Label.new()
 	title_label.text = "TETRIS SUDOKU"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_label.clip_text = true
 	title_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	title_label.offset_top = 10
+	title_label.offset_top = 8
 	title_label.offset_left = 20
 	title_label.offset_right = -20
-	title_label.offset_bottom = 70
-	title_label.add_theme_font_size_override("font_size", SkinManager.get_font_size("title", 44) if SkinManager != null else 44)
-	title_label.add_theme_color_override("font_color", SkinManager.get_color("text_primary", Color(0.08, 0.08, 0.08)) if SkinManager != null else Color(0.08, 0.08, 0.08))
+	title_label.offset_bottom = 72
+	title_label.add_theme_font_size_override("font_size", _skin_font_size("title", 48))
+	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	root_frame.add_child(title_label)
 
-	# Main vertical layout: top row (board+hud) + bottom row (well full width)
-	var main_v := VBoxContainer.new()
+	var main_v = VBoxContainer.new()
 	main_v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	main_v.offset_top = 80
 	main_v.offset_left = 24
 	main_v.offset_right = -24
 	main_v.offset_bottom = -24
-	main_v.add_theme_constant_override("separation", 16)
+	main_v.add_theme_constant_override("separation", 14)
 	root_frame.add_child(main_v)
 
-	# Top row
-	var top_row := HBoxContainer.new()
+	var top_row = HBoxContainer.new()
 	top_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_row.add_theme_constant_override("separation", 18)
+	top_row.add_theme_constant_override("separation", 16)
 	main_v.add_child(top_row)
 
-	# Board panel (left)
 	board_panel = Panel.new()
-	board_panel.custom_minimum_size = Vector2(820, 720)
+	board_panel.custom_minimum_size = Vector2(760, 680)
 	board_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	board_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	board_panel.add_theme_stylebox_override("panel", _style_board_panel())
 	top_row.add_child(board_panel)
 
-	# HUD (right)
 	hud_panel = Panel.new()
-	hud_panel.custom_minimum_size = Vector2(320, 0)
+	hud_panel.custom_minimum_size = Vector2(360, 0)
 	hud_panel.size_flags_horizontal = Control.SIZE_FILL
 	hud_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	hud_panel.add_theme_stylebox_override("panel", _style_hud_panel())
 	top_row.add_child(hud_panel)
 
-	var hv := VBoxContainer.new()
-	hv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	hv.offset_left = 16
-	hv.offset_right = -16
-	hv.offset_top = 16
-	hv.offset_bottom = -16
-	hv.add_theme_constant_override("separation", 12)
-	hud_panel.add_child(hv)
+	var hv_margin = MarginContainer.new()
+	hv_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hv_margin.add_theme_constant_override("margin_left", 14)
+	hv_margin.add_theme_constant_override("margin_right", 14)
+	hv_margin.add_theme_constant_override("margin_top", 14)
+	hv_margin.add_theme_constant_override("margin_bottom", 14)
+	hud_panel.add_child(hv_margin)
+
+	var hv = VBoxContainer.new()
+	hv.add_theme_constant_override("separation", 10)
+	hv_margin.add_child(hv)
 
 	lbl_score = _hud_line("Score", "0"); hv.add_child(lbl_score)
 	lbl_speed = _hud_line("Speed", "1.00"); hv.add_child(lbl_speed)
 	lbl_level = _hud_line("Level", "1"); hv.add_child(lbl_level)
 	lbl_time  = _hud_line("Time", "00:00"); hv.add_child(lbl_time)
 
-	var next_title := Label.new()
+	var next_title = Label.new()
 	next_title.text = "NEXT"
-	next_title.add_theme_font_size_override("font_size", 18)
-	next_title.add_theme_color_override("font_color", Color(0.12, 0.12, 0.12))
+	next_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
+	next_title.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.12, 0.12, 0.12)))
 	hv.add_child(next_title)
 
 	next_box = Panel.new()
-	next_box.custom_minimum_size = Vector2(0, 120)
+	next_box.custom_minimum_size = Vector2(0, 170)
 	next_box.add_theme_stylebox_override("panel", _style_preview_box())
 	hv.add_child(next_box)
 
-	# Settings / Exit buttons area
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 10)
-	hv.add_child(btn_row)
-
-	btn_settings = Button.new()
-	btn_settings.text = "Settings"
-	btn_settings.pressed.connect(_on_settings)
-	btn_row.add_child(btn_settings)
-
-	btn_exit = Button.new()
-	btn_exit.text = "Exit"
-	btn_exit.pressed.connect(_on_exit)
-	btn_row.add_child(btn_exit)
-
-	var skills_title := Label.new()
+	var skills_title = Label.new()
 	skills_title.text = "Skills"
-	skills_title.add_theme_font_size_override("font_size", 20)
+	skills_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
 	hv.add_child(skills_title)
 	hv.add_child(_build_skill_card("Reroll", 5, 1))
 	hv.add_child(_build_skill_card("Freeze", 10, 3))
 	hv.add_child(_build_skill_card("Clear", 20, 6))
 
-	# Spacer
-	var spacer := Control.new()
+	var spacer = Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	hv.add_child(spacer)
 
-	# Bottom row = full width well
+	var btn_row = HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_END
+	btn_row.add_theme_constant_override("separation", 10)
+	hv.add_child(btn_row)
+
+	btn_settings = Button.new()
+	btn_settings.text = "⚙ Settings"
+	btn_settings.custom_minimum_size = Vector2(140, 52)
+	btn_settings.add_theme_stylebox_override("normal", _style_gamepad_button_normal())
+	btn_settings.add_theme_stylebox_override("hover", _style_gamepad_button_hover())
+	btn_settings.add_theme_stylebox_override("pressed", _style_gamepad_button_pressed())
+	btn_settings.add_theme_stylebox_override("focus", _style_gamepad_button_hover())
+	btn_settings.pressed.connect(_on_settings)
+	btn_row.add_child(btn_settings)
+
+	btn_exit = Button.new()
+	btn_exit.text = "⨯ Exit"
+	btn_exit.custom_minimum_size = Vector2(120, 52)
+	btn_exit.add_theme_stylebox_override("normal", _style_gamepad_button_normal())
+	btn_exit.add_theme_stylebox_override("hover", _style_gamepad_button_hover())
+	btn_exit.add_theme_stylebox_override("pressed", _style_gamepad_button_pressed())
+	btn_exit.add_theme_stylebox_override("focus", _style_gamepad_button_hover())
+	btn_exit.pressed.connect(_on_exit)
+	btn_row.add_child(btn_exit)
+
 	well_panel = Panel.new()
-	well_panel.custom_minimum_size = Vector2(0, 900)
+	well_panel.custom_minimum_size = Vector2(0, 820)
 	well_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_panel.size_flags_vertical = Control.SIZE_FILL
 	well_panel.add_theme_stylebox_override("panel", _style_bottom_panel())
@@ -313,14 +352,13 @@ func _build_ui() -> void:
 
 	well_draw = Control.new()
 	well_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	well_draw.offset_left = 16
-	well_draw.offset_right = -16
-	well_draw.offset_top = 16
-	well_draw.offset_bottom = -16
+	well_draw.offset_left = 14
+	well_draw.offset_right = -14
+	well_draw.offset_top = 14
+	well_draw.offset_bottom = -14
 	well_draw.mouse_filter = Control.MOUSE_FILTER_STOP
 	well_panel.add_child(well_draw)
 
-	# Ghost layer
 	ghost_layer = Control.new()
 	ghost_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ghost_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -332,7 +370,6 @@ func _build_ui() -> void:
 	ghost_root.visible = false
 	ghost_layer.add_child(ghost_root)
 
-	# Game over overlay
 	overlay_dim = ColorRect.new()
 	overlay_dim.color = Color(0, 0, 0, 0.55)
 	overlay_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -353,52 +390,56 @@ func _build_ui() -> void:
 
 
 func _hud_line(k: String, v: String) -> Label:
-	var l := Label.new()
+	var l = Label.new()
 	l.text = "%s: %s" % [k, v]
-	l.add_theme_font_size_override("font_size", 22)
-	l.add_theme_color_override("font_color", Color(0.10, 0.10, 0.10))
+	l.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
+	l.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	return l
 
 
 func _build_skill_card(label_text: String, req_level: int, progress_level: int) -> Control:
-	var panel := Panel.new()
-	panel.custom_minimum_size = Vector2(0, 76)
-	var row := HBoxContainer.new()
+	var panel = Panel.new()
+	panel.custom_minimum_size = Vector2(0, 84)
+	panel.add_theme_stylebox_override("panel", _style_preview_box())
+	var row = HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 8
-	row.offset_right = -8
-	row.offset_top = 8
-	row.offset_bottom = -8
+	row.offset_left = 10
+	row.offset_right = -10
+	row.offset_top = 10
+	row.offset_bottom = -10
 	row.add_theme_constant_override("separation", 8)
 	panel.add_child(row)
 
-	var icon := ColorRect.new()
-	icon.custom_minimum_size = Vector2(34, 34)
-	icon.color = Color(0.95, 0.82, 0.35, 0.95)
+	var icon = Label.new()
+	icon.text = "◼"
+	icon.custom_minimum_size = Vector2(24, 24)
+	icon.add_theme_font_size_override("font_size", 26)
 	row.add_child(icon)
 
-	var col := VBoxContainer.new()
+	var col = VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(col)
 
-	var t := Label.new()
-	t.text = "%s (%d)" % [label_text, req_level]
+	var t = Label.new()
+	t.text = "%s (Lv.%d)" % [label_text, req_level]
+	t.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	col.add_child(t)
 
 	if progress_level >= req_level:
-		var ready := Label.new()
+		var ready = Label.new()
 		ready.text = "Ready"
+		ready.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 		col.add_child(ready)
 	else:
-		var pb := ProgressBar.new()
+		var pb = ProgressBar.new()
 		pb.max_value = req_level
 		pb.value = progress_level
 		pb.show_percentage = false
 		pb.custom_minimum_size = Vector2(0, 14)
 		col.add_child(pb)
-		var lock := Label.new()
-		lock.text = "Locked until %d" % req_level
-		lock.add_theme_font_size_override("font_size", 12)
+		var lock = Label.new()
+		lock.text = "Locked until Lv.%d" % req_level
+		lock.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
 		col.add_child(lock)
 
 	return panel
@@ -459,6 +500,24 @@ func _build_board_grid() -> void:
 		int((board_panel.size.y - board_px) * 0.55) # push slightly down (less empty top)
 	)
 
+	var screen_bezel = Panel.new()
+	screen_bezel.position = board_start - Vector2(14, 14)
+	screen_bezel.size = Vector2(board_px + 28, board_px + 28)
+	screen_bezel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var screen_bezel_style = StyleBoxFlat.new()
+	screen_bezel_style.bg_color = Color(0.06, 0.08, 0.07, 0.95)
+	screen_bezel_style.border_width_left = 4
+	screen_bezel_style.border_width_right = 4
+	screen_bezel_style.border_width_top = 4
+	screen_bezel_style.border_width_bottom = 4
+	screen_bezel_style.border_color = Color(0.28, 0.30, 0.28)
+	screen_bezel_style.corner_radius_top_left = 12
+	screen_bezel_style.corner_radius_top_right = 12
+	screen_bezel_style.corner_radius_bottom_left = 12
+	screen_bezel_style.corner_radius_bottom_right = 12
+	screen_bezel.add_theme_stylebox_override("panel", screen_bezel_style)
+	board_panel.add_child(screen_bezel)
+
 	for y in range(BOARD_SIZE):
 		var row := []
 		var row2 := []
@@ -488,7 +547,17 @@ func _build_board_grid() -> void:
 	board_grid_overlay.size = Vector2(BOARD_SIZE * cell_size, BOARD_SIZE * cell_size)
 	board_grid_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	board_grid_overlay.call("configure", BOARD_SIZE, cell_size)
+	var grid_col = _skin_color("grid_border", Color(0.90, 0.66, 0.34, 0.95))
+	board_grid_overlay.thin_color = Color(grid_col.r, grid_col.g, grid_col.b, 0.40)
+	board_grid_overlay.thick_color = Color(grid_col.r, grid_col.g, grid_col.b, 0.92)
 	board_panel.add_child(board_grid_overlay)
+
+	var glare = ColorRect.new()
+	glare.position = board_start
+	glare.size = Vector2(BOARD_SIZE * cell_size, BOARD_SIZE * cell_size)
+	glare.color = Color(1, 1, 1, 0.04)
+	glare.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	board_panel.add_child(glare)
 
 	_refresh_board_visual()
 
@@ -523,21 +592,15 @@ func _draw_preview(target: Panel, piece) -> void:
 	if piece == null:
 		return
 
-	var pv := _make_piece_preview(piece, 22)
-	pv.position = Vector2(10, 10)
+	var pv = _make_piece_preview(piece, int(cell_size * 0.85), target.size - Vector2(18, 18))
+	pv.position = (target.size - pv.size) * 0.5
 	target.add_child(pv)
 
 
-# ============================================================
-# Well (fall zone + pile zone)
-# Fix #1: pile draws all pieces correctly, no 'continue' hiding
-# Fix #2: fall zone never overlaps pile zone
-# ============================================================
 func _spawn_falling_piece() -> void:
 	fall_piece = core.call("PopNextPieceForBoard", board)
 	fall_y = 10.0
 	_update_previews()
-
 
 func _lock_falling_to_pile() -> void:
 	pile.append(fall_piece)
@@ -598,92 +661,78 @@ func _redraw_well() -> void:
 	var fall_bottom = float(g["fall_bottom"])
 	var w = float(g["w"])
 
-	# How full the well is
 	var fill_ratio = clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
+	var danger_color = _skin_color("danger", Color(0.95, 0.2, 0.2))
 
-	# Danger line at pile_top (stronger when near full)
-	var danger_h := 4
-	var danger_a := 0.25
-	if fill_ratio >= danger_start_ratio:
-		danger_h = 6
-		danger_a = 0.35
+	var header = Panel.new()
+	header.position = Vector2(0, 0)
+	header.size = Vector2(w, 90)
+	header.add_theme_stylebox_override("panel", _style_preview_box())
+	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_draw.add_child(header)
+
+	var reserve_lbl = Label.new()
+	reserve_lbl.text = "RESERVE"
+	reserve_lbl.position = Vector2(12, 10)
+	reserve_lbl.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+	header.add_child(reserve_lbl)
+
+	var well_stat = Label.new()
+	well_stat.text = "WELL: %d / %d" % [pile.size(), pile_max]
+	well_stat.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	well_stat.position = Vector2(w - 220, 12)
+	well_stat.size = Vector2(200, 28)
+	well_stat.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+	header.add_child(well_stat)
+
+	var bar_bg = ColorRect.new()
+	bar_bg.color = Color(1, 1, 1, 0.13)
+	bar_bg.position = Vector2(12, 46)
+	bar_bg.size = Vector2(w - 24, 12)
+	header.add_child(bar_bg)
+
+	var bar_fg = ColorRect.new()
+	bar_fg.position = bar_bg.position
+	bar_fg.size = Vector2(bar_bg.size.x * fill_ratio, bar_bg.size.y)
 	if fill_ratio >= danger_end_ratio:
-		danger_h = 10
-		danger_a = 0.50
+		bar_fg.color = danger_color
+	elif fill_ratio >= danger_start_ratio:
+		bar_fg.color = Color(0.94, 0.80, 0.26, 0.86)
+	else:
+		bar_fg.color = Color(0.30, 0.86, 0.43, 0.86)
+	header.add_child(bar_fg)
 
-	var danger_shadow := ColorRect.new()
-	danger_shadow.color = Color(0.4, 0.0, 0.0, 0.35)
-	danger_shadow.position = Vector2(0, pile_top + 2)
-	danger_shadow.size = Vector2(w, danger_h + 4)
-	danger_shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(danger_shadow)
+	var danger_glow = ColorRect.new()
+	danger_glow.color = Color(danger_color.r, danger_color.g, danger_color.b, 0.30)
+	danger_glow.position = Vector2(10, 68)
+	danger_glow.size = Vector2(w - 20, 10)
+	header.add_child(danger_glow)
 
-	var danger := ColorRect.new()
-	danger.color = Color(0.95, 0.20, 0.20, max(0.45, danger_a + 0.15))
-	danger.position = Vector2(0, pile_top)
-	danger.size = Vector2(w, danger_h + 2)
-	danger.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(danger)
+	var danger_line = ColorRect.new()
+	danger_line.color = Color(danger_color.r, danger_color.g, danger_color.b, 0.90)
+	danger_line.position = Vector2(10, 70)
+	danger_line.size = Vector2(w - 20, 6)
+	header.add_child(danger_line)
 
-	var danger_lbl := Label.new()
-	danger_lbl.text = "DANGER"
-	danger_lbl.add_theme_font_size_override("font_size", 14)
-	danger_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.85))
-	danger_lbl.position = Vector2(w - 96, pile_top - 18)
-	danger_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(danger_lbl)
-
-	# Label
-	var hint := Label.new()
-	hint.text = "Reserve slots: yellow = selectable, grey = locked"
-	hint.add_theme_font_size_override("font_size", 18)
-	hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
-	hint.position = Vector2(14, 6)
+	var hint = Label.new()
+	hint.text = "Top slots selectable. Grey slots unlock by difficulty."
+	hint.add_theme_font_size_override("font_size", _skin_font_size("small", 14))
+	hint.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.8, 0.8, 0.8)))
+	hint.position = Vector2(12, 94)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_draw.add_child(hint)
 
-	# WELL counter (X / MAX)
-	var well_stat := Label.new()
-	well_stat.text = "WELL: %d / %d" % [pile.size(), pile_max]
-	well_stat.add_theme_font_size_override("font_size", 18)
-	well_stat.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
-	well_stat.position = Vector2(14, 26)
-	well_stat.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(well_stat)
-
-	# Fill bar (visual pressure)
-	var bar_y = pile_top - 18
-	var bar_bg := ColorRect.new()
-	bar_bg.color = Color(1, 1, 1, 0.10)
-	bar_bg.position = Vector2(14, bar_y)
-	bar_bg.size = Vector2(w - 28, 10)
-	bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(bar_bg)
-
-	var bar_col := Color(0.2, 0.9, 0.2, 0.75)
-	if fill_ratio >= danger_start_ratio:
-		bar_col = Color(0.95, 0.85, 0.2, 0.75)
-	if fill_ratio >= danger_end_ratio:
-		bar_col = Color(0.95, 0.2, 0.2, 0.80)
-
-	var bar_fg := ColorRect.new()
-	bar_fg.color = bar_col
-	bar_fg.position = bar_bg.position
-	bar_fg.size = Vector2(bar_bg.size.x * fill_ratio, bar_bg.size.y)
-	bar_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(bar_fg)
-
-	# --- Draw stack slots exactly equal to difficulty capacity ---
+	var slots_top = max(pile_top, 126.0)
 	var slot_w = w - 20.0
-	var available_h = max(120.0, pile_bottom - pile_top - 12.0)
+	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
-	var dynamic_h = max(44.0, min(SLOT_H, per_slot - SLOT_GAP))
+	var dynamic_h = max(54.0, min(86.0, per_slot - SLOT_GAP))
+	var preview_mini = max(18, int(cell_size * 0.85))
 
 	for slot_i in range(pile_max):
-		# slot_i=0 is top selectable layer (closest to danger line)
 		var y = pile_bottom - dynamic_h - float(slot_i) * (dynamic_h + SLOT_GAP)
 
-		var slot := Panel.new()
+		var slot = Panel.new()
 		slot.size = Vector2(slot_w, dynamic_h)
 		slot.position = Vector2(10, y)
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -696,11 +745,10 @@ func _redraw_well() -> void:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
 		else:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_locked())
-			var lock_lbl := Label.new()
-			lock_lbl.text = "LOCKED"
-			lock_lbl.add_theme_font_size_override("font_size", 11)
-			lock_lbl.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75, 0.9))
-			lock_lbl.position = Vector2(8, 6)
+			var lock_lbl = Label.new()
+			lock_lbl.text = "🔒 Locked"
+			lock_lbl.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+			lock_lbl.position = Vector2(10, 10)
 			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			slot.add_child(lock_lbl)
 
@@ -709,24 +757,22 @@ func _redraw_well() -> void:
 			if is_active:
 				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
 
-			var mini := max(18, int(cell_size * 0.82))
-			var preview := _make_piece_preview(p, mini, Vector2(slot.size.x, slot.size.y))
+			var preview = _make_piece_preview(p, preview_mini, Vector2(slot.size.x - 8, slot.size.y - 8))
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
-		else:
-			var empty := Label.new()
-			empty.text = "EMPTY"
-			empty.add_theme_font_size_override("font_size", 16)
-			empty.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-			empty.position = Vector2(10, 18)
+		elif is_active:
+			var empty = Label.new()
+			empty.text = "Empty"
+			empty.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+			empty.position = Vector2(10, 12)
 			empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			slot.add_child(empty)
 
-	# Draw falling piece only within fall zone
 	if fall_piece != null and not is_game_over:
-		var fall := _make_piece_preview(fall_piece, 20, Vector2(180, 90))
+		var fall_frame_w = min(260.0, w - 30.0)
+		var fall = _make_piece_preview(fall_piece, preview_mini, Vector2(fall_frame_w, 120))
 		var fx = (w - fall.size.x) * 0.5
-		var fy = clamp(fall_y, fall_top, fall_bottom)
+		var fy = clamp(fall_y, max(fall_top, 120.0), fall_bottom)
 		fall.position = Vector2(fx, fy)
 		fall.mouse_filter = Control.MOUSE_FILTER_STOP
 		fall.gui_input.connect(func(ev): _on_falling_piece_input(ev))
@@ -1004,9 +1050,7 @@ func _make_piece_preview(piece, mini: int, frame: Vector2 = Vector2(140, 90)) ->
 
 
 func _color_for_kind(kind: String) -> Color:
-	if SkinManager != null:
-		return SkinManager.get_piece_color(kind)
-	return COLOR_FILLED
+	return _skin_piece_color(kind)
 
 
 # ============================================================
@@ -1014,7 +1058,7 @@ func _color_for_kind(kind: String) -> Color:
 # ============================================================
 func _style_cartridge_frame() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = SkinManager.get_color("cartridge_bg", Color(0.96, 0.86, 0.20)) if SkinManager != null else Color(0.96, 0.86, 0.20)
+	s.bg_color = _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42))
 	s.border_width_left = 8
 	s.border_width_right = 8
 	s.border_width_top = 8
@@ -1029,12 +1073,12 @@ func _style_cartridge_frame() -> StyleBoxFlat:
 
 func _style_board_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = SkinManager.get_color("board_bg", Color(0.32, 0.16, 0.06)) if SkinManager != null else Color(0.32, 0.16, 0.06)
+	s.bg_color = _skin_color("board_bg", Color(0.20, 0.22, 0.20))
 	s.border_width_left = 6
 	s.border_width_right = 6
 	s.border_width_top = 6
 	s.border_width_bottom = 6
-	s.border_color = Color(0.75, 0.45, 0.18)
+	s.border_color = Color(0.14, 0.16, 0.14)
 	s.corner_radius_top_left = 10
 	s.corner_radius_top_right = 10
 	s.corner_radius_bottom_left = 10
@@ -1044,7 +1088,7 @@ func _style_board_panel() -> StyleBoxFlat:
 
 func _style_hud_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = SkinManager.get_color("hud_bg", Color(0.92, 0.92, 0.92)) if SkinManager != null else Color(0.92, 0.92, 0.92)
+	s.bg_color = _skin_color("hud_bg", Color(0.92, 0.92, 0.92))
 	s.border_width_left = 6
 	s.border_width_right = 6
 	s.border_width_top = 6
@@ -1059,7 +1103,7 @@ func _style_hud_panel() -> StyleBoxFlat:
 
 func _style_bottom_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = SkinManager.get_color("well_bg", Color(0.20, 0.20, 0.20)) if SkinManager != null else Color(0.20, 0.20, 0.20)
+	s.bg_color = _skin_color("well_bg", Color(0.20, 0.20, 0.20))
 	s.border_width_left = 4
 	s.border_width_right = 4
 	s.border_width_top = 4
@@ -1073,35 +1117,37 @@ func _style_bottom_panel() -> StyleBoxFlat:
 
 
 func _style_preview_box() -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.85, 0.85, 0.85)
-	s.border_width_left = 3
-	s.border_width_right = 3
-	s.border_width_top = 3
-	s.border_width_bottom = 3
-	s.border_color = Color(0.20, 0.20, 0.20)
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(1.0, 1.0, 1.0, 0.10)
+	s.border_width_left = 2
+	s.border_width_right = 2
+	s.border_width_top = 2
+	s.border_width_bottom = 2
+	s.border_color = Color(0.20, 0.20, 0.20, 0.35)
 	s.corner_radius_top_left = 8
 	s.corner_radius_top_right = 8
 	s.corner_radius_bottom_left = 8
 	s.corner_radius_bottom_right = 8
+	s.shadow_color = Color(0, 0, 0, 0.20)
+	s.shadow_size = 4
 	return s
 
 
 func _style_cell_empty(x: int, y: int) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	var in_block_dark := ((x / 3) + (y / 3)) % 2 == 1
-	s.bg_color = RETRO_GRID_DARK if in_block_dark else RETRO_GRID_BASE
+	s.bg_color = _skin_color("cell_dark", RETRO_GRID_DARK) if in_block_dark else _skin_color("cell_base", RETRO_GRID_BASE)
 
 	var thick_left := (x % 3 == 0)
 	var thick_top := (y % 3 == 0)
 	var thick_right := ((x + 1) % 3 == 0)
 	var thick_bottom := ((y + 1) % 3 == 0)
 
-	s.border_width_left = 3 if thick_left else 1
-	s.border_width_top = 3 if thick_top else 1
-	s.border_width_right = 3 if thick_right else 1
-	s.border_width_bottom = 3 if thick_bottom else 1
-	s.border_color = RETRO_GRID_BORDER
+	s.border_width_left = 4 if thick_left else 1
+	s.border_width_top = 4 if thick_top else 1
+	s.border_width_right = 4 if thick_right else 1
+	s.border_width_bottom = 4 if thick_bottom else 1
+	s.border_color = _skin_color("grid_border", RETRO_GRID_BORDER)
 	return s
 
 
@@ -1117,31 +1163,61 @@ func _style_cell_filled_colored(base: Color) -> StyleBoxFlat:
 
 
 func _style_stack_slot() -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.10, 0.10, 0.10)
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.08, 0.08, 0.10)
 	s.border_width_left = 2
 	s.border_width_right = 2
 	s.border_width_top = 2
 	s.border_width_bottom = 2
-	s.border_color = Color(0.25, 0.25, 0.25)
-	s.corner_radius_top_left = 6
-	s.corner_radius_top_right = 6
-	s.corner_radius_bottom_left = 6
-	s.corner_radius_bottom_right = 6
+	s.border_color = Color(0.26, 0.26, 0.30)
+	s.corner_radius_top_left = 8
+	s.corner_radius_top_right = 8
+	s.corner_radius_bottom_left = 8
+	s.corner_radius_bottom_right = 8
 	return s
 
 
 func _style_stack_slot_selectable() -> StyleBoxFlat:
-	var s := _style_stack_slot()
-	s.border_color = Color(0.92, 0.86, 0.25)
-	s.bg_color = Color(0.16, 0.16, 0.18, 1.0)
+	var s = _style_stack_slot()
+	s.border_color = Color(0.95, 0.88, 0.28)
+	s.bg_color = Color(0.18, 0.18, 0.20, 1.0)
 	return s
 
 
 func _style_stack_slot_locked() -> StyleBoxFlat:
-	var s := _style_stack_slot()
-	s.border_color = Color(0.34, 0.34, 0.34)
-	s.bg_color = Color(0.06, 0.06, 0.07, 1.0)
+	var s = _style_stack_slot()
+	s.border_color = Color(0.36, 0.36, 0.40)
+	s.bg_color = Color(0.07, 0.07, 0.09, 1.0)
+	return s
+
+
+func _style_gamepad_button_normal() -> StyleBoxFlat:
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.90, 0.90, 0.94)
+	s.border_width_left = 2
+	s.border_width_right = 2
+	s.border_width_top = 2
+	s.border_width_bottom = 4
+	s.border_color = Color(0.20, 0.20, 0.24)
+	s.corner_radius_top_left = 12
+	s.corner_radius_top_right = 12
+	s.corner_radius_bottom_left = 12
+	s.corner_radius_bottom_right = 12
+	return s
+
+
+func _style_gamepad_button_hover() -> StyleBoxFlat:
+	var s = _style_gamepad_button_normal()
+	s.bg_color = Color(0.98, 0.97, 0.88)
+	s.border_color = Color(0.28, 0.26, 0.18)
+	return s
+
+
+func _style_gamepad_button_pressed() -> StyleBoxFlat:
+	var s = _style_gamepad_button_normal()
+	s.bg_color = Color(0.82, 0.82, 0.86)
+	s.border_width_top = 4
+	s.border_width_bottom = 2
 	return s
 
 

@@ -9,6 +9,10 @@ var chk_no_mercy: CheckBox
 var lbl_no_mercy_help: Label
 
 
+func _skin_manager():
+	return get_node_or_null("/root/SkinManager")
+
+
 func _ready() -> void:
 	_build_ui()
 	_refresh_difficulty_label()
@@ -20,8 +24,9 @@ func _build_ui() -> void:
 
 	var root := Panel.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	if SkinManager != null and SkinManager.get_theme() != null:
-		root.theme = SkinManager.get_theme()
+	var skin_manager = _skin_manager()
+	if skin_manager != null and skin_manager.get_theme() != null:
+		root.theme = skin_manager.get_theme()
 	add_child(root)
 
 	var v := VBoxContainer.new()
