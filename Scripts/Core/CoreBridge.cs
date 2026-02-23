@@ -9,7 +9,7 @@ public partial class CoreBridge : Node
     private PieceGenerator _generator;
     private readonly GameMetrics _metrics = new();
     private readonly DifficultyDirector _director = new();
-    private int _startMs;
+    private ulong _startMs;
 
     public override void _Ready()
     {
