@@ -12,7 +12,7 @@ public partial class CoreBridge : Node
     private ulong _startMs;
 
     private float _smoothedFallSpeed;
-    private int _lastSpeedCalcMs;
+    private ulong _lastSpeedCalcMs;
 
     public override void _Ready()
     {
