@@ -41,6 +41,38 @@ public class BalanceConfig
     public float DangerLineStartRatio = 0.64f;
     public float DangerLineEndRatio = 0.84f;
 
+
+    // Endless speed curve / knee
+    public float SpeedKneeMinutes = 6.0f;
+    public float PostKneeSpeedTailStrength = 0.035f;
+
+    // WELL drag slow-motion
+    public float WellDragSlowMin = 0.90f;
+    public float WellDragSlowMax = 0.60f;
+
+    // Fast-next chance (single-spawn acceleration)
+    public float FastNextChanceStart = 0.03f;
+    public float FastNextChanceAtKneeEasy = 0.10f;
+    public float FastNextChanceAtKneeMedium = 0.12f;
+    public float FastNextChanceAtKneeHard = 0.15f;
+    public float FastNextChanceCapEasy = 0.18f;
+    public float FastNextChanceCapMedium = 0.22f;
+    public float FastNextChanceCapHard = 0.26f;
+    public float FastNextCapMinutes = 12.0f;
+
+    // Auto-slow panic rescue
+    public float AutoSlowThresholdBoard = 0.85f;
+    public float AutoSlowThresholdWell = 0.85f;
+    public float AutoSlowScale = 0.75f;
+    public float AutoSlowDuration = 1.0f;
+    public float AutoSlowCooldownSec = 10.0f;
+
+    // WELL rescue reward
+    public float RescueWindowSec = 3.0f;
+    public int RescueScoreBonus = 80;
+    public float RescueStabilityDuration = 5.0f;
+    public float RescueStabilityGrowthMul = 0.50f;
+
     // Scoring / leveling
     public int PointsPerLevel = 360;
 
