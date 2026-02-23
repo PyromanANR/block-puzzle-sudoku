@@ -364,7 +364,7 @@ func _hide_game_over_overlay() -> void:
 
 func _on_settings() -> void:
 	# Debug utility: quick simulation snapshot from CoreBridge.
-	var sim6 := core.call("RunSimulationBatch", 120, 42)
+	var sim6 = core.call("RunSimulationBatch", 120, 42)
 	print("Balance sim default:", sim6)
 
 
@@ -731,7 +731,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		# Falling piece is consumed only after successful placement.
 		_spawn_falling_piece()
 
-	var move_time_sec := max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
+	var move_time_sec = max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
 	core.call("RegisterSuccessfulPlacement", int(result.get("cleared_count", 0)), move_time_sec, _board_fill_ratio())
 
 	_refresh_board_visual()
