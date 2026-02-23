@@ -16,7 +16,7 @@ public class PieceGenerator
     private int _pityTriggers = 0;
 
     private int _piecesSinceWell = 0;
-    private int _lastWellMs;
+    private ulong _lastWellMs;
 
     private static readonly HashSet<string> WellKinds = new()
     {
