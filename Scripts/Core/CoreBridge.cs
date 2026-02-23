@@ -1,5 +1,6 @@
 using Godot;
 using Godot.Collections;
+using System.Collections.Generic;
 
 public partial class CoreBridge : Node
 {
@@ -19,6 +20,9 @@ public partial class CoreBridge : Node
 
     private string _difficulty = "Medium";
     private bool _noMercy = false;
+
+    private ulong _lastAutoSlowMs;
+    private ulong _rescueStabilityUntilMs;
 
     public override void _Ready()
     {
