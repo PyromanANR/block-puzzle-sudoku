@@ -426,6 +426,23 @@ func _build_board_grid() -> void:
 		board_cells.append(row)
 		board_hl.append(row2)
 
+	# Visual helper: explicit 3x3 block boundaries over the board.
+	var overlay_color := Color(0.86, 0.63, 0.32, 0.95)
+	for i in [0, 3, 6, 9]:
+		var vline := ColorRect.new()
+		vline.color = overlay_color
+		vline.position = board_start + Vector2(i * cell_size - 2, 0)
+		vline.size = Vector2(4, BOARD_SIZE * cell_size - 2)
+		vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		board_panel.add_child(vline)
+
+		var hline := ColorRect.new()
+		hline.color = overlay_color
+		hline.position = board_start + Vector2(0, i * cell_size - 2)
+		hline.size = Vector2(BOARD_SIZE * cell_size - 2, 4)
+		hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		board_panel.add_child(hline)
+
 	_refresh_board_visual()
 
 
@@ -556,7 +573,7 @@ func _redraw_well() -> void:
 
 	# Label
 	var hint := Label.new()
-	hint.text = "Pick only TOP 3 (grey = locked)"
+	hint.text = "Reserve slots: yellow = selectable, grey = locked"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	hint.position = Vector2(14, 6)
@@ -616,8 +633,14 @@ func _redraw_well() -> void:
 		if is_active:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
 		else:
-			slot.add_theme_stylebox_override("panel", _style_stack_slot())
-			slot.modulate = Color(0.55, 0.55, 0.55, 1.0)
+			slot.add_theme_stylebox_override("panel", _style_stack_slot_locked())
+			var lock_lbl := Label.new()
+			lock_lbl.text = "LOCKED"
+			lock_lbl.add_theme_font_size_override("font_size", 11)
+			lock_lbl.add_theme_color_override("font_color", Color(0.75, 0.75, 0.75, 0.9))
+			lock_lbl.position = Vector2(8, 6)
+			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot.add_child(lock_lbl)
 
 		if pile_index >= 0:
 			var p = pile[pile_index]
@@ -1055,7 +1078,15 @@ func _style_stack_slot() -> StyleBoxFlat:
 
 func _style_stack_slot_selectable() -> StyleBoxFlat:
 	var s := _style_stack_slot()
-	s.border_color = Color(0.85, 0.85, 0.30)
+	s.border_color = Color(0.92, 0.86, 0.25)
+	s.bg_color = Color(0.16, 0.16, 0.18, 1.0)
+	return s
+
+
+func _style_stack_slot_locked() -> StyleBoxFlat:
+	var s := _style_stack_slot()
+	s.border_color = Color(0.34, 0.34, 0.34)
+	s.bg_color = Color(0.06, 0.06, 0.07, 1.0)
 	return s
 
 
