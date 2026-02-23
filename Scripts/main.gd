@@ -195,8 +195,8 @@ func _build_ui() -> void:
 
 	root_frame = Panel.new()
 	root_frame.clip_contents = true
-	if Skin != null:
-		root_frame.theme = Skin.get_theme()
+	if SkinManager != null and SkinManager.get_theme() != null:
+		root_frame.theme = SkinManager.get_theme()
 	root_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_frame.add_theme_stylebox_override("panel", _style_cartridge_frame())
 	add_child(root_frame)
@@ -212,8 +212,8 @@ func _build_ui() -> void:
 	title_label.offset_left = 20
 	title_label.offset_right = -20
 	title_label.offset_bottom = 70
-	title_label.add_theme_font_size_override("font_size", Skin.get_font_size("title", 44) if Skin != null else 44)
-	title_label.add_theme_color_override("font_color", Skin.get_color("text_primary", Color(0.08, 0.08, 0.08)) if Skin != null else Color(0.08, 0.08, 0.08))
+	title_label.add_theme_font_size_override("font_size", SkinManager.get_font_size("title", 44) if SkinManager != null else 44)
+	title_label.add_theme_color_override("font_color", SkinManager.get_color("text_primary", Color(0.08, 0.08, 0.08)) if SkinManager != null else Color(0.08, 0.08, 0.08))
 	root_frame.add_child(title_label)
 
 	# Main vertical layout: top row (board+hud) + bottom row (well full width)
@@ -1004,8 +1004,8 @@ func _make_piece_preview(piece, mini: int, frame: Vector2 = Vector2(140, 90)) ->
 
 
 func _color_for_kind(kind: String) -> Color:
-	if Skin != null:
-		return Skin.get_piece_color(kind)
+	if SkinManager != null:
+		return SkinManager.get_piece_color(kind)
 	return COLOR_FILLED
 
 
@@ -1014,7 +1014,7 @@ func _color_for_kind(kind: String) -> Color:
 # ============================================================
 func _style_cartridge_frame() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Skin.get_color("cartridge_bg", Color(0.96, 0.86, 0.20)) if Skin != null else Color(0.96, 0.86, 0.20)
+	s.bg_color = SkinManager.get_color("cartridge_bg", Color(0.96, 0.86, 0.20)) if SkinManager != null else Color(0.96, 0.86, 0.20)
 	s.border_width_left = 8
 	s.border_width_right = 8
 	s.border_width_top = 8
@@ -1029,7 +1029,7 @@ func _style_cartridge_frame() -> StyleBoxFlat:
 
 func _style_board_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Skin.get_color("board_bg", Color(0.32, 0.16, 0.06)) if Skin != null else Color(0.32, 0.16, 0.06)
+	s.bg_color = SkinManager.get_color("board_bg", Color(0.32, 0.16, 0.06)) if SkinManager != null else Color(0.32, 0.16, 0.06)
 	s.border_width_left = 6
 	s.border_width_right = 6
 	s.border_width_top = 6
@@ -1044,7 +1044,7 @@ func _style_board_panel() -> StyleBoxFlat:
 
 func _style_hud_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Skin.get_color("hud_bg", Color(0.92, 0.92, 0.92)) if Skin != null else Color(0.92, 0.92, 0.92)
+	s.bg_color = SkinManager.get_color("hud_bg", Color(0.92, 0.92, 0.92)) if SkinManager != null else Color(0.92, 0.92, 0.92)
 	s.border_width_left = 6
 	s.border_width_right = 6
 	s.border_width_top = 6
@@ -1059,7 +1059,7 @@ func _style_hud_panel() -> StyleBoxFlat:
 
 func _style_bottom_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Skin.get_color("well_bg", Color(0.20, 0.20, 0.20)) if Skin != null else Color(0.20, 0.20, 0.20)
+	s.bg_color = SkinManager.get_color("well_bg", Color(0.20, 0.20, 0.20)) if SkinManager != null else Color(0.20, 0.20, 0.20)
 	s.border_width_left = 4
 	s.border_width_right = 4
 	s.border_width_top = 4
