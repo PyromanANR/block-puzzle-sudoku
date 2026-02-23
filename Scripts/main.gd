@@ -999,7 +999,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		_force_cancel_drag("CommittedToBoard", true)
 		_spawn_falling_piece()
 
-	var move_time_sec := max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
+	var move_time_sec = max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
 	core.call("RegisterSuccessfulPlacement", int(result.get("cleared_count", 0)), move_time_sec, _board_fill_ratio())
 
 	_refresh_board_visual()
