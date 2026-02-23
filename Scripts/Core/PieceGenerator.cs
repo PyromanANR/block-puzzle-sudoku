@@ -15,6 +15,14 @@ public class PieceGenerator
     private int _noProgressMoves = 0;
     private int _pityTriggers = 0;
 
+    private int _piecesSinceWell = 0;
+    private int _lastWellMs;
+
+    private static readonly HashSet<string> WellKinds = new()
+    {
+        "Dot", "DominoH", "DominoV", "TriLineH", "TriLineV", "TriL", "Square2"
+    };
+
     public static readonly string[] AllKinds = new[]
     {
         // Tetrominoes
@@ -47,6 +55,7 @@ public class PieceGenerator
     {
         _rng = rng;
         _config = config;
+        _lastWellMs = Time.GetTicksMsec();
         EnsureQueue(2);
     }
 
@@ -59,6 +68,14 @@ public class PieceGenerator
     {
         var kind = PickKind(board, idealChance, consume: true);
         _spawnSincePity++;
+        _piecesSinceWell++;
+
+        if (IsWellKind(kind))
+        {
+            _piecesSinceWell = 0;
+            _lastWellMs = Time.GetTicksMsec();
+        }
+
         return MakePiece(kind);
     }
 
@@ -84,26 +101,66 @@ public class PieceGenerator
 
         evaluated.Sort((a, b) => b.score.CompareTo(a.score));
 
-        bool pity = _spawnSincePity >= _config.PityEveryNSpawns || _noProgressMoves >= _config.NoProgressMovesForPity;
-        bool useIdeal = pity || _rng.Randf() <= idealChance;
+        bool pity = _noProgressMoves >= _config.NoProgressMovesForPity
+            || _spawnSincePity >= _config.PityEveryNSpawns;
+
+        bool forceWell = GetSecondsSinceLastWell() >= _config.ForceWellAfterSeconds
+            || _piecesSinceWell >= _config.ForceWellEveryNPieces;
+
+        var dynamicWellChance = Mathf.Lerp(
+            _config.WellSpawnChanceEarly,
+            _config.WellSpawnChanceLate,
+            Mathf.Clamp(GetSecondsSinceLastWell() / 60.0f, 0f, 1f));
+
+        bool requestWell = forceWell || _rng.Randf() <= dynamicWellChance;
 
         string selected;
-        if (useIdeal)
+        if (requestWell && TryPickWellCandidate(evaluated, out var wellKind))
         {
-            selected = evaluated[0].kind;
-            if (pity) _pityTriggers++;
-            _spawnSincePity = 0;
+            selected = wellKind;
         }
         else
         {
-            var band = Math.Min(_config.CandidateTopBand, evaluated.Count);
-            selected = evaluated[_rng.RandiRange(0, band - 1)].kind;
+            bool useIdeal = pity || _rng.Randf() <= idealChance;
+            if (useIdeal)
+            {
+                selected = evaluated[0].kind;
+                if (pity) _pityTriggers++;
+                _spawnSincePity = 0;
+            }
+            else
+            {
+                var band = Math.Min(_config.CandidateTopBand, evaluated.Count);
+                selected = evaluated[_rng.RandiRange(0, band - 1)].kind;
+            }
         }
 
         if (consume)
             BurnQueueToken();
 
         return selected;
+    }
+
+    private bool TryPickWellCandidate(List<(string kind, float score)> evaluated, out string kind)
+    {
+        for (int i = 0; i < evaluated.Count; i++)
+        {
+            if (IsWellKind(evaluated[i].kind))
+            {
+                kind = evaluated[i].kind;
+                return true;
+            }
+        }
+
+        kind = string.Empty;
+        return false;
+    }
+
+    private static bool IsWellKind(string kind) => WellKinds.Contains(kind);
+
+    private float GetSecondsSinceLastWell()
+    {
+        return Mathf.Max(0f, (Time.GetTicksMsec() - _lastWellMs) / 1000.0f);
     }
 
     private List<(string kind, float score)> EvaluateKinds(BoardModel board)
@@ -161,6 +218,10 @@ public class PieceGenerator
             for (int dx = 0; dx < 3; dx++) if (occupied[bx + dx, by + dy]) filled++;
             score += BlockScore(filled);
         }
+
+        // Prevent "always-perfect" heavy shapes from dominating after early game.
+        if (piece.Kind == "Plus5")
+            score *= 0.80f;
 
         return score;
     }
@@ -220,17 +281,17 @@ public class PieceGenerator
     private string WeightedTrainingPick()
     {
         var roll = _rng.RandiRange(1, 100);
-        if (roll <= 14) return "O";
-        if (roll <= 24) return "I";
-        if (roll <= 34) return "T";
-        if (roll <= 52) return "Dot";
-        if (roll <= 66) return "DominoH";
-        if (roll <= 78) return "DominoV";
-        if (roll <= 88) return "Square2";
-        if (roll <= 94) return "TriL";
-        return "TriLineH";
+        if (roll <= 12) return "O";
+        if (roll <= 22) return "I";
+        if (roll <= 32) return "T";
+        if (roll <= 46) return "Dot";
+        if (roll <= 58) return "DominoH";
+        if (roll <= 68) return "DominoV";
+        if (roll <= 78) return "Square2";
+        if (roll <= 86) return "TriL";
+        if (roll <= 93) return "TriLineH";
+        return "Plus5";
     }
-
 
     public void RegisterMoveOutcome(int clearedCount)
     {
@@ -245,6 +306,17 @@ public class PieceGenerator
         var value = _pityTriggers;
         _pityTriggers = 0;
         return value;
+    }
+
+    public Dictionary<string, float> GetDebugSnapshot(float currentIdealChance)
+    {
+        return new Dictionary<string, float>
+        {
+            { "lastWellSecondsAgo", GetSecondsSinceLastWell() },
+            { "piecesSinceWell", _piecesSinceWell },
+            { "currentIdealChance", currentIdealChance },
+            { "pityTriggers", _pityTriggers }
+        };
     }
 
     public static PieceData MakePiece(string kind)
