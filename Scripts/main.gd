@@ -64,6 +64,10 @@ var board_panel: Panel
 var hud_panel: Panel
 var well_panel: Panel
 var well_draw: Control
+var drop_zone_panel: Panel
+var well_slots_panel: Panel
+var drop_zone_draw: Control
+var well_slots_draw: Control
 
 var lbl_score: Label
 var lbl_speed: Label
@@ -277,15 +281,23 @@ func _build_ui() -> void:
 	hud_panel.add_theme_stylebox_override("panel", _style_hud_panel())
 	top_row.add_child(hud_panel)
 
+	var hud_scroll = ScrollContainer.new()
+	hud_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	hud_scroll.clip_contents = true
+	hud_panel.add_child(hud_scroll)
+
 	var hv_margin = MarginContainer.new()
-	hv_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hv_margin.custom_minimum_size = Vector2(0, 640)
+	hv_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hv_margin.add_theme_constant_override("margin_left", 14)
 	hv_margin.add_theme_constant_override("margin_right", 14)
 	hv_margin.add_theme_constant_override("margin_top", 14)
 	hv_margin.add_theme_constant_override("margin_bottom", 14)
-	hud_panel.add_child(hv_margin)
+	hud_scroll.add_child(hv_margin)
 
 	var hv = VBoxContainer.new()
+	hv.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	hv.add_theme_constant_override("separation", 10)
 	hv_margin.add_child(hv)
 
@@ -301,7 +313,7 @@ func _build_ui() -> void:
 	hv.add_child(next_title)
 
 	next_box = Panel.new()
-	next_box.custom_minimum_size = Vector2(0, 170)
+	next_box.custom_minimum_size = Vector2(0, 180)
 	next_box.add_theme_stylebox_override("panel", _style_preview_box())
 	hv.add_child(next_box)
 
@@ -343,21 +355,53 @@ func _build_ui() -> void:
 	btn_row.add_child(btn_exit)
 
 	well_panel = Panel.new()
-	well_panel.custom_minimum_size = Vector2(0, 820)
+	well_panel.custom_minimum_size = Vector2(0, 760)
 	well_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_panel.size_flags_vertical = Control.SIZE_FILL
 	well_panel.add_theme_stylebox_override("panel", _style_bottom_panel())
 	well_panel.clip_contents = true
 	main_v.add_child(well_panel)
 
-	well_draw = Control.new()
+	well_draw = HBoxContainer.new()
 	well_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	well_draw.offset_left = 14
 	well_draw.offset_right = -14
 	well_draw.offset_top = 14
 	well_draw.offset_bottom = -14
-	well_draw.mouse_filter = Control.MOUSE_FILTER_STOP
+	well_draw.add_theme_constant_override("separation", 12)
 	well_panel.add_child(well_draw)
+
+	drop_zone_panel = Panel.new()
+	drop_zone_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	drop_zone_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	drop_zone_panel.size_flags_stretch_ratio = 6.0
+	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
+	well_draw.add_child(drop_zone_panel)
+
+	drop_zone_draw = Control.new()
+	drop_zone_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	drop_zone_draw.offset_left = 10
+	drop_zone_draw.offset_right = -10
+	drop_zone_draw.offset_top = 10
+	drop_zone_draw.offset_bottom = -10
+	drop_zone_draw.mouse_filter = Control.MOUSE_FILTER_STOP
+	drop_zone_panel.add_child(drop_zone_draw)
+
+	well_slots_panel = Panel.new()
+	well_slots_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	well_slots_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	well_slots_panel.size_flags_stretch_ratio = 4.0
+	well_slots_panel.add_theme_stylebox_override("panel", _style_preview_box())
+	well_draw.add_child(well_slots_panel)
+
+	well_slots_draw = Control.new()
+	well_slots_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	well_slots_draw.offset_left = 10
+	well_slots_draw.offset_right = -10
+	well_slots_draw.offset_top = 10
+	well_slots_draw.offset_bottom = -10
+	well_slots_draw.mouse_filter = Control.MOUSE_FILTER_STOP
+	well_slots_panel.add_child(well_slots_draw)
 
 	ghost_layer = Control.new()
 	ghost_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -592,9 +636,13 @@ func _draw_preview(target: Panel, piece) -> void:
 	if piece == null:
 		return
 
-	var pv = _make_piece_preview(piece, int(cell_size * 0.85), target.size - Vector2(18, 18))
-	pv.position = (target.size - pv.size) * 0.5
-	target.add_child(pv)
+	var frame = target.size - Vector2(20, 20)
+	var preview_cell_size = int(clamp(float(cell_size) * 0.72, 16.0, 38.0))
+	var pv = _make_piece_preview(piece, preview_cell_size, frame)
+	var center = CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	target.add_child(center)
+	center.add_child(pv)
 
 
 func _spawn_falling_piece() -> void:
@@ -611,132 +659,125 @@ func _lock_falling_to_pile() -> void:
 
 
 func _well_geometry() -> Dictionary:
-	var well_h = well_draw.size.y
-	var well_w = well_draw.size.x
+	var drop_h = drop_zone_draw.size.y
+	var drop_w = drop_zone_draw.size.x
+	var slots_h = well_slots_draw.size.y
+	var slots_w = well_slots_draw.size.x
+	var full_h = well_panel.size.y - 28.0
 
-	# If layout not ready yet, return safe defaults
-	if well_h <= 1.0 or well_w <= 1.0:
+	if drop_h <= 1.0 or drop_w <= 1.0 or slots_h <= 1.0 or slots_w <= 1.0 or full_h <= 1.0:
 		return {
-			"w": 100.0, "h": 100.0,
-			"pile_top": 60.0, "pile_bottom": 90.0,
-			"fall_top": 10.0, "fall_bottom": 50.0
+			"drop_w": 100.0,
+			"drop_h": 100.0,
+			"slots_w": 80.0,
+			"slots_h": 100.0,
+			"fall_top": 10.0,
+			"fall_bottom": 50.0,
+			"pile_top": 10.0,
+			"pile_bottom": 90.0
 		}
 
-	# Pile takes a ratio of the well height (stable across resolutions)
-	var pile_zone_h = well_h * 0.55
-	var pile_bottom = well_h - PILE_PAD
-	var pile_top = pile_bottom - pile_zone_h
-
-	# Fall zone is above pile, with clamps
+	var pile_zone_h = full_h * 0.55
+	var pile_bottom_logic = full_h - PILE_PAD
+	var pile_top_logic = pile_bottom_logic - pile_zone_h
 	var fall_top = FALL_PAD
-	var fall_bottom = pile_top - 10.0
-
-	# Safety clamps (critical)
+	var fall_bottom = pile_top_logic - 10.0
 	if fall_bottom < fall_top + 40.0:
-		# ensure at least 40px of fall space
 		fall_bottom = fall_top + 40.0
-		pile_top = fall_bottom + 10.0
-
-	# Also clamp pile_top not too high
-	pile_top = max(pile_top, fall_top + 50.0)
 
 	return {
-		"w": well_w,
-		"h": well_h,
-		"pile_top": pile_top,
-		"pile_bottom": pile_bottom,
+		"drop_w": drop_w,
+		"drop_h": drop_h,
+		"slots_w": slots_w,
+		"slots_h": slots_h,
 		"fall_top": fall_top,
 		"fall_bottom": fall_bottom,
+		"pile_top": 8.0,
+		"pile_bottom": slots_h - 8.0
 	}
 
 
 func _redraw_well() -> void:
-	for ch in well_draw.get_children():
+	for ch in drop_zone_draw.get_children():
+		ch.queue_free()
+	for ch in well_slots_draw.get_children():
 		ch.queue_free()
 
 	var g = _well_geometry()
+	var drop_w = float(g["drop_w"])
+	var slots_w = float(g["slots_w"])
+	var slots_h = float(g["slots_h"])
 	var pile_top = float(g["pile_top"])
 	var pile_bottom = float(g["pile_bottom"])
 	var fall_top = float(g["fall_top"])
 	var fall_bottom = float(g["fall_bottom"])
-	var w = float(g["w"])
 
 	var fill_ratio = clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
-	var danger_color = _skin_color("danger", Color(0.95, 0.2, 0.2))
 
-	var header = Panel.new()
-	header.position = Vector2(0, 0)
-	header.size = Vector2(w, 90)
-	header.add_theme_stylebox_override("panel", _style_preview_box())
-	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(header)
+	var drop_header = Label.new()
+	drop_header.text = "DROP ZONE"
+	drop_header.position = Vector2(8, 4)
+	drop_header.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	drop_header.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
+	drop_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_zone_draw.add_child(drop_header)
 
-	var reserve_lbl = Label.new()
-	reserve_lbl.text = "RESERVE"
-	reserve_lbl.position = Vector2(12, 10)
-	reserve_lbl.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	header.add_child(reserve_lbl)
+	var drop_marker = ColorRect.new()
+	drop_marker.color = Color(1.0, 1.0, 1.0, 0.10)
+	drop_marker.position = Vector2(0, fall_top - 10)
+	drop_marker.size = Vector2(drop_w, 8)
+	drop_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_zone_draw.add_child(drop_marker)
 
-	var well_stat = Label.new()
-	well_stat.text = "WELL: %d / %d" % [pile.size(), pile_max]
-	well_stat.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	well_stat.position = Vector2(w - 220, 12)
-	well_stat.size = Vector2(200, 28)
-	well_stat.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	header.add_child(well_stat)
+	var drop_label = Label.new()
+	drop_label.text = "DROP"
+	drop_label.position = Vector2(8, fall_top - 28)
+	drop_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
+	drop_label.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.82, 0.82, 0.82)))
+	drop_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_zone_draw.add_child(drop_label)
 
-	var bar_bg = ColorRect.new()
-	bar_bg.color = Color(1, 1, 1, 0.13)
-	bar_bg.position = Vector2(12, 46)
-	bar_bg.size = Vector2(w - 24, 12)
-	header.add_child(bar_bg)
+	var slots_header = Label.new()
+	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
+	slots_header.position = Vector2(8, 4)
+	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_draw.add_child(slots_header)
 
-	var bar_fg = ColorRect.new()
-	bar_fg.position = bar_bg.position
-	bar_fg.size = Vector2(bar_bg.size.x * fill_ratio, bar_bg.size.y)
+	var slots_progress_bg = ColorRect.new()
+	slots_progress_bg.color = Color(1, 1, 1, 0.12)
+	slots_progress_bg.position = Vector2(8, 34)
+	slots_progress_bg.size = Vector2(slots_w - 16, 10)
+	slots_progress_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_draw.add_child(slots_progress_bg)
+
+	var slots_progress_fg = ColorRect.new()
+	slots_progress_fg.position = slots_progress_bg.position
+	slots_progress_fg.size = Vector2(slots_progress_bg.size.x * fill_ratio, slots_progress_bg.size.y)
 	if fill_ratio >= danger_end_ratio:
-		bar_fg.color = danger_color
+		slots_progress_fg.color = _skin_color("danger", Color(0.95, 0.20, 0.20))
 	elif fill_ratio >= danger_start_ratio:
-		bar_fg.color = Color(0.94, 0.80, 0.26, 0.86)
+		slots_progress_fg.color = Color(0.95, 0.82, 0.28, 0.90)
 	else:
-		bar_fg.color = Color(0.30, 0.86, 0.43, 0.86)
-	header.add_child(bar_fg)
+		slots_progress_fg.color = Color(0.32, 0.85, 0.45, 0.90)
+	slots_progress_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_draw.add_child(slots_progress_fg)
 
-	var danger_glow = ColorRect.new()
-	danger_glow.color = Color(danger_color.r, danger_color.g, danger_color.b, 0.30)
-	danger_glow.position = Vector2(10, 68)
-	danger_glow.size = Vector2(w - 20, 10)
-	header.add_child(danger_glow)
-
-	var danger_line = ColorRect.new()
-	danger_line.color = Color(danger_color.r, danger_color.g, danger_color.b, 0.90)
-	danger_line.position = Vector2(10, 70)
-	danger_line.size = Vector2(w - 20, 6)
-	header.add_child(danger_line)
-
-	var hint = Label.new()
-	hint.text = "Top slots selectable. Grey slots unlock by difficulty."
-	hint.add_theme_font_size_override("font_size", _skin_font_size("small", 14))
-	hint.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.8, 0.8, 0.8)))
-	hint.position = Vector2(12, 94)
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(hint)
-
-	var slots_top = max(pile_top, 126.0)
-	var slot_w = w - 20.0
+	var slots_top = max(pile_top, 52.0)
+	var slot_w = slots_w - 16.0
 	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
-	var dynamic_h = max(54.0, min(86.0, per_slot - SLOT_GAP))
-	var preview_mini = max(18, int(cell_size * 0.85))
+	var dynamic_h = max(46.0, min(76.0, per_slot - SLOT_GAP))
+	var slot_preview_cell = int(clamp(float(cell_size) * 0.80, 16.0, 42.0))
 
 	for slot_i in range(pile_max):
 		var y = pile_bottom - dynamic_h - float(slot_i) * (dynamic_h + SLOT_GAP)
 
 		var slot = Panel.new()
 		slot.size = Vector2(slot_w, dynamic_h)
-		slot.position = Vector2(10, y)
+		slot.position = Vector2(8, y)
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
-		well_draw.add_child(slot)
+		well_slots_draw.add_child(slot)
 
 		var pile_index = (pile.size() - 1) - slot_i
 		var is_active = slot_i < pile_selectable
@@ -757,7 +798,8 @@ func _redraw_well() -> void:
 			if is_active:
 				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
 
-			var preview = _make_piece_preview(p, preview_mini, Vector2(slot.size.x - 8, slot.size.y - 8))
+			var preview = _make_piece_preview(p, slot_preview_cell, Vector2(slot.size.x - 8, slot.size.y - 8))
+
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
 		elif is_active:
@@ -769,14 +811,15 @@ func _redraw_well() -> void:
 			slot.add_child(empty)
 
 	if fall_piece != null and not is_game_over:
-		var fall_frame_w = min(260.0, w - 30.0)
-		var fall = _make_piece_preview(fall_piece, preview_mini, Vector2(fall_frame_w, 120))
-		var fx = (w - fall.size.x) * 0.5
-		var fy = clamp(fall_y, max(fall_top, 120.0), fall_bottom)
+		var drop_cell_size = int(clamp(float(cell_size) * 0.82, 18.0, 46.0))
+		var fall_frame_w = min(drop_w - 20.0, 230.0)
+		var fall = _make_piece_preview(fall_piece, drop_cell_size, Vector2(fall_frame_w, 120))
+		var fx = (drop_w - fall.size.x) * 0.5
+		var fy = clamp(fall_y, fall_top, fall_bottom)
 		fall.position = Vector2(fx, fy)
 		fall.mouse_filter = Control.MOUSE_FILTER_STOP
 		fall.gui_input.connect(func(ev): _on_falling_piece_input(ev))
-		well_draw.add_child(fall)
+		drop_zone_draw.add_child(fall)
 
 
 func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
