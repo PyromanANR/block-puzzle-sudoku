@@ -9,33 +9,41 @@ public partial class CoreBridge : Node
     private PieceGenerator _generator;
     private readonly GameMetrics _metrics = new();
     private readonly DifficultyDirector _director = new();
-    private ulong _startMs;
+    private int _startMs;
 
+    private BoardModel _activeBoard;
     private float _smoothedFallSpeed;
-    private ulong _lastSpeedCalcMs;
+
+    private float _lastTargetSpeed;
+    private int _lastSpeedCalcMs;
+    private int _lastDebugSpeedLogMs;
 
     public override void _Ready()
     {
         _rng.Randomize();
         _config = BalanceConfig.LoadOrDefault("res://Scripts/Core/balance_config.json");
         _generator = new PieceGenerator(_rng, _config);
+
         _startMs = Time.GetTicksMsec();
         _lastSpeedCalcMs = _startMs;
+        _lastDebugSpeedLogMs = _startMs;
         _smoothedFallSpeed = _config.BaseFallSpeed;
+        _lastTargetSpeed = _smoothedFallSpeed;
     }
 
     public BoardModel CreateBoard()
     {
         var b = new BoardModel();
         b.Reset();
+        _activeBoard = b;
         return b;
     }
 
-    // Compatibility API for callers without board context.
-    public PieceData PeekNextPiece() => _generator.Peek(null, ComputeIdealChance());
+    // Compatibility API for callers without explicit board argument.
+    public PieceData PeekNextPiece() => _generator.Peek(_activeBoard, ComputeIdealChance());
 
-    // Compatibility API for callers without board context.
-    public PieceData PopNextPiece() => _generator.Pop(null, ComputeIdealChance());
+    // Compatibility API for callers without explicit board argument.
+    public PieceData PopNextPiece() => _generator.Pop(_activeBoard, ComputeIdealChance());
 
     public PieceData PeekNextPieceForBoard(BoardModel board)
     {
@@ -47,7 +55,6 @@ public partial class CoreBridge : Node
         return _generator.Pop(board, ComputeIdealChance());
     }
 
-    // Hold/Reserve is kept simple and based on piece kind string.
     private PieceData _holdPiece = null;
     private bool _holdUsed = false;
 
@@ -64,7 +71,7 @@ public partial class CoreBridge : Node
         if (_holdPiece == null)
         {
             _holdPiece = PieceGenerator.MakePiece(current.Kind);
-            return _generator.Pop(null, ComputeIdealChance());
+            return _generator.Pop(_activeBoard, ComputeIdealChance());
         }
 
         var outPiece = _holdPiece;
@@ -85,7 +92,7 @@ public partial class CoreBridge : Node
 
 #if DEBUG
         var dbg = _generator.GetDebugSnapshot(ComputeIdealChance());
-        GD.Print($"[BALANCE] wellSec={dbg["lastWellSecondsAgo"]:0.0}, piecesSinceWell={dbg["piecesSinceWell"]}, ideal={dbg["currentIdealChance"]:0.00}, pity={dbg["pityTriggers"]}");
+        GD.Print($"[BALANCE] secSinceWell={dbg["lastWellSecondsAgo"]:0.0}, piecesSinceWell={dbg["piecesSinceWell"]}, ideal={dbg["currentIdealChance"]:0.00}, pity={dbg["pityTriggers"]}, targetSpeed={_lastTargetSpeed:0.00}, displayedSpeed={_smoothedFallSpeed:0.00}");
 #endif
     }
 
@@ -100,14 +107,25 @@ public partial class CoreBridge : Node
         var levelGrowth = Mathf.Pow(_config.LevelSpeedGrowth, Mathf.Max(0f, level - 1f));
         var elapsedMinutes = GetElapsedMinutes();
         var timeGrowth = 1.0f + _config.TimeSpeedRampPerMinute * elapsedMinutes;
+
         var target = _config.BaseFallSpeed * levelGrowth * timeGrowth * _director.GetFallMultiplier(_config);
         target = Mathf.Min(target, _config.MaxFallSpeedCap);
+        _lastTargetSpeed = target;
 
         var now = Time.GetTicksMsec();
         var dt = Mathf.Max(0.001f, (now - _lastSpeedCalcMs) / 1000.0f);
         _lastSpeedCalcMs = now;
         var maxDelta = _config.MaxFallSpeedDeltaPerSec * dt;
         _smoothedFallSpeed = Mathf.MoveToward(_smoothedFallSpeed, target, maxDelta);
+
+#if DEBUG
+        if (now - _lastDebugSpeedLogMs >= 1000)
+        {
+            _lastDebugSpeedLogMs = now;
+            var capReached = target >= _config.MaxFallSpeedCap - 0.001f;
+            GD.Print($"[SPEED] target={target:0.00}, smoothed={_smoothedFallSpeed:0.00}, level={level:0.0}, elapsedMin={elapsedMinutes:0.00}, capReached={capReached}");
+        }
+#endif
 
         return _smoothedFallSpeed;
     }
@@ -143,7 +161,9 @@ public partial class CoreBridge : Node
             { "cancel_rate", m.CancelRate },
             { "last_well_seconds", dbg["lastWellSecondsAgo"] },
             { "pieces_since_well", dbg["piecesSinceWell"] },
-            { "pity_triggers", dbg["pityTriggers"] }
+            { "pity_triggers", dbg["pityTriggers"] },
+            { "target_speed", _lastTargetSpeed },
+            { "displayed_speed", _smoothedFallSpeed }
         };
     }
 
