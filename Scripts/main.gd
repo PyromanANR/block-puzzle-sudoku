@@ -82,6 +82,9 @@ const COLOR_EMPTY := Color(0.15, 0.15, 0.15, 1.0)
 const COLOR_FILLED := Color(0.82, 0.82, 0.90, 1.0)
 const HL_OK := Color(0.10, 0.85, 0.20, 0.60)
 const HL_BAD := Color(0.95, 0.20, 0.20, 0.60)
+const RETRO_GRID_BASE := Color(0.21, 0.10, 0.04, 1.0)
+const RETRO_GRID_DARK := Color(0.16, 0.07, 0.03, 1.0)
+const RETRO_GRID_BORDER := Color(0.60, 0.36, 0.18, 1.0)
 
 # ----------------------------
 # Well / pile
@@ -431,7 +434,7 @@ func _refresh_board_visual() -> void:
 # Next preview
 # ============================================================
 func _update_previews() -> void:
-	_draw_preview(next_box, core.call("PeekNextPiece"))
+	_draw_preview(next_box, core.call("PeekNextPieceForBoard", board))
 
 
 func _draw_preview(target: Panel, piece) -> void:
@@ -452,7 +455,7 @@ func _draw_preview(target: Panel, piece) -> void:
 # Fix #2: fall zone never overlaps pile zone
 # ============================================================
 func _spawn_falling_piece() -> void:
-	fall_piece = core.call("PopNextPiece")
+	fall_piece = core.call("PopNextPieceForBoard", board)
 	fall_y = 10.0
 	_update_previews()
 
@@ -644,8 +647,6 @@ func _on_falling_piece_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		selected_piece = fall_piece
 		selected_from_pile_index = -1
-		_spawn_falling_piece()
-		_redraw_well()
 		_start_drag_selected()
 
 
@@ -705,6 +706,9 @@ func _try_place_piece(piece, ax: int, ay: int) -> void:
 	# Remove from pile if it came from pile
 	if selected_from_pile_index >= 0 and selected_from_pile_index < pile.size():
 		pile.remove_at(selected_from_pile_index)
+	else:
+		# Falling piece is consumed only after successful placement.
+		_spawn_falling_piece()
 
 	_refresh_board_visual()
 	_update_hud()
@@ -890,6 +894,8 @@ func _color_for_kind(kind: String) -> Color:
 		"Z": return Color(0.95, 0.25, 0.35)
 		"J": return Color(0.20, 0.55, 0.98)
 		"L": return Color(0.98, 0.55, 0.20)
+		"Dot", "DominoH", "DominoV", "TriLineH", "TriLineV", "TriL", "Square2", "Plus5":
+			return Color(0.98, 0.73, 0.32)
 		_:   return COLOR_FILLED
 
 
@@ -913,12 +919,12 @@ func _style_cartridge_frame() -> StyleBoxFlat:
 
 func _style_board_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.72, 0.72, 0.72)
+	s.bg_color = Color(0.32, 0.16, 0.06)
 	s.border_width_left = 6
 	s.border_width_right = 6
 	s.border_width_top = 6
 	s.border_width_bottom = 6
-	s.border_color = Color(0.18, 0.18, 0.18)
+	s.border_color = Color(0.75, 0.45, 0.18)
 	s.corner_radius_top_left = 10
 	s.corner_radius_top_right = 10
 	s.corner_radius_bottom_left = 10
@@ -973,14 +979,19 @@ func _style_preview_box() -> StyleBoxFlat:
 
 func _style_cell_empty(x: int, y: int) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.16, 0.16, 0.16)
-	var thick := (x % 3 == 0 or y % 3 == 0)
-	var bw := 2 if thick else 1
-	s.border_width_left = bw
-	s.border_width_top = bw
-	s.border_width_right = 1
-	s.border_width_bottom = 1
-	s.border_color = Color(0.28, 0.28, 0.28)
+	var in_block_dark := ((x / 3) + (y / 3)) % 2 == 1
+	s.bg_color = RETRO_GRID_DARK if in_block_dark else RETRO_GRID_BASE
+
+	var thick_left := (x % 3 == 0)
+	var thick_top := (y % 3 == 0)
+	var thick_right := ((x + 1) % 3 == 0)
+	var thick_bottom := ((y + 1) % 3 == 0)
+
+	s.border_width_left = 3 if thick_left else 1
+	s.border_width_top = 3 if thick_top else 1
+	s.border_width_right = 3 if thick_right else 1
+	s.border_width_bottom = 3 if thick_bottom else 1
+	s.border_color = RETRO_GRID_BORDER
 	return s
 
 

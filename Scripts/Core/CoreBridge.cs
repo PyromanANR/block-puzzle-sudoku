@@ -4,16 +4,29 @@ using System.Collections.Generic;
 
 public partial class CoreBridge : Node
 {
-    private enum Kind { I, O, T, S, Z, J, L }
+    // Unified shape pool: classic tetrominoes + sudoku-style helper pieces.
+    private enum Kind
+    {
+        // Tetrominoes
+        I, O, T, S, Z, J, L,
+        // Sudoku-like utility shapes
+        Dot,
+        DominoH, DominoV,
+        TriLineH, TriLineV,
+        TriL,
+        Square2,
+        Plus5
+    }
+
     // Training bias (early game helper)
-    private int _trainingLeft = 24; // first ~24 spawns are easier
+    private int _trainingLeft = 24;
 
     private readonly RandomNumberGenerator _rng = new();
 
     // Library: Kind -> base cells
     private Dictionary<Kind, Vector2I[]> _lib;
 
-    // 7-bag queue
+    // Unified bag/queue (contains both tetris + sudoku-like kinds)
     private readonly List<Kind> _bag = new();
     private readonly Queue<Kind> _queue = new();
 
@@ -25,8 +38,6 @@ public partial class CoreBridge : Node
     {
         _rng.Randomize();
         _lib = BuildLibrary();
-
-        // Prime queue with at least 2 pieces
         EnsureQueue(2);
     }
 
@@ -45,6 +56,13 @@ public partial class CoreBridge : Node
         return MakePiece(_queue.Peek());
     }
 
+    // Board-aware preview used by UI. Picks a fitting/progressive piece whenever possible.
+    public PieceData PeekNextPieceForBoard(BoardModel board)
+    {
+        var kind = PickSmartKind(board, allowFallbackQueue: true);
+        return MakePiece(kind);
+    }
+
     public PieceData PopNextPiece()
     {
         EnsureQueue(1);
@@ -53,14 +71,18 @@ public partial class CoreBridge : Node
         return MakePiece(k);
     }
 
+    // Board-aware generation for active gameplay.
+    public PieceData PopNextPieceForBoard(BoardModel board)
+    {
+        var kind = PickSmartKind(board, allowFallbackQueue: true);
+        return MakePiece(kind);
+    }
+
     // --- Hold/Reserve (Swap) ---
-    // Call when player presses Swap button for currently selected piece.
-    // Returns the new piece to use (may be the same if swap not allowed).
     public PieceData HoldSwap(PieceData current)
     {
         if (current == null) return null;
 
-        // Only once per "turn" (until placement happens)
         if (_holdUsed)
             return current;
 
@@ -71,43 +93,34 @@ public partial class CoreBridge : Node
         if (_hold == null)
         {
             _hold = curKind;
-            // If hold was empty, take next from queue
             return PopNextPiece();
         }
-        else
-        {
-            var outKind = _hold.Value;
-            _hold = curKind;
-            return MakePiece(outKind);
-        }
+
+        var outKind = _hold.Value;
+        _hold = curKind;
+        return MakePiece(outKind);
     }
 
-    // Call after a successful placement on board
-    public void ResetHoldUsage()
-    {
-        _holdUsed = false;
-    }
+    public void ResetHoldUsage() => _holdUsed = false;
 
-    public PieceData GetHoldPiece()
-    {
-        return _hold == null ? null : MakePiece(_hold.Value);
-    }
+    public PieceData GetHoldPiece() => _hold == null ? null : MakePiece(_hold.Value);
 
     private Kind WeightedTrainingPick()
     {
-        // More O/I/T early, fewer S/Z early
-        // weights sum = 100
+        // Early phase favors forgiving pieces and small sudoku helpers.
         int roll = _rng.RandiRange(1, 100);
-        if (roll <= 28) return Kind.O;        // 28%
-        if (roll <= 50) return Kind.I;        // 22%
-        if (roll <= 66) return Kind.T;        // 16%
-        if (roll <= 78) return Kind.L;        // 12%
-        if (roll <= 90) return Kind.J;        // 12%
-        if (roll <= 95) return Kind.S;        // 5%
-        return Kind.Z;                         // 5%
+        if (roll <= 16) return Kind.O;
+        if (roll <= 28) return Kind.I;
+        if (roll <= 40) return Kind.T;
+        if (roll <= 55) return Kind.Dot;
+        if (roll <= 68) return Kind.DominoH;
+        if (roll <= 78) return Kind.DominoV;
+        if (roll <= 86) return Kind.Square2;
+        if (roll <= 92) return Kind.TriL;
+        if (roll <= 96) return Kind.TriLineH;
+        return Kind.TriLineV;
     }
 
-    // --- Helpers ---
     private void EnsureQueue(int count)
     {
         while (_queue.Count < count)
@@ -134,14 +147,13 @@ public partial class CoreBridge : Node
     private void RefillBag()
     {
         _bag.Clear();
-        _bag.AddRange(new[] { Kind.I, Kind.O, Kind.T, Kind.S, Kind.Z, Kind.J, Kind.L });
-        // Shuffle-ish by RNG removal in EnsureQueue (good enough)
+        foreach (Kind kind in Enum.GetValues(typeof(Kind)))
+            _bag.Add(kind);
     }
 
     private PieceData MakePiece(Kind k)
     {
-        var p = new PieceData();
-        p.Kind = k.ToString(); // "I".."L"
+        var p = new PieceData { Kind = k.ToString() };
 
         foreach (var c in _lib[k])
             p.Cells.Add(c);
@@ -158,36 +170,144 @@ public partial class CoreBridge : Node
 
     private static Dictionary<Kind, Vector2I[]> BuildLibrary()
     {
-        // Using a simple orientation for each tetromino
-        // Coordinates are relative to (0,0).
+        // One catalog for all game shapes (tetris + sudoku-like helpers).
         return new Dictionary<Kind, Vector2I[]>
         {
-            // I: ####
+            // Tetrominoes
             { Kind.I, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(2,0), new Vector2I(3,0) } },
-
-            // O: ##
-            //    ##
             { Kind.O, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(0,1), new Vector2I(1,1) } },
-
-            // T: ###
-            //     #
             { Kind.T, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(2,0), new Vector2I(1,1) } },
-
-            // S:  ##
-            //    ##
             { Kind.S, new [] { new Vector2I(1,0), new Vector2I(2,0), new Vector2I(0,1), new Vector2I(1,1) } },
-
-            // Z: ##
-            //     ##
             { Kind.Z, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(1,1), new Vector2I(2,1) } },
-
-            // J: #
-            //    ###
             { Kind.J, new [] { new Vector2I(0,0), new Vector2I(0,1), new Vector2I(1,1), new Vector2I(2,1) } },
-
-            // L:   #
-            //    ###
             { Kind.L, new [] { new Vector2I(2,0), new Vector2I(0,1), new Vector2I(1,1), new Vector2I(2,1) } },
+
+            // Sudoku-like helper shapes
+            { Kind.Dot, new [] { new Vector2I(0,0) } },
+            { Kind.DominoH, new [] { new Vector2I(0,0), new Vector2I(1,0) } },
+            { Kind.DominoV, new [] { new Vector2I(0,0), new Vector2I(0,1) } },
+            { Kind.TriLineH, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(2,0) } },
+            { Kind.TriLineV, new [] { new Vector2I(0,0), new Vector2I(0,1), new Vector2I(0,2) } },
+            { Kind.TriL, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(0,1) } },
+            { Kind.Square2, new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(0,1), new Vector2I(1,1) } },
+            { Kind.Plus5, new [] { new Vector2I(1,0), new Vector2I(0,1), new Vector2I(1,1), new Vector2I(2,1), new Vector2I(1,2) } },
         };
+    }
+
+    private Kind PickSmartKind(BoardModel board, bool allowFallbackQueue)
+    {
+        if (board == null)
+            return PullFromClassicQueue(allowFallbackQueue);
+
+        var candidates = new List<(Kind kind, float score)>();
+
+        foreach (Kind kind in Enum.GetValues(typeof(Kind)))
+        {
+            var piece = MakePiece(kind);
+            var best = float.NegativeInfinity;
+
+            for (int y = 0; y < board.Size; y++)
+            {
+                for (int x = 0; x < board.Size; x++)
+                {
+                    if (!board.CanPlace(piece, x, y))
+                        continue;
+
+                    var score = EvaluatePlacement(board, piece, x, y);
+                    if (score > best)
+                        best = score;
+                }
+            }
+
+            if (!float.IsNegativeInfinity(best))
+                candidates.Add((kind, best));
+        }
+
+        if (candidates.Count == 0)
+            return PullFromClassicQueue(allowFallbackQueue);
+
+        candidates.Sort((a, b) => b.score.CompareTo(a.score));
+
+        var topScore = candidates[0].score;
+        var top = new List<Kind>();
+        foreach (var c in candidates)
+        {
+            if (c.score >= topScore - 0.75f)
+                top.Add(c.kind);
+            else
+                break;
+        }
+
+        return top[_rng.RandiRange(0, top.Count - 1)];
+    }
+
+    private float EvaluatePlacement(BoardModel board, PieceData piece, int ax, int ay)
+    {
+        var size = board.Size;
+        var occupied = new bool[size, size];
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+            occupied[x, y] = board.GetCell(x, y) != 0;
+
+        foreach (var c in piece.Cells)
+            occupied[ax + c.X, ay + c.Y] = true;
+
+        float score = piece.Cells.Count * 1.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            var filled = 0;
+            for (int x = 0; x < size; x++)
+                if (occupied[x, y]) filled++;
+            score += LineProgressScore(filled, size);
+        }
+
+        for (int x = 0; x < size; x++)
+        {
+            var filled = 0;
+            for (int y = 0; y < size; y++)
+                if (occupied[x, y]) filled++;
+            score += LineProgressScore(filled, size);
+        }
+
+        for (int by = 0; by < size; by += 3)
+        for (int bx = 0; bx < size; bx += 3)
+        {
+            var filled = 0;
+            for (int dy = 0; dy < 3; dy++)
+            for (int dx = 0; dx < 3; dx++)
+                if (occupied[bx + dx, by + dy]) filled++;
+            score += BlockProgressScore(filled);
+        }
+
+        return score;
+    }
+
+    private static float LineProgressScore(int filled, int size)
+    {
+        if (filled == size) return 120f;
+        if (filled == size - 1) return 22f;
+        if (filled == size - 2) return 9f;
+        if (filled >= size - 4) return 3.5f;
+        return filled * 0.2f;
+    }
+
+    private static float BlockProgressScore(int filled)
+    {
+        if (filled == 9) return 80f;
+        if (filled == 8) return 16f;
+        if (filled == 7) return 7f;
+        if (filled >= 5) return 2.5f;
+        return filled * 0.2f;
+    }
+
+    private Kind PullFromClassicQueue(bool allowFallbackQueue)
+    {
+        if (!allowFallbackQueue)
+            return Kind.T;
+
+        EnsureQueue(1);
+        return _queue.Dequeue();
     }
 }
