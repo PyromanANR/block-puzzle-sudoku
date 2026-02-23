@@ -11,12 +11,17 @@ public partial class CoreBridge : Node
     private readonly DifficultyDirector _director = new();
     private int _startMs;
 
+    private float _smoothedFallSpeed;
+    private int _lastSpeedCalcMs;
+
     public override void _Ready()
     {
         _rng.Randomize();
         _config = BalanceConfig.LoadOrDefault("res://Scripts/Core/balance_config.json");
         _generator = new PieceGenerator(_rng, _config);
         _startMs = Time.GetTicksMsec();
+        _lastSpeedCalcMs = _startMs;
+        _smoothedFallSpeed = _config.BaseFallSpeed;
     }
 
     public BoardModel CreateBoard()
@@ -77,6 +82,11 @@ public partial class CoreBridge : Node
         _generator.RegisterMoveOutcome(clearedCount);
         _director.Update(_metrics.Snapshot(), _config);
         _holdUsed = false;
+
+#if DEBUG
+        var dbg = _generator.GetDebugSnapshot(ComputeIdealChance());
+        GD.Print($"[BALANCE] wellSec={dbg["lastWellSecondsAgo"]:0.0}, piecesSinceWell={dbg["piecesSinceWell"]}, ideal={dbg["currentIdealChance"]:0.00}, pity={dbg["pityTriggers"]}");
+#endif
     }
 
     public void RegisterCancelledDrag()
@@ -90,8 +100,16 @@ public partial class CoreBridge : Node
         var levelGrowth = Mathf.Pow(_config.LevelSpeedGrowth, Mathf.Max(0f, level - 1f));
         var elapsedMinutes = GetElapsedMinutes();
         var timeGrowth = 1.0f + _config.TimeSpeedRampPerMinute * elapsedMinutes;
-        var speed = _config.BaseFallSpeed * levelGrowth * timeGrowth * _director.GetFallMultiplier(_config);
-        return Mathf.Min(speed, _config.MaxFallSpeedCap);
+        var target = _config.BaseFallSpeed * levelGrowth * timeGrowth * _director.GetFallMultiplier(_config);
+        target = Mathf.Min(target, _config.MaxFallSpeedCap);
+
+        var now = Time.GetTicksMsec();
+        var dt = Mathf.Max(0.001f, (now - _lastSpeedCalcMs) / 1000.0f);
+        _lastSpeedCalcMs = now;
+        var maxDelta = _config.MaxFallSpeedDeltaPerSec * dt;
+        _smoothedFallSpeed = Mathf.MoveToward(_smoothedFallSpeed, target, maxDelta);
+
+        return _smoothedFallSpeed;
     }
 
     public int GetLevelForScore(int score)
@@ -115,13 +133,17 @@ public partial class CoreBridge : Node
     public Dictionary GetDifficultySnapshot()
     {
         var m = _metrics.Snapshot();
+        var dbg = _generator.GetDebugSnapshot(ComputeIdealChance());
         return new Dictionary
         {
             { "difficulty01", _director.Difficulty01 },
-            { "ideal_chance", ComputeIdealChance() },
+            { "ideal_chance", dbg["currentIdealChance"] },
             { "avg_move_time", m.AvgMoveTimeSec },
             { "avg_fill", m.AvgBoardFill },
-            { "cancel_rate", m.CancelRate }
+            { "cancel_rate", m.CancelRate },
+            { "last_well_seconds", dbg["lastWellSecondsAgo"] },
+            { "pieces_since_well", dbg["piecesSinceWell"] },
+            { "pity_triggers", dbg["pityTriggers"] }
         };
     }
 
