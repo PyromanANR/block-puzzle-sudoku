@@ -1,7 +1,7 @@
 {
   "BaseFallSpeed": 18.0,
-  "LevelSpeedGrowth": 1.16,
-  "TimeSpeedRampPerMinute": 0.16,
+  "LevelSpeedGrowth": 1.15,
+  "TimeSpeedRampPerMinute": 0.14,
   "MaxFallSpeedCap": 92.0,
   "MaxFallSpeedDeltaPerSec": 26.0,
   "DdaMinFallMultiplier": 0.90,
@@ -31,7 +31,7 @@
   "DangerLineStartRatio": 0.64,
   "DangerLineEndRatio": 0.84,
 
-  "PointsPerLevel": 360,
+  "PointsPerLevel": 380,
 
   "MaxRerollsPerRound": 0,
   "CancelDragPenalty": 0.02,
