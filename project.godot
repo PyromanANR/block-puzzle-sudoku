@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Block Puzzle Sudoku"
-run/main_scene="res://Scenes/Main.tscn"
+run/main_scene="res://Scenes/MainMenu.tscn"
 config/features=PackedStringArray("4.4", "C#", "Mobile")
 config/icon="res://icon.svg"
 
@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Core="*res://Scripts/Core/CoreBridge.cs"
 Save="*res://Scripts/SaveManager.gd"
+SkinManager="*res://Scripts/SkinManager.gd"
 
 [display]
 
