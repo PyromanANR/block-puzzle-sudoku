@@ -5,28 +5,28 @@ using System.Text.Json;
 public class BalanceConfig
 {
     // Difficulty / pace
-    public float BaseFallSpeed = 16.5f;
-    public float LevelSpeedGrowth = 1.14f;
-    public float TimeSpeedRampPerMinute = 0.13f;
-    public float MaxFallSpeedCap = 78.0f;
-    public float MaxFallSpeedDeltaPerSec = 16.0f;
-    public float DdaMinFallMultiplier = 0.88f;
-    public float DdaMaxFallMultiplier = 1.24f;
+    public float BaseFallSpeed = 18.0f;
+    public float LevelSpeedGrowth = 1.16f;
+    public float TimeSpeedRampPerMinute = 0.16f;
+    public float MaxFallSpeedCap = 92.0f;
+    public float MaxFallSpeedDeltaPerSec = 26.0f;
+    public float DdaMinFallMultiplier = 0.90f;
+    public float DdaMaxFallMultiplier = 1.28f;
 
     // Generator fairness
-    public float IdealPieceChanceEarly = 0.58f;
-    public float IdealPieceChanceLate = 0.18f;
-    public float IdealChanceDecayPerMinute = 0.09f;
-    public float IdealChanceFloor = 0.10f;
-    public int PityEveryNSpawns = 14;
-    public int NoProgressMovesForPity = 4;
-    public int CandidateTopBand = 5;
+    public float IdealPieceChanceEarly = 0.46f;
+    public float IdealPieceChanceLate = 0.12f;
+    public float IdealChanceDecayPerMinute = 0.16f;
+    public float IdealChanceFloor = 0.06f;
+    public int PityEveryNSpawns = 9999;
+    public int NoProgressMovesForPity = 5;
+    public int CandidateTopBand = 8;
 
     // Well participation / anti-drought
-    public float WellSpawnChanceEarly = 0.14f;
-    public float WellSpawnChanceLate = 0.24f;
-    public int ForceWellAfterSeconds = 35;
-    public int ForceWellEveryNPieces = 7;
+    public float WellSpawnChanceEarly = 0.16f;
+    public float WellSpawnChanceLate = 0.26f;
+    public int ForceWellAfterSeconds = 30;
+    public int ForceWellEveryNPieces = 6;
 
     // DDA signals
     public float TargetMoveTimeSec = 2.1f;
@@ -42,7 +42,7 @@ public class BalanceConfig
     public float DangerLineEndRatio = 0.84f;
 
     // Scoring / leveling
-    public int PointsPerLevel = 320;
+    public int PointsPerLevel = 360;
 
     // Anti-exploit / assistance
     public int MaxRerollsPerRound = 0;
