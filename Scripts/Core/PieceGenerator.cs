@@ -12,6 +12,8 @@ public class PieceGenerator
 
     private int _trainingLeft = 24;
     private int _spawnSincePity = 0;
+    private int _noProgressMoves = 0;
+    private int _pityTriggers = 0;
 
     public static readonly string[] AllKinds = new[]
     {
@@ -82,13 +84,14 @@ public class PieceGenerator
 
         evaluated.Sort((a, b) => b.score.CompareTo(a.score));
 
-        bool pity = _spawnSincePity >= _config.PityEveryNSpawns;
+        bool pity = _spawnSincePity >= _config.PityEveryNSpawns || _noProgressMoves >= _config.NoProgressMovesForPity;
         bool useIdeal = pity || _rng.Randf() <= idealChance;
 
         string selected;
         if (useIdeal)
         {
             selected = evaluated[0].kind;
+            if (pity) _pityTriggers++;
             _spawnSincePity = 0;
         }
         else
@@ -226,6 +229,22 @@ public class PieceGenerator
         if (roll <= 88) return "Square2";
         if (roll <= 94) return "TriL";
         return "TriLineH";
+    }
+
+
+    public void RegisterMoveOutcome(int clearedCount)
+    {
+        if (clearedCount > 0)
+            _noProgressMoves = 0;
+        else
+            _noProgressMoves++;
+    }
+
+    public int ConsumePityTriggerCount()
+    {
+        var value = _pityTriggers;
+        _pityTriggers = 0;
+        return value;
     }
 
     public static PieceData MakePiece(string kind)

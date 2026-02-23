@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Offline approximation simulator for quick balancing sanity checks."""
-import json, random
-from dataclasses import dataclass
+import json, random, statistics
 
 SIZE=9
 SHAPES={
@@ -11,6 +10,8 @@ SHAPES={
 }
 
 with open('Scripts/Core/balance_config.json','r',encoding='utf-8') as f: cfg=json.load(f)
+
+ALL=list(SHAPES)
 
 def can_place(b,shape,ax,ay):
     for dx,dy in SHAPES[shape]:
@@ -39,46 +40,82 @@ def eval_shape(b,shape):
     for y in range(SIZE):
         for x in range(SIZE):
             if can_place(b,shape,x,y):
-                # simple value: prefer immediate clear + compact center
                 center=1.0-(abs(4-x)+abs(4-y))*0.05
-                sc=center
-                if best is None or sc>best[0]: best=(sc,x,y)
+                if best is None or center>best[0]: best=(center,x,y)
     return best
 
-def run(games=500,seed=7):
+def run(games=120,seed=7,well_size=None):
     random.seed(seed)
-    allk=list(SHAPES)
-    total_moves=0; total_clears=0; no_move_losses=0
+    local=dict(cfg)
+    if well_size is not None:
+        local['PileMax']=well_size
+    lengths=[]
+    clears_total=0
+    no_move=0
+    overflow=0
+    pity_total=0
     for _ in range(games):
         b=[[0]*SIZE for _ in range(SIZE)]
-        pity=0
-        moves=0
-        for _m in range(cfg['SimulationMaxMoves']):
+        pity_spawns=0
+        no_progress=0
+        well_load=0.0
+        t=0.0
+        clears=0
+        for m in range(local['SimulationMaxMoves']):
+            level=1 + m/max(1, local['PointsPerLevel']//10)
+            fall_speed=min(local['MaxFallSpeedCap'], local['BaseFallSpeed']*(local['LevelSpeedGrowth']**max(0,level-1)))
+            move_time=max(0.65, 2.6-0.02*m)
+            inflow=move_time*(fall_speed/30.0)
+            well_load=max(0.0, well_load+inflow-1.0)
+            if well_load>local['PileMax']:
+                overflow+=1
+                break
+
             scored=[]
-            for k in allk:
+            for k in ALL:
                 e=eval_shape(b,k)
                 if e: scored.append((e[0],k,e[1],e[2]))
             if not scored:
-                no_move_losses+=1; break
+                no_move+=1
+                break
             scored.sort(reverse=True)
-            ideal=(pity>=cfg['PityEveryNSpawns']) or random.random()<cfg['IdealPieceChanceEarly']
-            if ideal:
-                _,k,x,y=scored[0]; pity=0
+
+            ideal=local['IdealPieceChanceEarly']-local['IdealChanceDecayPerMinute']*(t/60.0)
+            ideal=max(local['IdealChanceFloor'], min(1.0, ideal))
+            pity = pity_spawns>=local['PityEveryNSpawns'] or no_progress>=local['NoProgressMovesForPity']
+            if pity or random.random()<ideal:
+                _,k,x,y=scored[0]
+                if pity: pity_total+=1
+                pity_spawns=0
             else:
-                top=scored[:max(1,min(cfg['CandidateTopBand'],len(scored)))]
-                _,k,x,y=random.choice(top); pity+=1
+                top=scored[:max(1,min(local['CandidateTopBand'],len(scored)))]
+                _,k,x,y=random.choice(top)
+                pity_spawns+=1
+
             c=place_and_clear(b,k,x,y)
-            total_clears+=c
-            total_moves+=1
-            moves+=1
+            clears += c
+            clears_total += c
+            no_progress = 0 if c>0 else no_progress+1
+            t += move_time
+        lengths.append(t)
+
+    avg_t=sum(lengths)/games
     return {
         'games':games,
-        'avg_moves': total_moves/games,
-        'avg_clears': total_clears/games,
-        'no_move_loss_rate': no_move_losses/games,
-        'total_no_move_losses': no_move_losses,
+        'well_size': local['PileMax'],
+        'avg_time_sec': avg_t,
+        'p50_time_sec': statistics.median(lengths),
+        'p90_time_sec': sorted(lengths)[int(0.9*(games-1))],
+        'avg_clears_per_min': (clears_total/games)/(avg_t/60.0) if avg_t>0 else 0,
+        'no_move_loss_rate': no_move/games,
+        'well_overflow_rate': overflow/games,
+        'pity_triggers_per_game': pity_total/games,
     }
 
 if __name__=='__main__':
-    out=run(games=120)
+    out={
+      'well_8': run(games=120,seed=7,well_size=8),
+      'well_6': run(games=120,seed=7,well_size=6),
+      'well_5': run(games=120,seed=7,well_size=5),
+    }
     print(json.dumps(out,indent=2))

@@ -1,16 +1,34 @@
 {
-  "BaseFallSpeed": 16.0,
-  "LevelSpeedGrowth": 1.12,
+  "BaseFallSpeed": 14.0,
+  "LevelSpeedGrowth": 1.16,
+  "TimeSpeedRampPerMinute": 0.11,
+  "MaxFallSpeedCap": 72.0,
   "DdaMinFallMultiplier": 0.85,
-  "DdaMaxFallMultiplier": 1.20,
-  "IdealPieceChanceEarly": 0.85,
-  "IdealPieceChanceLate": 0.45,
-  "PityEveryNSpawns": 7,
+  "DdaMaxFallMultiplier": 1.25,
+
+  "IdealPieceChanceEarly": 0.82,
+  "IdealPieceChanceLate": 0.30,
+  "IdealChanceDecayPerMinute": 0.06,
+  "IdealChanceFloor": 0.22,
+  "PityEveryNSpawns": 8,
+  "NoProgressMovesForPity": 3,
   "CandidateTopBand": 3,
-  "TargetMoveTimeSec": 2.4,
-  "FillDangerThreshold": 0.72,
-  "DdaRatePerMove": 0.08,
+
+  "TargetMoveTimeSec": 2.2,
+  "FillDangerThreshold": 0.70,
+  "DdaRatePerMove": 0.10,
+
+  "WellSize": 6,
+  "PileMax": 6,
+  "TopSelectable": 3,
+  "PileVisible": 8,
+  "DangerLineStartRatio": 0.68,
+  "DangerLineEndRatio": 0.88,
+
+  "PointsPerLevel": 200,
+
   "MaxRerollsPerRound": 0,
   "CancelDragPenalty": 0.02,
-  "SimulationMaxMoves": 250
+
+  "SimulationMaxMoves": 320
 }

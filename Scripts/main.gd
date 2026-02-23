@@ -91,9 +91,11 @@ const RETRO_GRID_BORDER := Color(0.60, 0.36, 0.18, 1.0)
 # Well / pile
 # ----------------------------
 var pile: Array = []
-const PILE_MAX := 8
-const PILE_SELECTABLE := 3
-const PILE_VISIBLE := 8
+var pile_max: int = 8
+var pile_selectable: int = 3
+var pile_visible: int = 8
+var danger_start_ratio: float = 0.68
+var danger_end_ratio: float = 0.88
 
 # Zones inside well
 const FALL_PAD := 12
@@ -119,6 +121,8 @@ func _ready() -> void:
 		push_error("Core autoload not found.")
 		return
 
+	_apply_balance_well_settings()
+
 	board = core.call("CreateBoard")
 	board.call("Reset")
 
@@ -130,6 +134,15 @@ func _ready() -> void:
 
 	_start_round()
 	set_process(true)
+
+
+func _apply_balance_well_settings() -> void:
+	var s: Dictionary = core.call("GetWellSettings")
+	pile_max = int(s.get("pile_max", pile_max))
+	pile_selectable = int(s.get("top_selectable", pile_selectable))
+	pile_visible = int(s.get("pile_visible", pile_visible))
+	danger_start_ratio = float(s.get("danger_start_ratio", danger_start_ratio))
+	danger_end_ratio = float(s.get("danger_end_ratio", danger_end_ratio))
 
 
 func _start_round() -> void:
@@ -351,8 +364,8 @@ func _hide_game_over_overlay() -> void:
 
 func _on_settings() -> void:
 	# Debug utility: quick simulation snapshot from CoreBridge.
-	var sim := core.call("RunSimulationBatch", 200, 42)
-	print("Balance sim:", sim)
+	var sim6 := core.call("RunSimulationBatch", 120, 42)
+	print("Balance sim default:", sim6)
 
 
 func _on_exit() -> void:
@@ -464,7 +477,7 @@ func _spawn_falling_piece() -> void:
 
 func _lock_falling_to_pile() -> void:
 	pile.append(fall_piece)
-	if pile.size() > PILE_MAX:
+	if pile.size() > pile_max:
 		_trigger_game_over()
 		return
 	_spawn_falling_piece()
@@ -522,15 +535,15 @@ func _redraw_well() -> void:
 	var w = float(g["w"])
 
 	# How full the well is
-	var fill_ratio = clamp(float(pile.size()) / float(PILE_MAX), 0.0, 1.0)
+	var fill_ratio = clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
 
 	# Danger line at pile_top (stronger when near full)
 	var danger_h := 4
 	var danger_a := 0.25
-	if fill_ratio >= 0.70:
+	if fill_ratio >= danger_start_ratio:
 		danger_h = 6
 		danger_a = 0.35
-	if fill_ratio >= 0.90:
+	if fill_ratio >= danger_end_ratio:
 		danger_h = 10
 		danger_a = 0.50
 
@@ -552,7 +565,7 @@ func _redraw_well() -> void:
 
 	# WELL counter (X / MAX)
 	var well_stat := Label.new()
-	well_stat.text = "WELL: %d / %d" % [pile.size(), PILE_MAX]
+	well_stat.text = "WELL: %d / %d" % [pile.size(), pile_max]
 	well_stat.add_theme_font_size_override("font_size", 16)
 	well_stat.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
 	well_stat.position = Vector2(14, 26)
@@ -569,9 +582,9 @@ func _redraw_well() -> void:
 	well_draw.add_child(bar_bg)
 
 	var bar_col := Color(0.2, 0.9, 0.2, 0.75)
-	if fill_ratio >= 0.70:
+	if fill_ratio >= danger_start_ratio:
 		bar_col = Color(0.95, 0.85, 0.2, 0.75)
-	if fill_ratio >= 0.90:
+	if fill_ratio >= danger_end_ratio:
 		bar_col = Color(0.95, 0.2, 0.2, 0.80)
 
 	var bar_fg := ColorRect.new()
@@ -585,7 +598,7 @@ func _redraw_well() -> void:
 	var slot_w = w - 20.0
 	var base_y = pile_bottom - SLOT_H
 
-	for slot_i in range(PILE_VISIBLE):
+	for slot_i in range(pile_visible):
 		# slot_i=0 is top of visible area, increases downward
 		var y = base_y - float(slot_i) * (SLOT_H + SLOT_GAP)
 		if y < pile_top:
@@ -598,7 +611,7 @@ func _redraw_well() -> void:
 		well_draw.add_child(slot)
 
 		var pile_index = (pile.size() - 1) - slot_i
-		var is_active = slot_i < PILE_SELECTABLE
+		var is_active = slot_i < pile_selectable
 
 		if is_active:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
@@ -810,7 +823,7 @@ func _update_time() -> void:
 
 
 func _update_difficulty() -> void:
-	level = 1 + int(score / 120)
+	level = int(core.call("GetLevelForScore", score))
 	lbl_level.text = "Level: %d" % level
 
 
