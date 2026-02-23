@@ -1,0 +1,38 @@
+{
+  "name": "Default",
+  "colors": {
+    "cartridge_bg": "#f2d64a",
+    "board_bg": "#54270f",
+    "hud_bg": "#e6e3df",
+    "well_bg": "#2c2e35",
+    "cell_dark": "#2a0d04",
+    "cell_base": "#3c1408",
+    "grid_border": "#d4904f",
+    "danger": "#ff4e4e",
+    "text_primary": "#181818",
+    "text_muted": "#b8bec9"
+  },
+  "piece_colors": {
+    "I": "#1ed2ed",
+    "O": "#efcb4c",
+    "T": "#b870f2",
+    "S": "#59d879",
+    "Z": "#f26868",
+    "J": "#5a9ef2",
+    "L": "#f2a35a",
+    "Dot": "#f2b45f",
+    "DominoH": "#f2b45f",
+    "DominoV": "#f2b45f",
+    "TriLineH": "#f2b45f",
+    "TriLineV": "#f2b45f",
+    "TriL": "#f2b45f",
+    "Square2": "#f2b45f",
+    "Plus5": "#f2b45f"
+  },
+  "font_sizes": {
+    "title": 44,
+    "normal": 20,
+    "small": 14,
+    "tiny": 12
+  }
+}
