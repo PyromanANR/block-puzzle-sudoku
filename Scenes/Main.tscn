@@ -1,0 +1,47 @@
+[gd_scene load_steps=3 format=3 uid="uid://b2k52yde611h2"]
+
+[ext_resource type="Script" path="res://Scripts/main.gd" id="1_r34bo"]
+
+[sub_resource type="Theme" id="Theme_5gyaa"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_r34bo")
+
+[node name="RootVBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ScoreLabel" type="Label" parent="RootVBox"]
+layout_mode = 2
+text = "Score: 0"
+
+[node name="BoardHost" type="Control" parent="RootVBox"]
+clip_contents = true
+custom_minimum_size = Vector2(600, 600)
+layout_mode = 2
+size_flags_vertical = 3
+theme = SubResource("Theme_5gyaa")
+
+[node name="HandPanel" type="PanelContainer" parent="RootVBox"]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HandHBox" type="HBoxContainer" parent="RootVBox/HandPanel"]
+layout_mode = 2
+theme_override_constants/separation = 30
+alignment = 1
+
+[node name="RestartButton" type="Button" parent="RootVBox"]
+layout_mode = 2
+text = "Restart"
