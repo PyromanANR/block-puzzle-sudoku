@@ -709,7 +709,7 @@ func _redraw_well() -> void:
 			if is_active:
 				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
 
-			var mini := max(18, int(cell_size * 0.82))
+			var mini = max(18, int(cell_size * 0.82))
 			var preview := _make_piece_preview(p, mini, Vector2(slot.size.x, slot.size.y))
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)

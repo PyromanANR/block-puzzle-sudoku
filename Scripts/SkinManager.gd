@@ -1,5 +1,4 @@
 extends Node
-class_name SkinManager
 
 var active_skin := "Default"
 var palette: Dictionary = {}
