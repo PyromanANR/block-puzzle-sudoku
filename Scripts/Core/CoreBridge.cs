@@ -18,6 +18,9 @@ public partial class CoreBridge : Node
     private ulong _lastSpeedCalcMs;
     private ulong _lastDebugSpeedLogMs;
 
+    private string _difficulty = "Medium";
+    private bool _noMercy = false;
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -27,8 +30,42 @@ public partial class CoreBridge : Node
         _startMs = Time.GetTicksMsec();
         _lastSpeedCalcMs = _startMs;
         _lastDebugSpeedLogMs = _startMs;
+        ApplyDifficultyFromSave();
         _smoothedFallSpeed = _config.BaseFallSpeed;
         _lastTargetSpeed = _smoothedFallSpeed;
+    }
+
+
+    public void ApplyDifficultyFromSave()
+    {
+        var save = GetNodeOrNull<Node>("/root/Save");
+        if (save == null)
+            return;
+
+        _difficulty = save.Call("get_current_difficulty").AsString();
+        _noMercy = save.Call("get_no_mercy").AsBool();
+
+        float maxSpeedMultiplier = 9.0f;
+        int pileMax = 7;
+        int topSelectable = 2;
+
+        if (_difficulty == "Easy")
+        {
+            maxSpeedMultiplier = 8.0f;
+            pileMax = 8;
+            topSelectable = 3;
+        }
+        else if (_difficulty == "Hard")
+        {
+            maxSpeedMultiplier = 10.0f;
+            pileMax = 6;
+            topSelectable = _noMercy ? 0 : 1;
+        }
+
+        _config.PileMax = pileMax;
+        _config.WellSize = pileMax;
+        _config.TopSelectable = topSelectable;
+        _config.MaxFallSpeedCap = _config.BaseFallSpeed * maxSpeedMultiplier;
     }
 
     public BoardModel CreateBoard()
