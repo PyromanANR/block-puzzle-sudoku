@@ -89,11 +89,12 @@ const HL_BAD := Color(0.95, 0.20, 0.20, 0.60)
 var pile: Array = []
 const PILE_MAX := 8
 const PILE_SELECTABLE := 3
+const PILE_VISIBLE := 8
 
 # Zones inside well
 const FALL_PAD := 12
 const PILE_PAD := 12
-const SLOT_H := 62
+const SLOT_H := 54
 const SLOT_GAP := 6
 
 var fall_piece = null
@@ -156,6 +157,12 @@ func _trigger_game_over() -> void:
 		return
 	is_game_over = true
 	set_process(false)
+
+	# Save global progress (Stage 1)
+	Save.mark_played_today_if_needed()
+	Save.update_best(score, level)
+	Save.save()
+
 	_show_game_over_overlay()
 
 
@@ -167,6 +174,7 @@ func _build_ui() -> void:
 		ch.queue_free()
 
 	root_frame = Panel.new()
+	root_frame.clip_contents = true
 	root_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_frame.add_theme_stylebox_override("panel", _style_cartridge_frame())
 	add_child(root_frame)
@@ -266,7 +274,7 @@ func _build_ui() -> void:
 
 	# Bottom row = full width well
 	well_panel = Panel.new()
-	well_panel.custom_minimum_size = Vector2(0, 360)
+	well_panel.custom_minimum_size = Vector2(0, 900)
 	well_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_panel.size_flags_vertical = Control.SIZE_FILL
 	well_panel.add_theme_stylebox_override("panel", _style_bottom_panel())
@@ -458,17 +466,34 @@ func _lock_falling_to_pile() -> void:
 
 
 func _well_geometry() -> Dictionary:
-	# Compute pile area based on PILE_MAX so it always fits.
 	var well_h = well_draw.size.y
 	var well_w = well_draw.size.x
 
-	var pile_zone_h = PILE_MAX * SLOT_H + (PILE_MAX - 1) * SLOT_GAP
+	# If layout not ready yet, return safe defaults
+	if well_h <= 1.0 or well_w <= 1.0:
+		return {
+			"w": 100.0, "h": 100.0,
+			"pile_top": 60.0, "pile_bottom": 90.0,
+			"fall_top": 10.0, "fall_bottom": 50.0
+		}
+
+	# Pile takes a ratio of the well height (stable across resolutions)
+	var pile_zone_h = well_h * 0.55
 	var pile_bottom = well_h - PILE_PAD
 	var pile_top = pile_bottom - pile_zone_h
 
-	# Fall zone is the area above pile_top
+	# Fall zone is above pile, with clamps
 	var fall_top = FALL_PAD
 	var fall_bottom = pile_top - 10.0
+
+	# Safety clamps (critical)
+	if fall_bottom < fall_top + 40.0:
+		# ensure at least 40px of fall space
+		fall_bottom = fall_top + 40.0
+		pile_top = fall_bottom + 10.0
+
+	# Also clamp pile_top not too high
+	pile_top = max(pile_top, fall_top + 50.0)
 
 	return {
 		"w": well_w,
@@ -491,57 +516,111 @@ func _redraw_well() -> void:
 	var fall_bottom = float(g["fall_bottom"])
 	var w = float(g["w"])
 
-	# Danger line at pile_top
+	# How full the well is
+	var fill_ratio = clamp(float(pile.size()) / float(PILE_MAX), 0.0, 1.0)
+
+	# Danger line at pile_top (stronger when near full)
+	var danger_h := 4
+	var danger_a := 0.25
+	if fill_ratio >= 0.70:
+		danger_h = 6
+		danger_a = 0.35
+	if fill_ratio >= 0.90:
+		danger_h = 10
+		danger_a = 0.50
+
 	var danger := ColorRect.new()
-	danger.color = Color(0.9, 0.2, 0.2, 0.25)
+	danger.color = Color(0.9, 0.2, 0.2, danger_a)
 	danger.position = Vector2(0, pile_top)
-	danger.size = Vector2(w, 4)
+	danger.size = Vector2(w, danger_h)
 	danger.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_draw.add_child(danger)
 
 	# Label
 	var hint := Label.new()
-	hint.text = "Pick only TOP 3"
+	hint.text = "Pick only TOP 3 (grey = locked)"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
 	hint.position = Vector2(14, 6)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_draw.add_child(hint)
 
-	# Draw pile slots from bottom upwards
-	var base_y = pile_bottom - SLOT_H
-	for idx in range(pile.size()):
-		var p = pile[idx]
-		var slot_index_from_bottom = (pile.size() - 1) - idx
-		var y = base_y - slot_index_from_bottom * (SLOT_H + SLOT_GAP)
+	# WELL counter (X / MAX)
+	var well_stat := Label.new()
+	well_stat.text = "WELL: %d / %d" % [pile.size(), PILE_MAX]
+	well_stat.add_theme_font_size_override("font_size", 16)
+	well_stat.add_theme_color_override("font_color", Color(0.90, 0.90, 0.90))
+	well_stat.position = Vector2(14, 26)
+	well_stat.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_draw.add_child(well_stat)
 
-		# If it would exceed pile_top -> Game Over (visual + logical)
+	# Fill bar (visual pressure)
+	var bar_y = pile_top - 18
+	var bar_bg := ColorRect.new()
+	bar_bg.color = Color(1, 1, 1, 0.10)
+	bar_bg.position = Vector2(14, bar_y)
+	bar_bg.size = Vector2(w - 28, 10)
+	bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_draw.add_child(bar_bg)
+
+	var bar_col := Color(0.2, 0.9, 0.2, 0.75)
+	if fill_ratio >= 0.70:
+		bar_col = Color(0.95, 0.85, 0.2, 0.75)
+	if fill_ratio >= 0.90:
+		bar_col = Color(0.95, 0.2, 0.2, 0.80)
+
+	var bar_fg := ColorRect.new()
+	bar_fg.color = bar_col
+	bar_fg.position = bar_bg.position
+	bar_fg.size = Vector2(bar_bg.size.x * fill_ratio, bar_bg.size.y)
+	bar_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_draw.add_child(bar_fg)
+
+	# --- Draw visible stack slots (TOP 3 active + grey depth preview) ---
+	var slot_w = w - 20.0
+	var base_y = pile_bottom - SLOT_H
+
+	for slot_i in range(PILE_VISIBLE):
+		# slot_i=0 is top of visible area, increases downward
+		var y = base_y - float(slot_i) * (SLOT_H + SLOT_GAP)
 		if y < pile_top:
-			_trigger_game_over()
-			return
+			break
 
 		var slot := Panel.new()
-		slot.size = Vector2(w - 20, SLOT_H - 6)
+		slot.size = Vector2(slot_w, SLOT_H)
 		slot.position = Vector2(10, y)
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
-		slot.add_theme_stylebox_override("panel", _style_stack_slot())
-
-		var selectable = idx >= max(0, pile.size() - PILE_SELECTABLE)
-		slot.modulate = Color(1, 1, 1, 1) if selectable else Color(0.55, 0.55, 0.55, 1)
-
-		if selectable:
-			slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, idx))
-			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
-
 		well_draw.add_child(slot)
 
-		var preview := _make_piece_preview(p, 20)
-		preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, 4)
-		slot.add_child(preview)
+		var pile_index = (pile.size() - 1) - slot_i
+		var is_active = slot_i < PILE_SELECTABLE
+
+		if is_active:
+			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
+		else:
+			slot.add_theme_stylebox_override("panel", _style_stack_slot())
+			slot.modulate = Color(0.55, 0.55, 0.55, 1.0)
+
+		if pile_index >= 0:
+			var p = pile[pile_index]
+			if is_active:
+				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
+
+			var preview := _make_piece_preview(p, 18, Vector2(slot.size.x, slot.size.y))
+			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
+			slot.add_child(preview)
+		else:
+			var empty := Label.new()
+			empty.text = "EMPTY"
+			empty.add_theme_font_size_override("font_size", 12)
+			empty.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+			empty.position = Vector2(10, 18)
+			empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot.add_child(empty)
 
 	# Draw falling piece only within fall zone
 	if fall_piece != null and not is_game_over:
-		var fall := _make_piece_preview(fall_piece, 24)
+		var fall := _make_piece_preview(fall_piece, 20, Vector2(180, 90))
 		var fx = (w - fall.size.x) * 0.5
 		var fy = clamp(fall_y, fall_top, fall_bottom)
 		fall.position = Vector2(fx, fy)
@@ -771,9 +850,9 @@ func _build_ghost_for_piece(piece) -> void:
 # ============================================================
 # Preview blocks
 # ============================================================
-func _make_piece_preview(piece, mini: int) -> Control:
+func _make_piece_preview(piece, mini: int, frame: Vector2 = Vector2(140, 90)) -> Control:
 	var root := Control.new()
-	root.size = Vector2(160, 110)
+	root.size = frame
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var min_x := 999
