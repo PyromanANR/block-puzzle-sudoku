@@ -9,8 +9,8 @@ extends Control
 # - Ghost always visible while dragging
 # Requires CoreBridge.cs:
 #   - CreateBoard()
-#   - PopNextPiece()
-#   - PeekNextPiece()
+#   - PopNextPieceForBoard(board)
+#   - PeekNextPieceForBoard(board)
 # ============================================================
 
 # ----------------------------

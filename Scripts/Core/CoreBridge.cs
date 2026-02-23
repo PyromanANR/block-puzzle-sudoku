@@ -24,9 +24,11 @@ public partial class CoreBridge : Node
         return b;
     }
 
-    public PieceData PeekNextPiece() => _generator.Peek(CreateBoard(), _director.GetIdealPieceChance(_config));
+    // Compatibility API for callers without board context.
+    public PieceData PeekNextPiece() => _generator.Peek(null, _director.GetIdealPieceChance(_config));
 
-    public PieceData PopNextPiece() => _generator.Pop(CreateBoard(), _director.GetIdealPieceChance(_config));
+    // Compatibility API for callers without board context.
+    public PieceData PopNextPiece() => _generator.Pop(null, _director.GetIdealPieceChance(_config));
 
     public PieceData PeekNextPieceForBoard(BoardModel board)
     {
@@ -55,7 +57,7 @@ public partial class CoreBridge : Node
         if (_holdPiece == null)
         {
             _holdPiece = PieceGenerator.MakePiece(current.Kind);
-            return PopNextPiece();
+            return _generator.Pop(null, _director.GetIdealPieceChance(_config));
         }
 
         var outPiece = _holdPiece;

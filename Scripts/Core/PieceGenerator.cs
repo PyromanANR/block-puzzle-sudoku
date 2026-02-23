@@ -62,6 +62,15 @@ public class PieceGenerator
 
     private string PickKind(BoardModel board, float idealChance, bool consume)
     {
+        if (board == null)
+        {
+            EnsureQueue(1);
+            var queued = _queue.Peek();
+            if (consume)
+                _queue.Dequeue();
+            return queued;
+        }
+
         var evaluated = EvaluateKinds(board);
         if (evaluated.Count == 0)
         {
