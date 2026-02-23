@@ -1,7 +1,14 @@
 # UI/Asset Credits
 
-This iteration uses mostly procedural Godot `Theme` + `StyleBoxFlat` styling and does not bundle third-party texture/icon packs.
+This project uses a skin-ready UI pipeline and references open assets/licenses below.
 
-Potential future sources (requested baseline):
-- Kenney UI Pack (CC0): https://kenney.nl/assets/ui-pack
-- OpenGameArt (mixed licenses, use per-asset attribution if imported): https://opengameart.org/
+- Kenney UI Pack — CC0 1.0.
+  - Source: https://kenney.nl/assets/ui-pack
+  - Usage: visual direction and UI style reference for cartridge/gamepad-like controls.
+
+- OpenGameArt: "Game Console Controller Buttons" — CC0.
+  - Source: https://opengameart.org/content/game-console-controller-buttons
+  - Usage: reference for button prompt style/icons.
+
+- Godot 4 built-in Theme/StyleBoxFlat/Control rendering.
+  - Usage: procedural implementation of the current default skin visuals.
