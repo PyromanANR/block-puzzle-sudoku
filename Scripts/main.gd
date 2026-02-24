@@ -717,7 +717,7 @@ func _build_ui() -> void:
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var time_slow_frame = StyleBoxFlat.new()
-	time_slow_frame.border_width_all = 2
+	time_slow_frame.set_border_width_all(2)
 	time_slow_frame.border_color = Color(0.15, 0.15, 0.15, 0.9)
 	time_slow_frame.bg_color = Color(0, 0, 0, 0)
 	time_slow_mid.add_theme_stylebox_override("panel", time_slow_frame)
