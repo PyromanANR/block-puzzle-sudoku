@@ -86,10 +86,7 @@ var btn_exit: TextureButton
 var btn_skill_freeze: TextureButton
 var btn_skill_clear: TextureButton
 var btn_skill_invuln: TextureButton
-var board_overlay_left: Control
 var board_overlay_right: Control
-var panic_indicator_root: Control
-var panic_indicator_visual: Control
 var exit_dialog: AcceptDialog
 
 # Game Over overlay
@@ -98,8 +95,6 @@ var overlay_text: Label
 var is_game_over: bool = false
 var fx_layer: CanvasLayer
 var time_slow_overlay: ColorRect
-var well_slots_base_rotation = 0.0
-var well_slots_base_position = Vector2.ZERO
 var pending_invalid_piece = null
 var pending_invalid_from_pile_index: int = -1
 var pending_invalid_root: Control
@@ -176,14 +171,12 @@ var missing_sfx_warned = {}
 var last_dual_drop_min = -1.0
 var speed_curve_warning_shown = false
 var time_slow_ui_ready = false
-var panic_ui_ready = false
 
 const UI_ICON_MAP = {
 	"score": {"tres": "res://Assets/UI/icons/icon_score.tres", "png": "res://Assets/UI/icons/icon_score.png", "placeholder": "S"},
 	"speed": {"tres": "res://Assets/UI/icons/icon_speed.tres", "png": "res://Assets/UI/icons/icon_speed.png", "placeholder": "SPD"},
 	"time": {"tres": "res://Assets/UI/icons/icon_time.tres", "png": "res://Assets/UI/icons/icon_time.png", "placeholder": "T"},
 	"timeslow": {"tres": "res://Assets/UI/icons/icon_timeslow.tres", "png": "res://Assets/UI/icons/icon_timeslow.png", "placeholder": "TS"},
-	"panic": {"tres": "res://Assets/UI/icons/icon_panic.tres", "png": "res://Assets/UI/icons/icon_panic.png", "placeholder": "!"},
 	"freeze": {"tres": "", "png": "res://Assets/UI/icons/skill_freeze.png", "placeholder": "F"},
 	"clear": {"tres": "", "png": "res://Assets/UI/icons/skill_clear_board.png", "placeholder": "C"},
 	"safe_well": {"tres": "", "png": "res://Assets/UI/icons/skill_safe_well.png", "placeholder": "W"}
@@ -323,17 +316,7 @@ func _start_round() -> void:
 	if toast_panel != null:
 		toast_panel.visible = false
 	_clear_pending_invalid_piece()
-	if panic_indicator_root != null:
-		panic_indicator_root.visible = false
-	if panic_indicator_visual != null:
-		panic_indicator_visual.scale = Vector2(3.0, 3.0)
-		panic_indicator_visual.modulate = Color(1, 1, 1, 1)
 	time_slow_ui_ready = false
-	panic_ui_ready = false
-	if well_slots_panel != null:
-		well_slots_panel.modulate = Color(1, 1, 1, 1)
-		well_slots_panel.rotation_degrees = well_slots_base_rotation
-		well_slots_panel.position = well_slots_base_position
 
 
 func _trigger_game_over() -> void:
@@ -522,7 +505,6 @@ func _update_status_hud() -> void:
 	if bar_time_slow == null:
 		return
 	var now = Time.get_ticks_msec()
-	var fill_ratio = _well_fill_ratio()
 	var cooldown_sec = float(core.call("GetTimeSlowCooldownSec"))
 	var remaining_ms = max(0, time_slow_cooldown_until_ms - now)
 	var cooldown_remaining = float(remaining_ms) / 1000.0
@@ -542,7 +524,6 @@ func _update_status_hud() -> void:
 			btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	bar_time_slow.modulate = Color(1, 1, 1, 1)
 	_update_skill_icon_states()
-	_update_panic_warning_visual(fill_ratio)
 
 
 # Trigger condition: successful placement of a piece taken from WELL.
@@ -729,6 +710,63 @@ func _build_ui() -> void:
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
+	var time_slow_mid = Control.new()
+	time_slow_mid.name = "time_slow_mid"
+	time_slow_mid.custom_minimum_size = Vector2(72, 0)
+	time_slow_mid.size_flags_horizontal = Control.SIZE_FILL
+	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_draw.add_child(time_slow_mid)
+
+	var time_slow_bar_margin = MarginContainer.new()
+	time_slow_bar_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_bar_margin.add_theme_constant_override("margin_top", 16)
+	time_slow_bar_margin.add_theme_constant_override("margin_bottom", 16)
+	time_slow_bar_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_mid.add_child(time_slow_bar_margin)
+
+	var time_slow_bar_center = CenterContainer.new()
+	time_slow_bar_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_bar_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_bar_margin.add_child(time_slow_bar_center)
+
+	bar_time_slow = ProgressBar.new()
+	bar_time_slow.custom_minimum_size = Vector2(14, 0)
+	bar_time_slow.max_value = 100
+	bar_time_slow.fill_mode = ProgressBar.FILL_BOTTOM_TO_TOP
+	bar_time_slow.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	bar_time_slow.show_percentage = false
+	bar_time_slow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_bar_center.add_child(bar_time_slow)
+
+	btn_time_slow = TextureButton.new()
+	btn_time_slow.custom_minimum_size = Vector2(56, 56)
+	btn_time_slow.size = Vector2(56, 56)
+	btn_time_slow.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	btn_time_slow.ignore_texture_size = false
+	btn_time_slow.mouse_filter = Control.MOUSE_FILTER_STOP
+	var time_slow_tex = _load_ui_icon("timeslow")
+	if time_slow_tex != null:
+		btn_time_slow.texture_normal = time_slow_tex
+		btn_time_slow.texture_hover = time_slow_tex
+		btn_time_slow.texture_pressed = time_slow_tex
+		btn_time_slow.texture_disabled = time_slow_tex
+	else:
+		var ts_fallback = Label.new()
+		ts_fallback.text = "TS"
+		ts_fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ts_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ts_fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		ts_fallback.add_theme_font_size_override("font_size", 20)
+		ts_fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btn_time_slow.add_child(ts_fallback)
+	btn_time_slow.set_anchors_preset(Control.PRESET_CENTER)
+	btn_time_slow.offset_left = -28
+	btn_time_slow.offset_top = -28
+	btn_time_slow.offset_right = 28
+	btn_time_slow.offset_bottom = 28
+	time_slow_mid.add_child(btn_time_slow)
+
 	well_slots_panel = Panel.new()
 	well_slots_panel.name = "well_panel"
 	well_slots_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -736,8 +774,6 @@ func _build_ui() -> void:
 	well_slots_panel.size_flags_stretch_ratio = 1.0
 	well_slots_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(well_slots_panel)
-	well_slots_base_rotation = well_slots_panel.rotation_degrees
-	well_slots_base_position = well_slots_panel.position
 
 	drop_zone_draw = Control.new()
 	drop_zone_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -757,16 +793,6 @@ func _build_ui() -> void:
 	well_slots_draw.offset_bottom = -10
 	well_slots_draw.mouse_filter = Control.MOUSE_FILTER_STOP
 	well_slots_panel.add_child(well_slots_draw)
-
-	panic_indicator_root = Control.new()
-	panic_indicator_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	panic_indicator_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panic_indicator_root.visible = false
-	well_slots_panel.add_child(panic_indicator_root)
-	panic_indicator_visual = _build_panic_indicator_visual()
-	panic_indicator_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panic_indicator_visual.scale = Vector2(3.0, 3.0)
-	panic_indicator_root.add_child(panic_indicator_visual)
 
 	ghost_layer = Control.new()
 	ghost_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1002,75 +1028,6 @@ func _load_texture_or_null(path: String) -> Texture2D:
 	return null
 
 
-func _build_panic_indicator_visual() -> Control:
-	var tex = _load_ui_icon("panic")
-	if tex != null:
-		var icon = TextureRect.new()
-		icon.custom_minimum_size = Vector2(40, 40)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.texture = tex
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		return icon
-	var fallback = Label.new()
-	fallback.text = _ui_icon_placeholder("panic", "!")
-	fallback.custom_minimum_size = Vector2(40, 40)
-	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	fallback.add_theme_font_size_override("font_size", 28)
-	fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return fallback
-
-
-func _panic_icon_target_position(slots_top: float, dynamic_h: float, slots_total: int) -> Vector2:
-	if slots_total <= 0:
-		return Vector2.ZERO
-	var threshold_row = int(ceil(float(slots_total) * 0.60))
-	threshold_row = clamp(threshold_row, 1, slots_total)
-	var top_y = slots_top
-	var boundary_y = top_y + float(threshold_row) * dynamic_h + (float(threshold_row) - 0.5) * SLOT_GAP
-	var icon_size = panic_indicator_visual.size
-	if icon_size.x <= 0.0 or icon_size.y <= 0.0:
-		icon_size = panic_indicator_visual.custom_minimum_size
-	if icon_size.x <= 0.0 or icon_size.y <= 0.0:
-		icon_size = Vector2(40, 40)
-	var min_y = icon_size.y * 0.5
-	var max_y = max(min_y, well_slots_panel.size.y - icon_size.y * 0.5)
-	var target_y = clamp(boundary_y, min_y, max_y)
-	var target_x = well_slots_panel.size.x * 0.5
-	return Vector2(target_x - icon_size.x * 0.5, target_y - icon_size.y * 0.5)
-
-
-func _update_panic_warning_visual(fill_ratio: float) -> void:
-	if panic_indicator_root == null or panic_indicator_visual == null or well_slots_panel == null:
-		return
-	if not panic_ui_ready:
-		panic_indicator_root.visible = false
-		panic_indicator_visual.scale = Vector2(3.0, 3.0)
-		panic_indicator_visual.modulate = Color(1, 1, 1, 1)
-		return
-	var now = Time.get_ticks_msec()
-	var t = float(now) / 1000.0
-	var pulse_speed_hz = 1.35
-	var wave = 0.5 + 0.5 * sin(TAU * pulse_speed_hz * t)
-	if fill_ratio >= 0.60:
-		panic_indicator_root.visible = true
-		var icon_scale = 3.0 + 0.30 * wave
-		panic_indicator_visual.scale = Vector2(icon_scale, icon_scale)
-		panic_indicator_visual.modulate = Color(1, 1, 1, 1.0 - 0.25 * wave)
-		var brightness = min(1.10, 1.0 + 0.10 * wave)
-		well_slots_panel.modulate = Color(brightness, brightness, brightness, 1.0)
-		well_slots_panel.position = well_slots_base_position
-		well_slots_panel.rotation_degrees = well_slots_base_rotation
-	else:
-		panic_indicator_visual.scale = Vector2(3.0, 3.0)
-		panic_indicator_visual.modulate = Color(1, 1, 1, 1)
-		panic_indicator_root.visible = false
-		well_slots_panel.modulate = Color(1, 1, 1, 1)
-		well_slots_panel.position = well_slots_base_position
-		well_slots_panel.rotation_degrees = well_slots_base_rotation
-
-
 func _build_skill_icon_button(icon_key: String) -> TextureButton:
 	var b = TextureButton.new()
 	b.custom_minimum_size = Vector2(56, 56)
@@ -1192,43 +1149,6 @@ func _clear_color_grid() -> void:
 
 
 func _build_board_side_overlays() -> void:
-	var left_overlay = HBoxContainer.new()
-	left_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left_overlay.add_theme_constant_override("separation", 6)
-	board_panel.add_child(left_overlay)
-	board_overlay_left = left_overlay
-
-	btn_time_slow = TextureButton.new()
-	btn_time_slow.custom_minimum_size = Vector2(56, 56)
-	btn_time_slow.size = Vector2(56, 56)
-	btn_time_slow.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	btn_time_slow.ignore_texture_size = false
-	btn_time_slow.mouse_filter = Control.MOUSE_FILTER_STOP
-	var time_slow_tex = _load_ui_icon("timeslow")
-	if time_slow_tex != null:
-		btn_time_slow.texture_normal = time_slow_tex
-		btn_time_slow.texture_hover = time_slow_tex
-		btn_time_slow.texture_pressed = time_slow_tex
-		btn_time_slow.texture_disabled = time_slow_tex
-	else:
-		var ts_fallback = Label.new()
-		ts_fallback.text = "TS"
-		ts_fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		ts_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		ts_fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		ts_fallback.add_theme_font_size_override("font_size", 20)
-		ts_fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		btn_time_slow.add_child(ts_fallback)
-	left_overlay.add_child(btn_time_slow)
-
-	bar_time_slow = ProgressBar.new()
-	bar_time_slow.custom_minimum_size = Vector2(10, 56)
-	bar_time_slow.size = Vector2(10, 56)
-	bar_time_slow.max_value = 100
-	bar_time_slow.fill_mode = ProgressBar.FILL_BOTTOM_TO_TOP
-	bar_time_slow.show_percentage = false
-	bar_time_slow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left_overlay.add_child(bar_time_slow)
 
 	var right_overlay = VBoxContainer.new()
 	right_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1262,31 +1182,20 @@ func _build_board_side_overlays() -> void:
 
 
 func _reposition_board_side_overlays() -> void:
-	if board_panel == null or board_overlay_left == null or board_overlay_right == null:
+	if board_panel == null or board_overlay_right == null:
 		return
-	var host_left = 0.0
 	var host_right = board_panel.size.x
 	var host_h = board_panel.size.y
-	var grid_left = board_start.x
 	var grid_right = board_start.x + float(BOARD_SIZE * cell_size)
-	var left_pad = max(0.0, grid_left - host_left)
 	var right_pad = max(0.0, host_right - grid_right)
-	var overlay_scale = 1.0
-	var min_pad = min(left_pad, right_pad)
-	if min_pad < 120.0:
-		overlay_scale = clamp(min_pad / 120.0, 0.35, 1.0)
-	var left_base_size = board_overlay_left.get_combined_minimum_size()
 	var right_base_size = board_overlay_right.get_combined_minimum_size()
-	if left_base_size.x > 0.0:
-		overlay_scale = min(overlay_scale, left_pad / left_base_size.x)
+	var overlay_scale = 1.0
+	if right_pad < 120.0:
+		overlay_scale = clamp(right_pad / 120.0, 0.35, 1.0)
 	if right_base_size.x > 0.0:
 		overlay_scale = min(overlay_scale, right_pad / right_base_size.x)
 	overlay_scale = clamp(overlay_scale, 0.20, 1.0)
-	board_overlay_left.scale = Vector2(overlay_scale, overlay_scale)
 	board_overlay_right.scale = Vector2(overlay_scale, overlay_scale)
-	var left_size = left_base_size * overlay_scale
-	var left_x = max(host_left, grid_left - left_size.x)
-	board_overlay_left.position = Vector2(left_x, floor((host_h - left_size.y) * 0.5))
 	var right_size = right_base_size * overlay_scale
 	var right_x = min(host_right - right_size.x, grid_right)
 	board_overlay_right.position = Vector2(right_x, floor((host_h - right_size.y) * 0.5))
@@ -1649,6 +1558,14 @@ func _redraw_well() -> void:
 	slots_progress.value = fill_ratio
 	slots_progress.show_percentage = false
 	slots_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var slots_fill_style = StyleBoxFlat.new()
+	if fill_ratio < 0.50:
+		slots_fill_style.bg_color = Color(0.30, 0.78, 0.34, 1.0)
+	elif fill_ratio < 0.70:
+		slots_fill_style.bg_color = Color(0.90, 0.78, 0.25, 1.0)
+	else:
+		slots_fill_style.bg_color = Color(0.88, 0.30, 0.30, 1.0)
+	slots_progress.add_theme_stylebox_override("fill", slots_fill_style)
 	slots_header_row.add_child(slots_progress)
 
 	var slots_top = max(pile_top, 58.0)
@@ -1656,9 +1573,6 @@ func _redraw_well() -> void:
 	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
 	var dynamic_h = max(64.0, min(120.0, per_slot - SLOT_GAP * 0.5))
-	if panic_indicator_root != null and panic_indicator_visual != null:
-		panic_indicator_visual.position = _panic_icon_target_position(slots_top, dynamic_h, pile_max)
-		panic_ui_ready = true
 	var slot_preview_cell = int(clamp(float(cell_size) * 0.95, 14.0, 52.0))
 	var neon_min = float(core.call("GetWellNeonMinAlpha"))
 	var neon_max = float(core.call("GetWellNeonMaxAlpha"))
