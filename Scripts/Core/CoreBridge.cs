@@ -140,13 +140,13 @@ public partial class CoreBridge : Node
 
     public float GetFallSpeed(float level)
     {
-        var levelGrowth = Mathf.Pow(_config.LevelSpeedGrowth, Mathf.Max(0f, level - 1f));
         var elapsedMinutes = GetElapsedMinutes();
 
         var kneeMinutes = Mathf.Max(0.1f, _config.SpeedKneeMinutes);
         var kneeMultiplier = GetKneeMultiplierForDifficulty();
         var rampT = Mathf.Clamp(elapsedMinutes / kneeMinutes, 0f, 1f);
-        var preKneeMultiplier = Mathf.Lerp(1.0f, kneeMultiplier, rampT);
+        var easedT = Mathf.Pow(rampT, Mathf.Max(0.01f, _config.SpeedEaseExponent));
+        var preKneeMultiplier = Mathf.Lerp(1.0f, kneeMultiplier, easedT);
 
         var tailMinutes = Mathf.Max(0f, elapsedMinutes - kneeMinutes);
         var postKneeTailMultiplier = 1.0f + _config.PostKneeTailStrength * Mathf.Log(1.0f + tailMinutes);
@@ -156,7 +156,7 @@ public partial class CoreBridge : Node
             growthMul = _config.RescueStabilityGrowthMul;
 
         var speedMultiplier = preKneeMultiplier * postKneeTailMultiplier;
-        var target = _config.BaseFallSpeed * levelGrowth * speedMultiplier * growthMul * _director.GetFallMultiplier(_config);
+        var target = _config.BaseFallSpeed * speedMultiplier * growthMul;
         _lastTargetSpeed = target;
 
         var now = Time.GetTicksMsec();
@@ -169,7 +169,7 @@ public partial class CoreBridge : Node
         if (now - _lastDebugSpeedLogMs >= 1000)
         {
             _lastDebugSpeedLogMs = now;
-            var currentMultiplier = _smoothedFallSpeed / Mathf.Max(0.001f, _config.BaseFallSpeed * levelGrowth);
+            var currentMultiplier = _smoothedFallSpeed / Mathf.Max(0.001f, _config.BaseFallSpeed);
             GD.Print($"[SPEED] elapsedMin={elapsedMinutes:0.00}, currentMul={currentMultiplier:0.00}, kneeTargetMul={kneeMultiplier:0.00}, postKneeTailMul={postKneeTailMultiplier:0.000}, target={target:0.00}, smoothed={_smoothedFallSpeed:0.00}");
 
             if (Mathf.Abs(elapsedMinutes - kneeMinutes) <= 0.05f)
