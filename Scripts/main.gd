@@ -901,6 +901,10 @@ func _fitted_cell_size(piece, desired_cell: int, frame: Vector2, fit_ratio: floa
 
 
 func _spawn_falling_piece() -> void:
+	var preview_piece = core.call("PeekNextPieceForBoard", board)
+	var preview_kind = ""
+	if preview_piece != null:
+		preview_kind = String(preview_piece.get("Kind"))
 	fall_piece = core.call("PopNextPieceForBoard", board)
 	var actual_next_piece = core.call("PeekNextPieceForBoard", board)
 	next_actual_kind = ""
