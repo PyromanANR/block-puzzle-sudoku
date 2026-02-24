@@ -142,20 +142,35 @@ public partial class CoreBridge : Node
     {
         var elapsedMinutes = GetElapsedMinutes();
 
-        var kneeMinutes = Mathf.Max(0.1f, _config.SpeedKneeMinutes);
-        var kneeMultiplier = GetKneeMultiplierForDifficulty();
-        var rampT = Mathf.Clamp(elapsedMinutes / kneeMinutes, 0f, 1f);
-        var easedT = Mathf.Pow(rampT, Mathf.Max(0.01f, _config.SpeedEaseExponent));
-        var preKneeMultiplier = Mathf.Lerp(1.0f, kneeMultiplier, easedT);
+        var peak1Minutes = Mathf.Max(0.1f, _config.SpeedPeak1Minutes);
+        var peak2Minutes = Mathf.Max(peak1Minutes + 0.1f, _config.SpeedPeak2Minutes);
+        var mult1 = GetKneeMultiplierForDifficulty();
+        var mult2 = mult1 * 1.5f;
 
-        var tailMinutes = Mathf.Max(0f, elapsedMinutes - kneeMinutes);
-        var postKneeTailMultiplier = 1.0f + _config.PostKneeTailStrength * Mathf.Log(1.0f + tailMinutes);
+        float speedMultiplier;
+        if (elapsedMinutes <= peak1Minutes)
+        {
+            var p = Mathf.Clamp(elapsedMinutes / peak1Minutes, 0f, 1f);
+            var e = Mathf.Pow(p, Mathf.Max(0.01f, _config.SpeedEaseExponent1));
+            speedMultiplier = Mathf.Lerp(1.0f, mult1, e);
+        }
+        else if (elapsedMinutes <= peak2Minutes)
+        {
+            var p = Mathf.Clamp((elapsedMinutes - peak1Minutes) / (peak2Minutes - peak1Minutes), 0f, 1f);
+            var e = Mathf.Pow(p, Mathf.Max(0.01f, _config.SpeedEaseExponent2));
+            speedMultiplier = Mathf.Lerp(mult1, mult2, e);
+        }
+        else
+        {
+            var afterPeak2 = Mathf.Max(0f, elapsedMinutes - peak2Minutes);
+            var tail = 1.0f + _config.SpeedTailStrength * Mathf.Log(1.0f + afterPeak2);
+            speedMultiplier = mult2 * tail;
+        }
 
         var growthMul = 1.0f;
         if (Time.GetTicksMsec() < _rescueStabilityUntilMs)
             growthMul = _config.RescueStabilityGrowthMul;
 
-        var speedMultiplier = preKneeMultiplier * postKneeTailMultiplier;
         var target = _config.BaseFallSpeed * speedMultiplier * growthMul;
         _lastTargetSpeed = target;
 
@@ -170,12 +185,7 @@ public partial class CoreBridge : Node
         {
             _lastDebugSpeedLogMs = now;
             var currentMultiplier = _smoothedFallSpeed / Mathf.Max(0.001f, _config.BaseFallSpeed);
-            GD.Print($"[SPEED] elapsedMin={elapsedMinutes:0.00}, currentMul={currentMultiplier:0.00}, kneeTargetMul={kneeMultiplier:0.00}, postKneeTailMul={postKneeTailMultiplier:0.000}, target={target:0.00}, smoothed={_smoothedFallSpeed:0.00}");
-
-            if (Mathf.Abs(elapsedMinutes - kneeMinutes) <= 0.05f)
-                GD.Print($"[SPEED-CHECK] around knee ({kneeMinutes:0.00}m): expected≈{kneeMultiplier:0.00}x, measured={currentMultiplier:0.00}x");
-            if (elapsedMinutes > kneeMinutes + 0.30f)
-                GD.Print($"[SPEED-CHECK] post-knee growth active: tailMul={postKneeTailMultiplier:0.000}");
+            GD.Print($"[SPEED] elapsedMin={elapsedMinutes:0.00}, currentMul={currentMultiplier:0.00}, peak1Mul={mult1:0.00}, peak2Mul={mult2:0.00}, target={target:0.00}");
         }
 #endif
 
@@ -231,40 +241,40 @@ public partial class CoreBridge : Node
 
     public float GetElapsedMinutesForDebug() => GetElapsedMinutes();
 
-    public float GetKneeTargetMultiplier() => GetKneeMultiplierForDifficulty();
+    public float GetPeak1TargetMultiplier() => GetKneeMultiplierForDifficulty();
 
-    public float GetPostKneeTailMultiplier()
+    public float GetPeak2TargetMultiplier() => GetKneeMultiplierForDifficulty() * 1.5f;
+
+    public float GetSpeedTailMultiplier()
     {
         var elapsedMinutes = GetElapsedMinutes();
-        var kneeMinutes = Mathf.Max(0.1f, _config.SpeedKneeMinutes);
-        var tailMinutes = Mathf.Max(0f, elapsedMinutes - kneeMinutes);
-        return 1.0f + _config.PostKneeTailStrength * Mathf.Log(1.0f + tailMinutes);
+        var peak2Minutes = Mathf.Max(0.1f, _config.SpeedPeak2Minutes);
+        var tailMinutes = Mathf.Max(0f, elapsedMinutes - peak2Minutes);
+        return 1.0f + _config.SpeedTailStrength * Mathf.Log(1.0f + tailMinutes);
     }
 
-    public float GetFastNextChanceCurrent()
+    public string GetSpeedSegmentForDebug()
     {
         var elapsed = GetElapsedMinutes();
-        var knee = Mathf.Max(0.1f, _config.SpeedKneeMinutes);
+        if (elapsed <= _config.SpeedPeak1Minutes)
+            return "A";
+        if (elapsed <= _config.SpeedPeak2Minutes)
+            return "B";
+        return "C";
+    }
 
-        var atKnee = _config.FastNextChanceAtKneeMedium;
-        var cap = _config.FastNextChanceCapMedium;
+    public float GetDualDropChanceCurrent()
+    {
+        var elapsed = GetElapsedMinutes();
+        var cap = _config.DualDropChanceCapMedium;
         if (_difficulty == "Easy")
-        {
-            atKnee = _config.FastNextChanceAtKneeEasy;
-            cap = _config.FastNextChanceCapEasy;
-        }
+            cap = _config.DualDropChanceCapEasy;
         else if (_difficulty == "Hard")
-        {
-            atKnee = _config.FastNextChanceAtKneeHard;
-            cap = _config.FastNextChanceCapHard;
-        }
+            cap = _config.DualDropChanceCapHard;
 
-        if (elapsed < knee)
-            return _config.FastNextChanceStart;
-
-        var capMinutes = Mathf.Max(knee + 0.1f, _config.FastNextCapMinutes);
-        var tCap = Mathf.Clamp((elapsed - knee) / (capMinutes - knee), 0f, 1f);
-        return Mathf.Lerp(atKnee, cap, tCap);
+        var capMinutes = Mathf.Max(0.1f, _config.DualDropChanceCapMinutes);
+        var t = Mathf.Clamp(elapsed / capMinutes, 0f, 1f);
+        return Mathf.Lerp(_config.DualDropChanceStart, cap, t);
     }
 
     public float GetWellDragTimeScale(float wellFillRatio)
@@ -273,13 +283,19 @@ public partial class CoreBridge : Node
         return Mathf.Lerp(_config.WellDragSlowMin, _config.WellDragSlowMax, t);
     }
 
-    public bool ConsumeFastNextBoost()
+    public bool ConsumeDualDropTrigger()
     {
-        var chance = GetFastNextChanceCurrent();
+        var chance = GetDualDropChanceCurrent();
         return _rng.Randf() < chance;
     }
 
-    public float GetFastNextDelayMul() => _config.FastNextDelayMul;
+    public float GetDualDropStaggerSec() => _config.DualDropStaggerSec;
+
+    public float GetNoMercyExtraTimeScale(float wellFillRatio)
+    {
+        var t = Mathf.Clamp(wellFillRatio, 0f, 1f);
+        return Mathf.Lerp(_config.NoMercyExtraSlowMin, _config.NoMercyExtraSlowMax, t);
+    }
 
     public bool ShouldTriggerAutoSlow(float boardFillRatio, float wellFillRatio)
     {

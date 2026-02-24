@@ -116,10 +116,14 @@ const SLOT_GAP := 6
 
 var fall_piece = null
 var fall_y: float = 10.0
+var fall_piece_2 = null
+var fall_y_2: float = 10.0
 var frozen_left: float = 0.0
 var spawn_wait_until_ms = 0
 var pending_spawn_piece = false
-var fast_next_trigger_count = 0
+var pending_dual_spawn_ms = 0
+var dual_drop_cycle_pending = false
+var dual_drop_trigger_count = 0
 var rescue_trigger_count = 0
 var auto_slow_until_ms = 0
 var auto_slow_trigger_count = 0
@@ -134,8 +138,8 @@ var time_scale_reason = "Normal"
 var sfx_players = {}
 var missing_sfx_warned = {}
 var next_preview_kind = ""
-var next_actual_kind = ""
-var last_fast_next_trigger_min = -1.0
+var next_pending_kind = ""
+var last_dual_drop_min = -1.0
 
 const NORMAL_RESPAWN_DELAY_MS = 260
 
@@ -218,8 +222,10 @@ func _start_round() -> void:
 	frozen_left = 0.0
 	spawn_wait_until_ms = 0
 	pending_spawn_piece = false
-	fast_next_trigger_count = 0
-	last_fast_next_trigger_min = -1.0
+	pending_dual_spawn_ms = 0
+	dual_drop_cycle_pending = false
+	dual_drop_trigger_count = 0
+	last_dual_drop_min = -1.0
 	rescue_trigger_count = 0
 	auto_slow_until_ms = 0
 	auto_slow_trigger_count = 0
@@ -228,6 +234,8 @@ func _start_round() -> void:
 	clear_flash_cells.clear()
 	rescue_eligible_until_ms = 0
 	rescue_from_well_pending = false
+	fall_piece_2 = null
+	fall_y_2 = 10.0
 	panic_sfx_cooldown_ms = 0
 	well_header_pulse_left = 0.0
 	time_scale_reason = "Normal"
@@ -325,17 +333,50 @@ func _set_time_scale(reason, scale) -> void:
 
 func _update_time_scale_runtime() -> void:
 	var now = Time.get_ticks_msec()
-	if micro_freeze_until_ms > now:
-		_set_time_scale("MicroFreeze", 0.15)
-		return
-	if auto_slow_until_ms > now:
-		_set_time_scale("AutoSlow", float(core.call("GetAutoSlowScale")))
-		return
+	var final_scale = 1.0
+	var reason = "Normal"
+	if _is_no_mercy_active():
+		var nm_scale = float(core.call("GetNoMercyExtraTimeScale", _well_fill_ratio()))
+		if nm_scale < final_scale:
+			final_scale = nm_scale
+			reason = "NoMercyExtra"
 	if dragging and selected_from_pile_index >= 0 and selected_piece != null:
-		var slow = float(core.call("GetWellDragTimeScale", _well_fill_ratio()))
-		_set_time_scale("WellDrag", slow)
-		return
-	_set_time_scale("Normal", 1.0)
+		var well_drag_scale = float(core.call("GetWellDragTimeScale", _well_fill_ratio()))
+		if well_drag_scale < final_scale:
+			final_scale = well_drag_scale
+			reason = "WellDrag"
+	if auto_slow_until_ms > now:
+		var auto_scale = float(core.call("GetAutoSlowScale"))
+		if auto_scale < final_scale:
+			final_scale = auto_scale
+			reason = "AutoSlow"
+	if micro_freeze_until_ms > now:
+		var micro_scale = 0.15
+		if micro_scale < final_scale:
+			final_scale = micro_scale
+			reason = "MicroFreeze"
+	_set_time_scale(reason, final_scale)
+
+
+
+func _active_falling_count() -> int:
+	var c = 0
+	if fall_piece != null:
+		c += 1
+	if fall_piece_2 != null:
+		c += 1
+	return c
+
+
+func _is_no_mercy_active() -> bool:
+	return Save.get_current_difficulty() == "Hard" and Save.get_no_mercy()
+
+
+func _update_pending_next_kind() -> void:
+	var pending_piece = core.call("PeekNextPieceForBoard", board)
+	next_pending_kind = ""
+	if pending_piece != null:
+		next_pending_kind = String(pending_piece.get("Kind"))
 
 
 func _well_fill_ratio() -> float:
@@ -344,17 +385,14 @@ func _well_fill_ratio() -> float:
 	return clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
 
 
-func _schedule_next_falling_piece(use_fast_next) -> void:
+func _schedule_next_falling_piece() -> void:
 	pending_spawn_piece = true
-	var now = Time.get_ticks_msec()
-	var delay_ms = NORMAL_RESPAWN_DELAY_MS
-	if use_fast_next:
-		var delay_mul = float(core.call("GetFastNextDelayMul"))
-		delay_ms = int(round(float(NORMAL_RESPAWN_DELAY_MS) * clamp(delay_mul, 0.10, 1.0)))
-		fast_next_trigger_count += 1
-		last_fast_next_trigger_min = float(core.call("GetElapsedMinutesForDebug"))
-		print("[FAST-NEXT] triggered count=%d delay_ms=%d min=%.2f" % [fast_next_trigger_count, delay_ms, last_fast_next_trigger_min])
-	spawn_wait_until_ms = now + delay_ms
+	spawn_wait_until_ms = Time.get_ticks_msec() + NORMAL_RESPAWN_DELAY_MS
+	dual_drop_cycle_pending = bool(core.call("ConsumeDualDropTrigger"))
+	if dual_drop_cycle_pending:
+		dual_drop_trigger_count += 1
+		last_dual_drop_min = float(core.call("GetElapsedMinutesForDebug"))
+		print("[DUAL-DROP] trigger count=%d min=%.2f" % [dual_drop_trigger_count, last_dual_drop_min])
 
 
 func _trigger_micro_freeze() -> void:
@@ -374,11 +412,16 @@ func _update_debug_overlay() -> void:
 	if lbl_debug == null:
 		return
 	var elapsed = float(core.call("GetElapsedMinutesForDebug"))
-	var knee_target = float(core.call("GetKneeTargetMultiplier"))
-	var tail_mul = float(core.call("GetPostKneeTailMultiplier"))
-	var fast_next_chance = float(core.call("GetFastNextChanceCurrent"))
+	var peak1_target = float(core.call("GetPeak1TargetMultiplier"))
+	var peak2_target = float(core.call("GetPeak2TargetMultiplier"))
+	var tail_mul = float(core.call("GetSpeedTailMultiplier"))
+	var segment = String(core.call("GetSpeedSegmentForDebug"))
+	var dual_drop_chance = float(core.call("GetDualDropChanceCurrent"))
 	var speed_mult = float(core.call("GetDisplayedFallSpeed")) / max(0.001, float(core.call("GetBaseFallSpeed")))
-	lbl_debug.text = "DBG\nmin: %.2f  speedMul: %.2f\nknee target: %.2f  tail: %.3f\nwell fill: %.2f  time_scale: %.2f (%s)\nfast-next: %.1f%%  triggers: %d  last@min: %.2f\nnext preview: %s\nnext actual: %s\nrescue triggers: %d  auto-slow: %d" % [elapsed, speed_mult, knee_target, tail_mul, _well_fill_ratio(), Engine.time_scale, time_scale_reason, fast_next_chance * 100.0, fast_next_trigger_count, last_fast_next_trigger_min, next_preview_kind, next_actual_kind, rescue_trigger_count, auto_slow_trigger_count]
+	_update_pending_next_kind()
+	if next_preview_kind != "" and next_pending_kind != "" and next_preview_kind != next_pending_kind:
+		push_error("NEXT DESYNC: preview=%s pending=%s" % [next_preview_kind, next_pending_kind])
+	lbl_debug.text = "DBG\nmin: %.2f  speedMul: %.2f  seg:%s\npeak1@5: %.2f  peak2@10: %.2f  tail: %.3f\ndual-drop: %.1f%%  triggers: %d  last@min: %.2f\nactive falling: %d\nnext preview: %s\nnext pending: %s\nwell fill: %.2f\ntime_scale: %.2f (%s)\nrescue triggers: %d  auto-slow: %d" % [elapsed, speed_mult, segment, peak1_target, peak2_target, tail_mul, dual_drop_chance * 100.0, dual_drop_trigger_count, last_dual_drop_min, _active_falling_count(), next_preview_kind, next_pending_kind, _well_fill_ratio(), Engine.time_scale, time_scale_reason, rescue_trigger_count, auto_slow_trigger_count]
 
 
 # ============================================================
@@ -833,6 +876,7 @@ func _update_previews() -> void:
 	if next_piece != null:
 		next_preview_kind = String(next_piece.get("Kind"))
 	_draw_preview(next_box, next_piece)
+	_update_pending_next_kind()
 
 
 func _draw_preview(target: Panel, piece) -> void:
@@ -912,23 +956,47 @@ func _spawn_falling_piece() -> void:
 		next_actual_kind = String(actual_next_piece.get("Kind"))
 	fall_y = 10.0
 	pending_spawn_piece = false
+	if dual_drop_cycle_pending:
+		pending_dual_spawn_ms = Time.get_ticks_msec() + int(float(core.call("GetDualDropStaggerSec")) * 1000.0)
+		dual_drop_cycle_pending = false
 	next_box.queue_redraw()
 	_update_previews()
-	if next_preview_kind != "" and next_actual_kind != "" and next_preview_kind != next_actual_kind:
-		push_error("NEXT DESYNC: preview=%s actual=%s" % [next_preview_kind, next_actual_kind])
+	if next_preview_kind != "" and next_pending_kind != "" and next_preview_kind != next_pending_kind:
+		push_error("NEXT DESYNC: preview=%s pending=%s" % [next_preview_kind, next_pending_kind])
+
+func _spawn_second_falling_piece() -> void:
+	if is_game_over:
+		pending_dual_spawn_ms = 0
+		return
+	if fall_piece_2 != null:
+		return
+	var p2 = core.call("PopNextPieceForBoard", board)
+	if fall_piece == null:
+		fall_piece = p2
+		fall_y = 10.0
+	else:
+		fall_piece_2 = p2
+		fall_y_2 = 10.0
+	pending_dual_spawn_ms = 0
+	next_box.queue_redraw()
+	_update_previews()
+	if next_preview_kind != "" and next_pending_kind != "" and next_preview_kind != next_pending_kind:
+		push_error("NEXT DESYNC: preview=%s pending=%s" % [next_preview_kind, next_pending_kind])
+
 
 func _lock_falling_to_pile() -> void:
 	if selected_piece == fall_piece:
 		_force_cancel_drag("CommittedToWell", true)
 	pile.append(fall_piece)
+	fall_piece = null
 	_play_sfx("well_enter")
 	_trigger_micro_freeze()
 	well_header_pulse_left = 0.35
 	if pile.size() > pile_max:
 		_trigger_game_over()
 		return
-	var use_fast_next = bool(core.call("ConsumeFastNextBoost"))
-	_schedule_next_falling_piece(use_fast_next)
+	if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
+		_schedule_next_falling_piece()
 
 
 func _well_geometry() -> Dictionary:
@@ -1094,8 +1162,21 @@ func _redraw_well() -> void:
 		var fy = clamp(fall_y, fall_top, fall_bottom)
 		fall.position = Vector2(fx, fy)
 		fall.mouse_filter = Control.MOUSE_FILTER_STOP
-		fall.gui_input.connect(func(ev): _on_falling_piece_input(ev))
+		fall.gui_input.connect(func(ev): _on_falling_piece_input(ev, 1))
 		drop_zone_draw.add_child(fall)
+
+	if fall_piece_2 != null and not is_game_over:
+		var drop_cell_size_2 = int(clamp(float(cell_size) * 0.66, 14.0, 34.0))
+		var fall_frame_w_2 = min(drop_w - 20.0, 230.0)
+		var fall_frame_2 = Vector2(fall_frame_w_2, 120)
+		var fitted_drop_cell_2 = _fitted_cell_size(fall_piece_2, drop_cell_size_2, fall_frame_2, 0.9)
+		var fall2 = _make_piece_preview(fall_piece_2, fitted_drop_cell_2, fall_frame_2)
+		var fx2 = (drop_w - fall2.size.x) * 0.5
+		var fy2 = clamp(fall_y_2, fall_top, fall_bottom)
+		fall2.position = Vector2(fx2, fy2)
+		fall2.mouse_filter = Control.MOUSE_FILTER_STOP
+		fall2.gui_input.connect(func(ev): _on_falling_piece_input(ev, 2))
+		drop_zone_draw.add_child(fall2)
 
 
 func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
@@ -1108,11 +1189,14 @@ func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
 		_start_drag_selected()
 
 
-func _on_falling_piece_input(event: InputEvent) -> void:
+func _on_falling_piece_input(event: InputEvent, slot: int) -> void:
 	if is_game_over:
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		selected_piece = fall_piece
+		if slot == 1:
+			selected_piece = fall_piece
+		elif slot == 2:
+			selected_piece = fall_piece_2
 		selected_from_pile_index = -1
 		_play_sfx("pick")
 		_start_drag_selected()
@@ -1200,9 +1284,13 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		_force_cancel_drag("CommittedToBoard", true)
 	else:
 		# Falling piece is consumed only after successful placement.
+		if selected_piece == fall_piece:
+			fall_piece = null
+		elif selected_piece == fall_piece_2:
+			fall_piece_2 = null
 		_force_cancel_drag("CommittedToBoard", true)
-		var use_fast_next = bool(core.call("ConsumeFastNextBoost"))
-		_schedule_next_falling_piece(use_fast_next)
+		if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
+			_schedule_next_falling_piece()
 
 	var move_time_sec = max(0.05, float(Time.get_ticks_msec() - drag_start_ms) / 1000.0)
 	core.call("RegisterSuccessfulPlacement", cleared_count, move_time_sec, _board_fill_ratio())
@@ -1273,13 +1361,28 @@ func _process(delta: float) -> void:
 
 	if pending_spawn_piece and Time.get_ticks_msec() >= spawn_wait_until_ms:
 		_spawn_falling_piece()
+	if pending_dual_spawn_ms > 0 and Time.get_ticks_msec() >= pending_dual_spawn_ms:
+		_spawn_second_falling_piece()
 
-	if not pending_spawn_piece:
-		var geom = _well_geometry()
-		var fall_bottom = float(geom["fall_bottom"])
+	var geom = _well_geometry()
+	var fall_bottom = float(geom["fall_bottom"])
+	if fall_piece != null:
 		fall_y += fall_speed * delta
 		if fall_y > fall_bottom:
 			_lock_falling_to_pile()
+	if fall_piece_2 != null:
+		fall_y_2 += fall_speed * delta
+		if fall_y_2 > fall_bottom:
+			pile.append(fall_piece_2)
+			fall_piece_2 = null
+			_play_sfx("well_enter")
+			_trigger_micro_freeze()
+			well_header_pulse_left = 0.35
+			if pile.size() > pile_max:
+				_trigger_game_over()
+				return
+			if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
+				_schedule_next_falling_piece()
 
 	_redraw_well()
 	_update_debug_overlay()

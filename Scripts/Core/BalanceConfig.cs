@@ -42,28 +42,29 @@ public class BalanceConfig
     public float DangerLineEndRatio = 0.84f;
 
 
-    // Endless speed curve / knee
-    public float SpeedKneeMinutes = 6.5f;
-    public float SpeedEaseExponent = 2.0f;
+    // Endless speed curve / two peaks + tail
+    public float SpeedPeak1Minutes = 5.0f;
+    public float SpeedPeak2Minutes = 10.0f;
+    public float SpeedEaseExponent1 = 2.0f;
+    public float SpeedEaseExponent2 = 2.0f;
     public float KneeMultEasy = 8.0f;
     public float KneeMultMedium = 9.0f;
     public float KneeMultHard = 10.0f;
-    public float PostKneeTailStrength = 0.08f;
+    public float SpeedTailStrength = 0.08f;
 
     // WELL drag slow-motion
-    public float WellDragSlowMin = 0.90f;
-    public float WellDragSlowMax = 0.60f;
+    public float WellDragSlowMin = 0.80f;
+    public float WellDragSlowMax = 0.40f;
+    public float NoMercyExtraSlowMin = 0.70f;
+    public float NoMercyExtraSlowMax = 0.40f;
 
-    // Fast-next chance (single-spawn acceleration)
-    public float FastNextChanceStart = 0.03f;
-    public float FastNextChanceAtKneeEasy = 0.10f;
-    public float FastNextChanceAtKneeMedium = 0.12f;
-    public float FastNextChanceAtKneeHard = 0.15f;
-    public float FastNextChanceCapEasy = 0.18f;
-    public float FastNextChanceCapMedium = 0.22f;
-    public float FastNextChanceCapHard = 0.26f;
-    public float FastNextCapMinutes = 12.0f;
-    public float FastNextDelayMul = 0.60f;
+    // Dual-drop chance (multi-active pieces)
+    public float DualDropChanceStart = 0.05f;
+    public float DualDropChanceCapMinutes = 8.0f;
+    public float DualDropChanceCapEasy = 0.10f;
+    public float DualDropChanceCapMedium = 0.15f;
+    public float DualDropChanceCapHard = 0.20f;
+    public float DualDropStaggerSec = 1.0f;
 
     // Auto-slow panic rescue
     public float AutoSlowThresholdBoard = 0.85f;
