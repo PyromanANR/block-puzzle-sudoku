@@ -116,6 +116,8 @@ const FALL_PAD := 12
 const PILE_PAD := 12
 const SLOT_H := 54
 const SLOT_GAP := 6
+const HEADER_BUTTON_SIZE := 76.0
+const HEADER_BUTTON_MARGIN := 14.0
 
 var fall_piece = null
 var fall_y: float = 10.0
@@ -211,6 +213,7 @@ func _ready() -> void:
 	_audio_setup()
 
 	_build_ui()
+	# HUD is built from this single path during startup; no secondary HUD builder runs after this.
 	await get_tree().process_frame
 	_build_board_grid()
 
@@ -261,6 +264,7 @@ func _start_round() -> void:
 	time_slow_overlay_input_release_ms = 0
 	time_slow_effect_until_ms = 0
 	Engine.time_scale = 1.0
+	core.call("ResetRuntimeClock")
 
 	pile.clear()
 	board.call("Reset")
@@ -452,22 +456,26 @@ func _update_status_hud() -> void:
 	var now = Time.get_ticks_msec()
 	var t = float(now) / 1000.0
 	var panic_value = _well_fill_ratio()
-	var panic_blink_threshold = float(core.call("GetPanicBlinkThreshold"))
 	var panic_pulse_speed = float(core.call("GetPanicPulseSpeed"))
-	var panic_blink_speed = float(core.call("GetPanicBlinkSpeed"))
-	var danger = panic_value >= panic_blink_threshold or time_scale_reason == "NoMercyExtra" or time_scale_reason == "WellDrag"
-	if panic_value < 0.6:
-		var soft = 0.55 + 0.45 * (0.5 + 0.5 * sin(t * TAU * panic_pulse_speed * 0.75))
-		lbl_panic.modulate = Color(0.86, 0.98, 0.90, soft)
-	elif panic_value < panic_blink_threshold:
-		var warm = 0.5 + 0.5 * sin(t * TAU * panic_pulse_speed)
-		lbl_panic.modulate = Color(1.0, 0.68 + 0.30 * warm, 0.40 + 0.40 * warm, 0.82 + 0.18 * warm)
+	var panic_blink_speed = clamp(float(core.call("GetPanicBlinkSpeed")), 2.0, 3.0)
+	if panic_value < 0.30:
+		lbl_panic.modulate = Color(0.94, 0.94, 0.94, 0.99)
+	elif panic_value < 0.70:
+		var p_mid = (panic_value - 0.30) / 0.40
+		var pulse_mid = 0.5 + 0.5 * sin(t * TAU * panic_pulse_speed * 0.55)
+		var alpha_mid = 0.94 + 0.06 * pulse_mid * p_mid
+		lbl_panic.modulate = Color(1.0, 0.94 - 0.08 * p_mid, 0.86 - 0.18 * p_mid, alpha_mid)
+	elif panic_value < 0.90:
+		var p_high = (panic_value - 0.70) / 0.20
+		var pulse_high = 0.5 + 0.5 * sin(t * TAU * panic_pulse_speed * (0.9 + 0.7 * p_high))
+		var alpha_high = 0.82 + 0.18 * pulse_high
+		lbl_panic.modulate = Color(1.0, 0.62 - 0.22 * p_high, 0.46 - 0.28 * p_high, alpha_high)
 	else:
 		var blink = 0.5 + 0.5 * sin(t * TAU * panic_blink_speed)
-		if danger and blink > 0.5:
-			lbl_panic.modulate = Color(1.0, 0.16, 0.16, 1.0)
+		if blink > 0.5:
+			lbl_panic.modulate = Color(1.0, 0.08, 0.08, 1.0)
 		else:
-			lbl_panic.modulate = Color(1.0, 0.78, 0.42, 0.92)
+			lbl_panic.modulate = Color(1.0, 0.30, 0.20, 0.86)
 	lbl_panic.text = "PANIC %.0f%%" % (panic_value * 100.0)
 	var cooldown_sec = float(core.call("GetTimeSlowCooldownSec"))
 	var remaining_ms = max(0, time_slow_cooldown_until_ms - now)
@@ -548,49 +556,46 @@ func _build_ui() -> void:
 	title_label.offset_bottom = 72
 	title_label.add_theme_font_size_override("font_size", _skin_font_size("title", 48))
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
+	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(title_label)
 
+	var header_row = HBoxContainer.new()
+	header_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	header_row.offset_left = HEADER_BUTTON_MARGIN
+	header_row.offset_right = -HEADER_BUTTON_MARGIN
+	header_row.offset_top = HEADER_BUTTON_MARGIN
+	header_row.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
+	header_row.add_theme_constant_override("separation", 8)
+	header_row.set_as_top_level(true)
+	header_row.mouse_filter = Control.MOUSE_FILTER_STOP
+	header_row.z_index = 40
+	root_frame.add_child(header_row)
+
 	btn_exit = TextureButton.new()
-	btn_exit.custom_minimum_size = Vector2(64, 64)
-	btn_exit.position = Vector2(16, 16)
+	btn_exit.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
 	btn_exit.tooltip_text = "Exit"
-	if ResourceLoader.exists("res://Assets/UI/close.png"):
-		btn_exit.texture_normal = load("res://Assets/UI/close.png")
-	else:
-		var close_fallback = Label.new()
-		close_fallback.text = "✕"
-		close_fallback.position = Vector2(28, 20)
-		close_fallback.add_theme_font_size_override("font_size", 28)
-		root_frame.add_child(close_fallback)
+	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	btn_exit.ignore_texture_size = true
+	_apply_header_button_icon(btn_exit, "res://Assets/UI/icons/icon_close.png", "X", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
-	btn_exit.z_index = 30
-	root_frame.add_child(btn_exit)
+	btn_exit.z_index = 50
+	header_row.add_child(btn_exit)
+
+	var header_spacer = Control.new()
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_row.add_child(header_spacer)
 
 	btn_settings = TextureButton.new()
-	btn_settings.custom_minimum_size = Vector2(64, 64)
+	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
 	btn_settings.tooltip_text = "Settings"
-	btn_settings.position = Vector2(size.x - 58, 16)
-	btn_settings.anchor_left = 1.0
-	btn_settings.anchor_right = 1.0
-	btn_settings.offset_left = -74
-	btn_settings.offset_right = -10
-	if ResourceLoader.exists("res://Assets/UI/gear.png"):
-		btn_settings.texture_normal = load("res://Assets/UI/gear.png")
-	else:
-		var gear_fallback = Label.new()
-		gear_fallback.text = "⚙"
-		gear_fallback.anchor_left = 1.0
-		gear_fallback.anchor_right = 1.0
-		gear_fallback.offset_left = -52
-		gear_fallback.offset_right = -16
-		gear_fallback.offset_top = 20
-		gear_fallback.add_theme_font_size_override("font_size", 28)
-		root_frame.add_child(gear_fallback)
+	btn_settings.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	btn_settings.ignore_texture_size = true
+	_apply_header_button_icon(btn_settings, "res://Assets/UI/icons/icon_settings.png", "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
-	btn_settings.z_index = 30
-	root_frame.add_child(btn_settings)
+	btn_settings.z_index = 50
+	header_row.add_child(btn_settings)
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -646,46 +651,53 @@ func _build_ui() -> void:
 	hv.add_theme_constant_override("separation", 10)
 	hv_margin.add_child(hv)
 
-	lbl_score = _hud_line("Score", "0"); hv.add_child(lbl_score)
-	lbl_speed = _hud_line("Speed", "1.00"); hv.add_child(lbl_speed)
-	lbl_level = _hud_line("Level", "1"); hv.add_child(lbl_level)
-	lbl_time  = _hud_line("Time", "00:00"); hv.add_child(lbl_time)
+	var metrics_row = HBoxContainer.new()
+	metrics_row.add_theme_constant_override("separation", 8)
+	hv.add_child(metrics_row)
+	lbl_score = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_score.png", "S", "Score", "0")
+	lbl_speed = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_speed.png", "⚡", "Speed", "1.00")
+	lbl_time = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_time.png", "⏱", "Time", "00:00")
+	lbl_level = _hud_line("Level", "1")
+	lbl_level.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	hv.add_child(lbl_level)
+	next_box = null
 
-	var next_title = Label.new()
-	next_title.text = "NEXT"
-	next_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
-	next_title.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.12, 0.12, 0.12)))
-	hv.add_child(next_title)
+	var hud_spacer = Control.new()
+	hud_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hv.add_child(hud_spacer)
 
-	next_box = Panel.new()
-	next_box.custom_minimum_size = Vector2(0, 180)
-	next_box.add_theme_stylebox_override("panel", _style_preview_box())
-	hv.add_child(next_box)
+	var lower_status = VBoxContainer.new()
+	lower_status.add_theme_constant_override("separation", 8)
+	hv.add_child(lower_status)
 
-	lbl_panic = Label.new()
-	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	hv.add_child(lbl_panic)
-
+	var time_slow_row = HBoxContainer.new()
+	time_slow_row.add_theme_constant_override("separation", 6)
+	lower_status.add_child(time_slow_row)
+	_add_icon_or_fallback(time_slow_row, "res://Assets/UI/icons/icon_timeslow.png", "⏳", 18)
 	lbl_rescue = Label.new()
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	hv.add_child(lbl_rescue)
+	time_slow_row.add_child(lbl_rescue)
+
+	var panic_row = HBoxContainer.new()
+	panic_row.add_theme_constant_override("separation", 6)
+	lower_status.add_child(panic_row)
+	_add_icon_or_fallback(panic_row, "res://Assets/UI/icons/icon_panic.png", "!", 18)
+	lbl_panic = Label.new()
+	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+	panic_row.add_child(lbl_panic)
 
 	var skills_title = Label.new()
 	skills_title.text = "Skills"
 	skills_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
-	hv.add_child(skills_title)
-	hv.add_child(_build_skill_card("Reroll", 5, 1))
-	hv.add_child(_build_skill_card("Freeze", 10, 3))
-	hv.add_child(_build_skill_card("Clear", 20, 6))
-
-	var spacer = Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hv.add_child(spacer)
+	lower_status.add_child(skills_title)
+	lower_status.add_child(_build_skill_card("Reroll", 5, 1))
+	lower_status.add_child(_build_skill_card("Freeze", 10, 3))
+	lower_status.add_child(_build_skill_card("Clear", 20, 6))
 
 	well_panel = Panel.new()
-	well_panel.custom_minimum_size = Vector2(0, 760)
+	well_panel.custom_minimum_size = Vector2(0, 420)
 	well_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	well_panel.size_flags_vertical = Control.SIZE_FILL
+	well_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	well_panel.add_theme_stylebox_override("panel", _style_bottom_panel())
 	well_panel.clip_contents = true
 	main_v.add_child(well_panel)
@@ -702,7 +714,7 @@ func _build_ui() -> void:
 	drop_zone_panel = Panel.new()
 	drop_zone_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drop_zone_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	drop_zone_panel.size_flags_stretch_ratio = 6.0
+	drop_zone_panel.size_flags_stretch_ratio = 5.2
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
@@ -718,7 +730,7 @@ func _build_ui() -> void:
 	well_slots_panel = Panel.new()
 	well_slots_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_slots_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	well_slots_panel.size_flags_stretch_ratio = 4.0
+	well_slots_panel.size_flags_stretch_ratio = 4.8
 	well_slots_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(well_slots_panel)
 
@@ -786,6 +798,63 @@ func _hud_line(k: String, v: String) -> Label:
 	l.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
 	l.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	return l
+
+
+func _hud_metric_row(parent: Control, icon_path: String, fallback: String, prefix: String, value: String) -> Label:
+	var wrap = HBoxContainer.new()
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.add_theme_constant_override("separation", 6)
+	parent.add_child(wrap)
+	_add_icon_or_fallback(wrap, icon_path, fallback, 16)
+	var label = Label.new()
+	label.text = "%s: %s" % [prefix, value]
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
+	wrap.add_child(label)
+	return label
+
+
+func _add_icon_or_fallback(parent: Control, icon_path: String, fallback_text: String, fallback_size: int) -> void:
+	if ResourceLoader.exists(icon_path):
+		var icon = TextureRect.new()
+		icon.custom_minimum_size = Vector2(18, 18)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = load(icon_path)
+		parent.add_child(icon)
+		return
+	var fallback = Label.new()
+	fallback.custom_minimum_size = Vector2(18, 18)
+	fallback.text = fallback_text
+	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fallback.add_theme_font_size_override("font_size", fallback_size)
+	parent.add_child(fallback)
+
+
+func _apply_header_button_icon(btn: TextureButton, icon_path: String, fallback_text: String, fallback_size: int) -> void:
+	for ch in btn.get_children():
+		ch.queue_free()
+	if ResourceLoader.exists(icon_path):
+		var tex = load(icon_path)
+		btn.texture_normal = tex
+		btn.texture_pressed = tex
+		btn.texture_hover = tex
+		btn.texture_disabled = tex
+		return
+	btn.texture_normal = null
+	btn.texture_pressed = null
+	btn.texture_hover = null
+	btn.texture_disabled = null
+	var fallback = Label.new()
+	fallback.text = fallback_text
+	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fallback.add_theme_font_size_override("font_size", fallback_size)
+	fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(fallback)
 
 
 func _build_skill_card(label_text: String, req_level: int, progress_level: int) -> Control:
@@ -991,6 +1060,8 @@ func _refresh_board_visual() -> void:
 # Next preview
 # ============================================================
 func _update_previews() -> void:
+	if next_box == null:
+		return
 	var next_piece = core.call("PeekNextPieceForBoard", board)
 	_draw_preview(next_box, next_piece)
 
@@ -1072,7 +1143,8 @@ func _spawn_falling_piece() -> void:
 		dual_drop_waiting_for_gap = true
 		dual_drop_anchor_y = fall_y
 		dual_drop_cycle_pending = false
-	next_box.queue_redraw()
+	if next_box != null:
+		next_box.queue_redraw()
 	_update_previews()
 
 func _dual_drop_can_spawn(now_ms: int) -> bool:
@@ -1110,7 +1182,8 @@ func _spawn_second_falling_piece() -> void:
 	pending_dual_spawn_ms = 0
 	pending_dual_fallback_ms = 0
 	dual_drop_waiting_for_gap = false
-	next_box.queue_redraw()
+	if next_box != null:
+		next_box.queue_redraw()
 	_update_previews()
 
 
@@ -1193,7 +1266,6 @@ func _redraw_well() -> void:
 
 	var fill_ratio = clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
 	var now_ms = Time.get_ticks_msec()
-	var well_ready = now_ms >= time_slow_cooldown_until_ms
 	var neon_speed = float(core.call("GetWellNeonPulseSpeed"))
 	var neon = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
 	
@@ -1248,36 +1320,12 @@ func _redraw_well() -> void:
 	slots_progress_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_progress_fg)
 
-	if well_ready:
-		var ring = Label.new()
-		ring.text = "⟳"
-		ring.position = Vector2(slots_w - 34, 4)
-		ring.rotation = float(now_ms % 2000) / 2000.0 * TAU
-		ring.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-		ring.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, 0.65 + 0.35 * neon))
-		ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		well_slots_draw.add_child(ring)
-
-	var loop_bg = ColorRect.new()
-	loop_bg.color = Color(1, 1, 1, 0.08)
-	loop_bg.position = Vector2(8, 48)
-	loop_bg.size = Vector2(slots_w - 16, 4)
-	loop_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_slots_draw.add_child(loop_bg)
-
-	var loop_fg = ColorRect.new()
-	loop_fg.color = Color(1.0, 0.92, 0.52, 0.45)
-	loop_fg.position = loop_bg.position
-	loop_fg.size = Vector2((slots_w - 16.0) * fill_ratio, 4)
-	loop_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_slots_draw.add_child(loop_fg)
-
 	var slots_top = max(pile_top, 52.0)
 	var slot_w = slots_w - 16.0
 	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
-	var dynamic_h = max(46.0, min(76.0, per_slot - SLOT_GAP))
-	var slot_preview_cell = int(clamp(float(cell_size) * 0.78, 12.0, 40.0))
+	var dynamic_h = max(64.0, min(120.0, per_slot - SLOT_GAP * 0.5))
+	var slot_preview_cell = int(clamp(float(cell_size) * 0.95, 14.0, 52.0))
 	var neon_min = float(core.call("GetWellNeonMinAlpha"))
 	var neon_max = float(core.call("GetWellNeonMaxAlpha"))
 
@@ -1310,10 +1358,11 @@ func _redraw_well() -> void:
 			if is_active:
 				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
 
-			var slot_frame = Vector2(slot.size.x - 10, slot.size.y - 10)
+			var slot_frame = Vector2(slot.size.x - 6, slot.size.y - 6)
 			var slot_cell = _fitted_cell_size(p, slot_preview_cell, slot_frame, 0.97)
 			var preview = _make_piece_preview(p, slot_cell, slot_frame)
-			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
+			var slot_rect = Rect2(Vector2.ZERO, slot.size)
+			preview.position = slot_rect.position + (slot_rect.size - preview.size) * 0.5
 			slot.add_child(preview)
 			if is_active:
 				var neon_phase = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
@@ -1552,14 +1601,16 @@ func _process(delta: float) -> void:
 
 	# Falling speed is driven by DifficultyDirector + level curve from Core.
 	var fall_speed = float(core.call("GetFallSpeed", float(level)))
-	speed_ui = fall_speed / 16.0
+	speed_ui = fall_speed / max(0.001, float(core.call("GetBaseFallSpeed")))
 	lbl_speed.text = "Speed: %.2f" % speed_ui
 	if not speed_curve_warning_shown:
 		var elapsed_min = float(core.call("GetElapsedMinutesForDebug"))
-		if elapsed_min > 3.2:
-			var expected_lower_bound_for_segment_b = float(core.call("GetBaseFallSpeed")) * float(core.call("GetPeak1TargetMultiplier")) * 1.02
-			if fall_speed < expected_lower_bound_for_segment_b:
-				push_warning("Speed curve sanity: elapsed=%.2f min, speed=%.2f, expected>=%.2f" % [elapsed_min, fall_speed, expected_lower_bound_for_segment_b])
+		var peak1_min = float(core.call("GetSpeedPeak1Minutes"))
+		if elapsed_min > peak1_min + 0.5:
+			var speed_mul = fall_speed / max(0.001, float(core.call("GetBaseFallSpeed")))
+			var expected_mul = float(core.call("GetPeak1TargetMultiplier"))
+			if speed_mul < expected_mul * 0.98:
+				push_warning("Speed curve sanity: elapsed=%.2f min, speedMul=%.2f, expected>=%.2f" % [elapsed_min, speed_mul, expected_mul])
 				speed_curve_warning_shown = true
 
 	var now_ms = Time.get_ticks_msec()
