@@ -213,6 +213,7 @@ func _ready() -> void:
 	_audio_setup()
 
 	_build_ui()
+	# HUD is built from this single path during startup; no secondary HUD builder runs after this.
 	await get_tree().process_frame
 	_build_board_grid()
 
@@ -555,6 +556,7 @@ func _build_ui() -> void:
 	title_label.offset_bottom = 72
 	title_label.add_theme_font_size_override("font_size", _skin_font_size("title", 48))
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
+	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(title_label)
 
 	var header_row = HBoxContainer.new()
@@ -564,6 +566,8 @@ func _build_ui() -> void:
 	header_row.offset_top = HEADER_BUTTON_MARGIN
 	header_row.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
 	header_row.add_theme_constant_override("separation", 8)
+	header_row.set_as_top_level(true)
+	header_row.mouse_filter = Control.MOUSE_FILTER_STOP
 	header_row.z_index = 40
 	root_frame.add_child(header_row)
 
