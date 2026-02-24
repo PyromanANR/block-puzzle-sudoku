@@ -93,8 +93,20 @@ public class BalanceConfig
     public float TimeSlowReadyOverlayDurationSec = 0.8f;
     public string TimeSlowReadySfxPath = "res://Assets/Audio/time_slow.wav";
     public float TimeSlowCooldownSec = 60.0f;
-    public float TimeSlowEffectDurationSec = 2.0f;
+    public float TimeSlowEffectDurationSec = 5.0f;
     public float TimeSlowEffectTimeScale = 0.55f;
+
+    // First WELL entry slow (per cycle)
+    public float WellFirstEntrySlowDurationSec = 1.5f;
+    public float WellFirstEntrySlowTimeScale = 0.50f;
+
+    // Generator anti-streak / pool
+    public int GeneratorMaxSameInRow = 2;
+    public int GeneratorHistoryLen = 6;
+    public bool GeneratorUseBag = true;
+    public bool PiecePoolEnableDomino = true;
+    public bool PiecePoolEnableTromino = true;
+    public bool PiecePoolEnablePentominoLite = true;
 
     // WELL neon pulse
     public float WellNeonPulseSpeed = 2.5f;

@@ -9,6 +9,7 @@ public class PieceGenerator
 
     private readonly List<string> _bag = new();
     private readonly Queue<string> _queue = new();
+    private readonly List<string> _recentKinds = new();
 
     private int _trainingLeft = 24;
     private int _spawnSincePity = 0;
@@ -20,16 +21,20 @@ public class PieceGenerator
 
     private static readonly HashSet<string> WellKinds = new()
     {
-        "Dot", "DominoH", "DominoV", "TriLineH", "TriLineV", "TriL", "Square2"
+        "Dot", "DominoH", "DominoV", "TwoDots", "TriLineH", "TriLineV", "TriL", "CornerBridge", "Square2"
     };
 
-    public static readonly string[] AllKinds = new[]
+    private static readonly string[] BaseKinds = new[]
     {
         // Tetrominoes
         "I","O","T","S","Z","J","L",
         // Sudoku-like
-        "Dot","DominoH","DominoV","TriLineH","TriLineV","TriL","Square2","Plus5"
+        "Dot","Square2"
     };
+
+    private static readonly string[] DominoKinds = new[] { "DominoH", "DominoV", "TwoDots" };
+    private static readonly string[] TrominoKinds = new[] { "TriLineH", "TriLineV", "TriL", "CornerBridge" };
+    private static readonly string[] PentominoLiteKinds = new[] { "Plus5", "PentaL" };
 
     private static readonly Dictionary<string, Vector2I[]> Lib = new()
     {
@@ -47,8 +52,11 @@ public class PieceGenerator
         { "TriLineH", new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(2,0) } },
         { "TriLineV", new [] { new Vector2I(0,0), new Vector2I(0,1), new Vector2I(0,2) } },
         { "TriL", new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(0,1) } },
+        { "CornerBridge", new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(1,1) } },
         { "Square2", new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(0,1), new Vector2I(1,1) } },
         { "Plus5", new [] { new Vector2I(1,0), new Vector2I(0,1), new Vector2I(1,1), new Vector2I(2,1), new Vector2I(1,2) } },
+        { "PentaL", new [] { new Vector2I(0,0), new Vector2I(0,1), new Vector2I(0,2), new Vector2I(1,2), new Vector2I(2,2) } },
+        { "TwoDots", new [] { new Vector2I(0,0), new Vector2I(1,0) } },
     };
 
     public PieceGenerator(RandomNumberGenerator rng, BalanceConfig config)
@@ -67,6 +75,7 @@ public class PieceGenerator
     public PieceData Pop(BoardModel board, float idealChance)
     {
         var kind = PickKind(board, idealChance, consume: true);
+        RegisterGeneratedKind(kind);
         _spawnSincePity++;
         _piecesSinceWell++;
 
@@ -135,6 +144,8 @@ public class PieceGenerator
             }
         }
 
+        selected = EnforceMaxStreak(selected, evaluated);
+
         if (consume)
             BurnQueueToken();
 
@@ -166,7 +177,7 @@ public class PieceGenerator
     private List<(string kind, float score)> EvaluateKinds(BoardModel board)
     {
         var list = new List<(string kind, float score)>();
-        foreach (var kind in AllKinds)
+        foreach (var kind in GetEnabledKinds())
         {
             var piece = MakePiece(kind);
             float best = float.NegativeInfinity;
@@ -258,14 +269,26 @@ public class PieceGenerator
             if (_trainingLeft > 0)
             {
                 kind = WeightedTrainingPick();
+                if (!GetEnabledKinds().Contains(kind))
+                {
+                    var enabled = GetEnabledKinds();
+                    kind = enabled[_rng.RandiRange(0, enabled.Count - 1)];
+                }
                 _trainingLeft--;
             }
             else
             {
-                if (_bag.Count == 0) RefillBag();
-                var idx = _rng.RandiRange(0, _bag.Count - 1);
-                kind = _bag[idx];
-                _bag.RemoveAt(idx);
+                if (_config.GeneratorUseBag)
+                {
+                    if (_bag.Count == 0) RefillBag();
+                    kind = PickBagKindWithStreakGuard();
+                }
+                else
+                {
+                    var kinds = GetEnabledKinds();
+                    kind = kinds[_rng.RandiRange(0, kinds.Count - 1)];
+                    kind = EnforceMaxStreak(kind, null);
+                }
             }
             _queue.Enqueue(kind);
         }
@@ -274,7 +297,7 @@ public class PieceGenerator
     private void RefillBag()
     {
         _bag.Clear();
-        foreach (var kind in AllKinds)
+        foreach (var kind in GetEnabledKinds())
             _bag.Add(kind);
     }
 
@@ -291,6 +314,88 @@ public class PieceGenerator
         if (roll <= 86) return "TriL";
         if (roll <= 93) return "TriLineH";
         return "Plus5";
+    }
+
+
+    private List<string> GetEnabledKinds()
+    {
+        var kinds = new List<string>(BaseKinds);
+        if (_config.PiecePoolEnableDomino)
+            kinds.AddRange(DominoKinds);
+        if (_config.PiecePoolEnableTromino)
+            kinds.AddRange(TrominoKinds);
+        if (_config.PiecePoolEnablePentominoLite)
+            kinds.AddRange(PentominoLiteKinds);
+        return kinds;
+    }
+
+    private bool WouldExceedStreak(string kind)
+    {
+        var maxSame = Math.Max(1, _config.GeneratorMaxSameInRow);
+        int streak = 0;
+        for (int i = _recentKinds.Count - 1; i >= 0; i--)
+        {
+            if (_recentKinds[i] != kind)
+                break;
+            streak++;
+        }
+        return streak >= maxSame;
+    }
+
+    private string EnforceMaxStreak(string selected, List<(string kind, float score)> evaluated)
+    {
+        if (!WouldExceedStreak(selected))
+            return selected;
+
+        if (evaluated != null)
+        {
+            foreach (var item in evaluated)
+            {
+                if (!WouldExceedStreak(item.kind))
+                    return item.kind;
+            }
+            return selected;
+        }
+
+        var enabled = GetEnabledKinds();
+        for (int i = 0; i < enabled.Count; i++)
+        {
+            if (!WouldExceedStreak(enabled[i]))
+                return enabled[i];
+        }
+
+        return selected;
+    }
+
+    private string PickBagKindWithStreakGuard()
+    {
+        if (_bag.Count == 0)
+            return WeightedTrainingPick();
+
+        int idx = _rng.RandiRange(0, _bag.Count - 1);
+        var candidate = _bag[idx];
+        if (WouldExceedStreak(candidate))
+        {
+            for (int i = 0; i < _bag.Count; i++)
+            {
+                if (!WouldExceedStreak(_bag[i]))
+                {
+                    idx = i;
+                    candidate = _bag[i];
+                    break;
+                }
+            }
+        }
+        _bag.RemoveAt(idx);
+        return candidate;
+    }
+
+    private void RegisterGeneratedKind(string kind)
+    {
+        _recentKinds.Add(kind);
+        var maxHistory = Math.Max(1, _config.GeneratorHistoryLen);
+        while (_recentKinds.Count > maxHistory)
+            _recentKinds.RemoveAt(0);
     }
 
     public void RegisterMoveOutcome(int clearedCount)

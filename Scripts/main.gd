@@ -147,6 +147,8 @@ var time_slow_cooldown_until_ms = 0
 var time_slow_overlay_until_ms = 0
 var time_slow_overlay_input_release_ms = 0
 var time_slow_effect_until_ms = 0
+var well_first_entry_slow_until_ms = 0
+var well_first_entry_slow_used = false
 var sfx_players = {}
 var missing_sfx_warned = {}
 var last_dual_drop_min = -1.0
@@ -263,6 +265,8 @@ func _start_round() -> void:
 	time_slow_overlay_until_ms = 0
 	time_slow_overlay_input_release_ms = 0
 	time_slow_effect_until_ms = 0
+	well_first_entry_slow_until_ms = 0
+	well_first_entry_slow_used = false
 	Engine.time_scale = 1.0
 	core.call("ResetRuntimeClock")
 
@@ -302,6 +306,8 @@ func _trigger_game_over() -> void:
 	time_slow_overlay_until_ms = 0
 	time_slow_overlay_input_release_ms = 0
 	time_slow_effect_until_ms = 0
+	well_first_entry_slow_until_ms = 0
+	well_first_entry_slow_used = false
 	if time_slow_overlay != null:
 		time_slow_overlay.visible = false
 	Engine.time_scale = 1.0
@@ -401,6 +407,11 @@ func _update_time_scale_runtime() -> void:
 		if micro_scale < final_scale:
 			final_scale = micro_scale
 			reason = "MicroFreeze"
+	if well_first_entry_slow_until_ms > now:
+		var first_well_scale = float(core.call("GetWellFirstEntrySlowTimeScale"))
+		if first_well_scale < final_scale:
+			final_scale = first_well_scale
+			reason = "WellFirstEntry"
 	if time_slow_effect_until_ms > now:
 		var ts_scale = float(core.call("GetTimeSlowEffectTimeScale"))
 		if ts_scale < final_scale:
@@ -505,6 +516,13 @@ func _try_trigger_time_slow_from_well_placement() -> void:
 		time_slow_overlay.modulate = Color(0.45, 0.78, 1.0, 0.55)
 		time_slow_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	_play_sfx("time_slow")
+
+
+func _try_trigger_first_well_entry_slow() -> void:
+	if well_first_entry_slow_used:
+		return
+	well_first_entry_slow_used = true
+	well_first_entry_slow_until_ms = Time.get_ticks_msec() + int(float(core.call("GetWellFirstEntrySlowDurationSec")) * 1000.0)
 
 
 func _update_time_slow_overlay() -> void:
@@ -1194,6 +1212,7 @@ func _lock_falling_to_pile() -> void:
 	pile.append(fall_piece)
 	fall_piece = null
 	_play_sfx("well_enter")
+	_try_trigger_first_well_entry_slow()
 	_trigger_micro_freeze()
 	well_header_pulse_left = 0.35
 	if pile.size() > pile_max:
@@ -1526,6 +1545,8 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	var placed_from_well = selected_from_pile_index >= 0 and selected_from_pile_index < pile.size()
 	if placed_from_well:
 		pile.remove_at(selected_from_pile_index)
+		if pile.size() == 0:
+			well_first_entry_slow_used = false
 		_force_cancel_drag("CommittedToBoard", true)
 	else:
 		# Falling piece is consumed only after successful placement.
@@ -1632,6 +1653,7 @@ func _process(delta: float) -> void:
 			pile.append(fall_piece_2)
 			fall_piece_2 = null
 			_play_sfx("well_enter")
+			_try_trigger_first_well_entry_slow()
 			_trigger_micro_freeze()
 			well_header_pulse_left = 0.35
 			if pile.size() > pile_max:
