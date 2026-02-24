@@ -1113,6 +1113,17 @@ func _lock_falling_to_pile() -> void:
 		_schedule_next_falling_piece()
 
 
+func _selected_neon_pile_index() -> int:
+	if selected_from_pile_index >= 0 and selected_from_pile_index < pile.size():
+		return selected_from_pile_index
+	if pile.size() <= 0:
+		return -1
+	var max_selectable = min(pile_selectable, pile.size())
+	if max_selectable <= 0:
+		return -1
+	return pile.size() - 1
+
+
 func _well_geometry() -> Dictionary:
 	var drop_h = drop_zone_draw.size.y
 	var drop_w = drop_zone_draw.size.x
@@ -1221,6 +1232,32 @@ func _redraw_well() -> void:
 		slots_progress_fg.color = Color(0.32, 0.85, 0.45, 0.90)
 	slots_progress_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_progress_fg)
+
+	if well_ready:
+		var ring = Label.new()
+		ring.text = "⟳"
+		ring.position = Vector2(slots_w - 34, 4)
+		ring.rotation = float(now_ms % 2000) / 2000.0 * TAU
+		ring.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+		ring.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, 0.65 + 0.35 * neon))
+		ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		well_slots_draw.add_child(ring)
+
+	var loop_bg = ColorRect.new()
+	loop_bg.color = Color(1, 1, 1, 0.08)
+	loop_bg.position = Vector2(8, 48)
+	loop_bg.size = Vector2(slots_w - 16, 4)
+	loop_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_draw.add_child(loop_bg)
+
+	var loop_fg = ColorRect.new()
+	loop_fg.color = Color(1.0, 0.92, 0.52, 0.45 + 0.35 * neon)
+	var travel = max(1.0, loop_bg.size.x - 30.0)
+	var phase = fmod(float(now_ms) * 0.12, travel)
+	loop_fg.position = Vector2(loop_bg.position.x + phase, loop_bg.position.y)
+	loop_fg.size = Vector2(30, 4)
+	loop_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_draw.add_child(loop_fg)
 
 	var slots_top = max(pile_top, 52.0)
 	var slot_w = slots_w - 16.0
