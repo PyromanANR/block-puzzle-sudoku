@@ -1601,7 +1601,7 @@ func _process(delta: float) -> void:
 
 	# Falling speed is driven by DifficultyDirector + level curve from Core.
 	var fall_speed = float(core.call("GetFallSpeed", float(level)))
-	speed_ui = fall_speed / 16.0
+	speed_ui = fall_speed / max(0.001, float(core.call("GetBaseFallSpeed")))
 	lbl_speed.text = "Speed: %.2f" % speed_ui
 	if not speed_curve_warning_shown:
 		var elapsed_min = float(core.call("GetElapsedMinutesForDebug"))
