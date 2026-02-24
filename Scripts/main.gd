@@ -86,7 +86,6 @@ var btn_skill_clear: TextureButton
 var btn_skill_invuln: TextureButton
 var panic_indicator_root: CenterContainer
 var panic_indicator_visual: Control
-var panic_icon_tween: Tween
 var exit_dialog: AcceptDialog
 
 # Game Over overlay
@@ -96,6 +95,7 @@ var is_game_over: bool = false
 var fx_layer: CanvasLayer
 var time_slow_overlay: ColorRect
 var well_slots_base_rotation = 0.0
+var well_slots_base_position = Vector2.ZERO
 var pending_invalid_piece = null
 var pending_invalid_from_pile_index: int = -1
 var pending_invalid_root: Control
@@ -321,14 +321,15 @@ func _start_round() -> void:
 	if toast_panel != null:
 		toast_panel.visible = false
 	_clear_pending_invalid_piece()
-	if panic_icon_tween != null and panic_icon_tween.is_valid():
-		panic_icon_tween.kill()
-	panic_icon_tween = null
 	if panic_indicator_root != null:
 		panic_indicator_root.visible = false
+	if panic_indicator_visual != null:
+		panic_indicator_visual.scale = Vector2.ONE
+		panic_indicator_visual.modulate = Color(1, 1, 1, 1)
 	if well_slots_panel != null:
 		well_slots_panel.modulate = Color(1, 1, 1, 1)
 		well_slots_panel.rotation_degrees = well_slots_base_rotation
+		well_slots_panel.position = well_slots_base_position
 
 
 func _trigger_game_over() -> void:
@@ -648,14 +649,14 @@ func _build_ui() -> void:
 	header_metrics.offset_top = 74
 	header_metrics.offset_bottom = 112
 	header_metrics.alignment = BoxContainer.ALIGNMENT_CENTER
-	header_metrics.add_theme_constant_override("separation", 12)
+	header_metrics.add_theme_constant_override("separation", 16)
 	header_metrics.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(header_metrics)
 
-	lbl_score = _hud_metric_row(header_metrics, "res://Assets/UI/icons/icon_score.png", "S", "Score", "0")
-	lbl_speed = _hud_metric_row(header_metrics, "res://Assets/UI/icons/icon_speed.png", "⚡", "Speed", "1.00")
-	lbl_time = _hud_metric_row(header_metrics, "res://Assets/UI/icons/icon_time.png", "⏱", "Time", "00:00")
-	lbl_level = _hud_metric_row(header_metrics, "", "L", "Level", "1")
+	lbl_score = _hud_metric_row(header_metrics, "score", "Score", "0")
+	lbl_speed = _hud_metric_row(header_metrics, "speed", "Speed", "1.00")
+	lbl_time = _hud_metric_row(header_metrics, "time", "Time", "00:00")
+	lbl_level = _hud_metric_row(header_metrics, "level", "Level", "1")
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -713,7 +714,7 @@ func _build_ui() -> void:
 
 	var time_slow_block = HBoxContainer.new()
 	time_slow_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	time_slow_block.size_flags_stretch_ratio = 1.8
+	time_slow_block.size_flags_stretch_ratio = 1.0
 	time_slow_block.add_theme_constant_override("separation", 8)
 	hud_row.add_child(time_slow_block)
 	_add_icon_or_fallback(time_slow_block, ICON_TIMESLOW_PNG_PATH, "TS", 22, 38)
@@ -721,24 +722,14 @@ func _build_ui() -> void:
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
 	time_slow_block.add_child(lbl_rescue)
 
-	var skills_tag_block = CenterContainer.new()
-	skills_tag_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_tag_block.size_flags_stretch_ratio = 1.0
-	hud_row.add_child(skills_tag_block)
-	var skills_tag = Label.new()
-	skills_tag.text = "Skils"
-	skills_tag.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	skills_tag_block.add_child(skills_tag)
-
-	var skills_group = VBoxContainer.new()
+	var skills_group = CenterContainer.new()
 	skills_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_group.size_flags_stretch_ratio = 2.2
-	skills_group.add_theme_constant_override("separation", 4)
+	skills_group.size_flags_stretch_ratio = 1.6
 	hud_row.add_child(skills_group)
 
 	var skill_rows = HBoxContainer.new()
-	skill_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skill_rows.add_theme_constant_override("separation", 8)
+	skill_rows.add_theme_constant_override("separation", 18)
+	skill_rows.alignment = BoxContainer.ALIGNMENT_CENTER
 	skills_group.add_child(skill_rows)
 
 	btn_skill_freeze = _build_skill_icon_button("F", SKILL_ICON_FREEZE_PATH)
@@ -751,14 +742,10 @@ func _build_ui() -> void:
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
 	skill_rows.add_child(btn_skill_invuln)
 
-	var skill_labels = HBoxContainer.new()
-	skill_labels.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skill_labels.add_theme_constant_override("separation", 8)
-	skills_group.add_child(skill_labels)
-
-	skill_labels.add_child(_build_skill_icon_label("Freeze"))
-	skill_labels.add_child(_build_skill_icon_label("Clear Board"))
-	skill_labels.add_child(_build_skill_icon_label("Safe Well"))
+	var right_block = Control.new()
+	right_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_block.size_flags_stretch_ratio = 1.0
+	hud_row.add_child(right_block)
 
 
 	well_panel = Panel.new()
@@ -808,6 +795,7 @@ func _build_ui() -> void:
 	well_slots_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(well_slots_panel)
 	well_slots_base_rotation = well_slots_panel.rotation_degrees
+	well_slots_base_position = well_slots_panel.position
 
 	well_slots_draw = Control.new()
 	well_slots_draw.clip_contents = false
@@ -906,15 +894,19 @@ func _hud_line(k: String, v: String) -> Label:
 	return l
 
 
-func _hud_metric_row(parent: Control, icon_path: String, fallback: String, prefix: String, value: String) -> Label:
+func _hud_metric_row(parent: Control, metric_key: String, prefix: String, value: String) -> Label:
 	var wrap = HBoxContainer.new()
-	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	wrap.add_theme_constant_override("separation", 6)
 	parent.add_child(wrap)
-	_add_icon_or_fallback(wrap, icon_path, fallback, 16)
+	if metric_key == "score":
+		_add_icon_or_fallback(wrap, ICON_SCORE_PNG_PATH, "S", 16, 28)
+	elif metric_key == "speed":
+		_add_icon_or_fallback(wrap, ICON_SPEED_PNG_PATH, "SPD", 16, 28)
+	elif metric_key == "time":
+		_add_icon_or_fallback(wrap, ICON_TIME_PNG_PATH, "T", 16, 28)
 	var label = Label.new()
 	label.text = "%s: %s" % [prefix, value]
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	wrap.add_child(label)
@@ -1097,35 +1089,36 @@ func _update_panic_warning_visual(fill_ratio: float) -> void:
 	if panic_indicator_root == null or panic_indicator_visual == null or well_slots_panel == null:
 		return
 	var now = Time.get_ticks_msec()
+	var t = float(now) / 1000.0
+	var pulse_speed_hz = 1.35
+	var wave = 0.5 + 0.5 * sin(TAU * pulse_speed_hz * t)
 	if fill_ratio >= 0.60:
 		panic_indicator_root.visible = true
-		if panic_icon_tween == null or not panic_icon_tween.is_valid():
-			panic_indicator_visual.scale = Vector2.ONE
-			panic_icon_tween = create_tween()
-			panic_icon_tween.set_loops()
-			panic_icon_tween.set_ignore_time_scale(true)
-			panic_icon_tween.tween_property(panic_indicator_visual, "scale", Vector2(1.18, 1.18), 0.36)
-			panic_icon_tween.tween_property(panic_indicator_visual, "scale", Vector2.ONE, 0.36)
-		var wave = 0.5 + 0.5 * sin(float(now) / 85.0)
-		well_slots_panel.modulate = Color(1.0, 0.86 + 0.14 * wave, 0.86 + 0.14 * wave, 1.0)
-		well_slots_panel.rotation_degrees = 0.8 * sin(float(now) / 55.0)
+		var icon_scale = 1.0 + 0.10 * wave
+		panic_indicator_visual.scale = Vector2(icon_scale, icon_scale)
+		panic_indicator_visual.modulate = Color(1, 1, 1, 1.0 - 0.25 * wave)
+		var brightness = min(1.10, 1.0 + 0.10 * wave)
+		well_slots_panel.modulate = Color(brightness, brightness, brightness, 1.0)
+		var x_offset = 2.0 * sin(TAU * 6.0 * t)
+		var y_offset = 1.0 * sin(TAU * 7.0 * t)
+		well_slots_panel.position = well_slots_base_position + Vector2(x_offset, y_offset)
+		well_slots_panel.rotation_degrees = well_slots_base_rotation
 	else:
-		if panic_icon_tween != null and panic_icon_tween.is_valid():
-			panic_icon_tween.kill()
-		panic_icon_tween = null
 		panic_indicator_visual.scale = Vector2.ONE
+		panic_indicator_visual.modulate = Color(1, 1, 1, 1)
 		panic_indicator_root.visible = false
 		well_slots_panel.modulate = Color(1, 1, 1, 1)
+		well_slots_panel.position = well_slots_base_position
 		well_slots_panel.rotation_degrees = well_slots_base_rotation
 
 
 func _build_skill_icon_button(fallback_text: String, icon_path: String) -> TextureButton:
 	var b = TextureButton.new()
-	b.custom_minimum_size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
+	b.custom_minimum_size = Vector2(56, 56)
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	b.ignore_texture_size = true
 	b.mouse_filter = Control.MOUSE_FILTER_STOP
-	var tex = _load_texture_or_null(icon_path)
+	var tex = _load_icon_texture_with_fallback(icon_path)
 	if tex != null:
 		b.texture_normal = tex
 		b.texture_hover = tex
@@ -1141,23 +1134,16 @@ func _build_skill_icon_button(fallback_text: String, icon_path: String) -> Textu
 		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(fallback)
 	return b
-
-
-func _build_skill_icon_label(text_value: String) -> Control:
-	var wrap = CenterContainer.new()
-	wrap.custom_minimum_size = Vector2(SKILL_ICON_SIZE, 16)
-	var l = Label.new()
-	l.text = text_value
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
-	wrap.add_child(l)
-	return wrap
-
-
 func _on_skill_icon_pressed(btn: TextureButton, required_level: int, locked_msg: String) -> void:
 	if level < required_level:
-		show_toast(locked_msg, 1.8)
+		show_toast(locked_msg, 1.9)
 		return
+	if btn == btn_skill_freeze:
+		show_toast("Freeze: 90% slow for 5s (1/round)", 1.9)
+	elif btn == btn_skill_clear:
+		show_toast("Clear Board: clears grid + grants score (1/round)", 1.9)
+	elif btn == btn_skill_invuln:
+		show_toast("Safe Well: blocks vanish at edge for 7s", 1.9)
 	_play_sfx("ui_click")
 
 
@@ -1178,7 +1164,7 @@ func _update_skill_icon_states() -> void:
 		btn_skill_invuln.get_child(0).modulate = Color(1, 1, 1, a_well)
 
 
-func show_toast(text: String, duration_sec: float = 1.8) -> void:
+func show_toast(text: String, duration_sec: float = 1.9) -> void:
 	if toast_panel == null or toast_label == null:
 		return
 	toast_label.text = text
