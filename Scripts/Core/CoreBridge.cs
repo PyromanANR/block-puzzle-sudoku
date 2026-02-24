@@ -339,6 +339,15 @@ public partial class CoreBridge : Node
     public float GetPanicPulseSpeed() => _config.PanicPulseSpeed;
     public float GetPanicBlinkSpeed() => _config.PanicBlinkSpeed;
     public float GetPanicBlinkThreshold() => _config.PanicBlinkThreshold;
+    public float GetSpeedPeak1Minutes() => _config.SpeedPeak1Minutes;
+
+    public void ResetRuntimeClock()
+    {
+        _startMs = Time.GetTicksMsec();
+        _lastSpeedCalcMs = _startMs;
+        _smoothedFallSpeed = _config.BaseFallSpeed;
+        _lastTargetSpeed = _smoothedFallSpeed;
+    }
 
     public void TriggerRescueStability()
     {
