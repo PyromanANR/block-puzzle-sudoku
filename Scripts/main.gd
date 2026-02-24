@@ -695,39 +695,46 @@ func _build_ui() -> void:
 
 	var hud_row = HBoxContainer.new()
 	hud_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hud_row.add_theme_constant_override("separation", 14)
+	hud_row.add_theme_constant_override("separation", 12)
 	lower_status.add_child(hud_row)
 
-	var panic_row = HBoxContainer.new()
-	panic_row.add_theme_constant_override("separation", 6)
-	hud_row.add_child(panic_row)
-	_add_icon_or_fallback(panic_row, "res://Assets/UI/icons/icon_panic.png", "!", 18)
+	var panic_block = HBoxContainer.new()
+	panic_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panic_block.size_flags_stretch_ratio = 1.2
+	panic_block.add_theme_constant_override("separation", 6)
+	hud_row.add_child(panic_block)
+	_add_icon_or_fallback(panic_block, "res://Assets/UI/icons/icon_panic.png", "!", 18)
 	lbl_panic = Label.new()
 	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	panic_row.add_child(lbl_panic)
+	panic_block.add_child(lbl_panic)
 
-	var time_slow_row = HBoxContainer.new()
-	time_slow_row.add_theme_constant_override("separation", 6)
-	hud_row.add_child(time_slow_row)
-	_add_icon_or_fallback(time_slow_row, "res://Assets/UI/icons/icon_timeslow.png", "⏳", 18)
+	var time_slow_block = HBoxContainer.new()
+	time_slow_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	time_slow_block.size_flags_stretch_ratio = 1.6
+	time_slow_block.add_theme_constant_override("separation", 6)
+	hud_row.add_child(time_slow_block)
+	_add_icon_or_fallback(time_slow_block, "res://Assets/UI/icons/icon_timeslow.png", "⏳", 18)
 	lbl_rescue = Label.new()
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	time_slow_row.add_child(lbl_rescue)
+	time_slow_block.add_child(lbl_rescue)
 
+	var skills_tag_block = CenterContainer.new()
+	skills_tag_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skills_tag_block.size_flags_stretch_ratio = 0.8
+	hud_row.add_child(skills_tag_block)
 	var skills_tag = Label.new()
 	skills_tag.text = "Skils"
 	skills_tag.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	hud_row.add_child(skills_tag)
-
-	var skills_spacer = Control.new()
-	skills_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hud_row.add_child(skills_spacer)
+	skills_tag_block.add_child(skills_tag)
 
 	var skills_group = VBoxContainer.new()
+	skills_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skills_group.size_flags_stretch_ratio = 1.4
 	skills_group.add_theme_constant_override("separation", 4)
 	hud_row.add_child(skills_group)
 
 	var skill_rows = HBoxContainer.new()
+	skill_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	skill_rows.add_theme_constant_override("separation", 8)
 	skills_group.add_child(skill_rows)
 
@@ -742,6 +749,7 @@ func _build_ui() -> void:
 	skill_rows.add_child(btn_skill_invuln)
 
 	var skill_labels = HBoxContainer.new()
+	skill_labels.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	skill_labels.add_theme_constant_override("separation", 8)
 	skills_group.add_child(skill_labels)
 
@@ -1469,35 +1477,44 @@ func _redraw_well() -> void:
 
 	var slots_header_row = HBoxContainer.new()
 	slots_header_row.position = Vector2(8, 4)
-	slots_header_row.size = Vector2(max(0.0, slots_w - 16.0), 24)
-	slots_header_row.add_theme_constant_override("separation", 8)
+	slots_header_row.size = Vector2(max(0.0, slots_w - 16.0), 28)
+	slots_header_row.add_theme_constant_override("separation", 0)
 	slots_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_header_row)
 
+	var slots_header_wrap = CenterContainer.new()
+	slots_header_wrap.custom_minimum_size = Vector2(128, 28)
+	slots_header_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slots_header_row.add_child(slots_header_wrap)
 	var slots_header = Label.new()
 	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
-	slots_header.custom_minimum_size = Vector2(0, 24)
+	slots_header.custom_minimum_size = Vector2(0, 28)
 	slots_header.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
 	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45, 0.92))
 	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slots_header_row.add_child(slots_header)
+	slots_header_wrap.add_child(slots_header)
+
+	var slots_mid_spacer = Control.new()
+	slots_mid_spacer.custom_minimum_size = Vector2(10, 0)
+	slots_mid_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slots_header_row.add_child(slots_mid_spacer)
 
 	var slots_progress_wrap = CenterContainer.new()
 	slots_progress_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slots_progress_wrap.custom_minimum_size = Vector2(120, 24)
+	slots_progress_wrap.custom_minimum_size = Vector2(120, 28)
 	slots_header_row.add_child(slots_progress_wrap)
 
 	var slots_progress = ProgressBar.new()
 	slots_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slots_progress.custom_minimum_size = Vector2(120, 10)
+	slots_progress.custom_minimum_size = Vector2(120, 12)
 	slots_progress.max_value = 1.0
 	slots_progress.value = fill_ratio
 	slots_progress.show_percentage = false
 	slots_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	slots_progress_wrap.add_child(slots_progress)
 
-	var slots_top = max(pile_top, 52.0)
+	var slots_top = max(pile_top, 58.0)
 	var slot_w = slots_w - 16.0
 	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
