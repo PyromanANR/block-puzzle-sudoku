@@ -117,7 +117,7 @@ const PILE_PAD := 12
 const SLOT_H := 54
 const SLOT_GAP := 6
 const HEADER_BUTTON_SIZE := 76.0
-const HEADER_BUTTON_MARGIN := 14.0
+const HEADER_BUTTON_MARGIN := 20.0
 
 var fall_piece = null
 var fall_y: float = 10.0
@@ -561,14 +561,14 @@ func _build_ui() -> void:
 
 	var header_row = HBoxContainer.new()
 	header_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header_row.offset_left = HEADER_BUTTON_MARGIN
-	header_row.offset_right = -HEADER_BUTTON_MARGIN
+	header_row.offset_left = HEADER_BUTTON_MARGIN + 4
+	header_row.offset_right = -(HEADER_BUTTON_MARGIN + 4)
 	header_row.offset_top = HEADER_BUTTON_MARGIN
-	header_row.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
+	header_row.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE + 8
 	header_row.add_theme_constant_override("separation", 8)
-	header_row.set_as_top_level(true)
 	header_row.mouse_filter = Control.MOUSE_FILTER_STOP
 	header_row.z_index = 40
+	header_row.z_as_relative = false
 	root_frame.add_child(header_row)
 
 	btn_exit = TextureButton.new()
@@ -837,12 +837,13 @@ func _apply_header_button_icon(btn: TextureButton, icon_path: String, fallback_t
 	for ch in btn.get_children():
 		ch.queue_free()
 	if ResourceLoader.exists(icon_path):
-		var tex = load(icon_path)
-		btn.texture_normal = tex
-		btn.texture_pressed = tex
-		btn.texture_hover = tex
-		btn.texture_disabled = tex
-		return
+		var tex = load(icon_path) as Texture2D
+		if tex != null:
+			btn.texture_normal = tex
+			btn.texture_pressed = tex
+			btn.texture_hover = tex
+			btn.texture_disabled = tex
+			return
 	btn.texture_normal = null
 	btn.texture_pressed = null
 	btn.texture_hover = null
