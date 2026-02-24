@@ -93,6 +93,9 @@ var overlay_text: Label
 var is_game_over: bool = false
 var fx_layer: CanvasLayer
 var time_slow_overlay: ColorRect
+var toast_layer: CanvasLayer
+var toast_panel: Panel
+var toast_label: Label
 
 # ----------------------------
 # Colors
@@ -128,7 +131,7 @@ const SKILL_ICON_FREEZE_PATH := "res://Assets/UI/icons/skill_freeze.png"
 const SKILL_ICON_CLEAR_PATH := "res://Assets/UI/icons/skill_clear_board.png"
 const SKILL_ICON_SAFE_WELL_PATH := "res://Assets/UI/icons/skill_safe_well.png"
 
-var skill_hint_until_ms = 0
+var toast_hide_at_ms = 0
 
 var fall_piece = null
 var fall_y: float = 10.0
@@ -296,6 +299,8 @@ func _start_round() -> void:
 	_redraw_well()
 	_update_hud()
 	_hide_game_over_overlay()
+	if toast_panel != null:
+		toast_panel.visible = false
 
 
 func _trigger_game_over() -> void:
@@ -330,6 +335,8 @@ func _trigger_game_over() -> void:
 	Save.save()
 
 	_show_game_over_overlay()
+	if toast_panel != null:
+		toast_panel.visible = false
 
 
 
@@ -510,8 +517,6 @@ func _update_status_hud() -> void:
 		lbl_rescue.text = "TIME SLOW CD %.1fs (%.0f%%)" % [remaining_sec, pct]
 		lbl_rescue.modulate = Color(0.80, 0.84, 0.88, 1.0)
 	_update_skill_icon_states()
-	if lbl_skill_hint != null and lbl_skill_hint.visible and Time.get_ticks_msec() >= skill_hint_until_ms:
-		lbl_skill_hint.visible = false
 
 
 # Trigger condition: successful placement of a piece taken from WELL.
@@ -598,7 +603,6 @@ func _build_ui() -> void:
 	btn_exit.offset_top = HEADER_BUTTON_MARGIN
 	btn_exit.offset_right = HEADER_BUTTON_MARGIN + EXIT_BUTTON_SIZE
 	btn_exit.offset_bottom = HEADER_BUTTON_MARGIN + EXIT_BUTTON_SIZE
-	btn_exit.tooltip_text = "Exit"
 	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_exit.ignore_texture_size = true
 	btn_exit.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -615,7 +619,6 @@ func _build_ui() -> void:
 	btn_settings.offset_top = HEADER_BUTTON_MARGIN
 	btn_settings.offset_right = -HEADER_BUTTON_MARGIN
 	btn_settings.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
-	btn_settings.tooltip_text = "Settings"
 	btn_settings.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_settings.ignore_texture_size = true
 	btn_settings.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -746,11 +749,6 @@ func _build_ui() -> void:
 	skill_labels.add_child(_build_skill_icon_label("Clear Board"))
 	skill_labels.add_child(_build_skill_icon_label("Safe Well"))
 
-	lbl_skill_hint = Label.new()
-	lbl_skill_hint.visible = false
-	lbl_skill_hint.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
-	lbl_skill_hint.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.82, 0.82, 0.82)))
-	lower_status.add_child(lbl_skill_hint)
 
 	well_panel = Panel.new()
 	well_panel.custom_minimum_size = Vector2(0, 420)
@@ -822,6 +820,33 @@ func _build_ui() -> void:
 	time_slow_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_overlay.visible = false
 	fx_layer.add_child(time_slow_overlay)
+
+	toast_layer = CanvasLayer.new()
+	toast_layer.layer = 60
+	add_child(toast_layer)
+	toast_panel = Panel.new()
+	toast_panel.visible = false
+	toast_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_panel.add_theme_stylebox_override("panel", _style_preview_box())
+	toast_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	toast_panel.offset_left = 180
+	toast_panel.offset_right = -180
+	toast_panel.offset_top = -96
+	toast_panel.offset_bottom = -44
+	toast_layer.add_child(toast_panel)
+	var toast_margin = MarginContainer.new()
+	toast_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	toast_margin.add_theme_constant_override("margin_left", 12)
+	toast_margin.add_theme_constant_override("margin_right", 12)
+	toast_margin.add_theme_constant_override("margin_top", 8)
+	toast_margin.add_theme_constant_override("margin_bottom", 8)
+	toast_panel.add_child(toast_margin)
+	toast_label = Label.new()
+	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	toast_label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	toast_margin.add_child(toast_label)
 
 	overlay_dim = ColorRect.new()
 	overlay_dim.color = Color(0, 0, 0, 0.55)
@@ -1020,14 +1045,9 @@ func _build_skill_icon_label(text_value: String) -> Control:
 
 func _on_skill_icon_pressed(btn: TextureButton, required_level: int, locked_msg: String) -> void:
 	if level < required_level:
-		if lbl_skill_hint != null:
-			lbl_skill_hint.text = locked_msg
-			lbl_skill_hint.visible = true
-			skill_hint_until_ms = Time.get_ticks_msec() + 1200
+		show_toast(locked_msg, 1.8)
 		return
 	_play_sfx("ui_click")
-	if lbl_skill_hint != null:
-		lbl_skill_hint.visible = false
 
 
 func _update_skill_icon_states() -> void:
@@ -1037,17 +1057,31 @@ func _update_skill_icon_states() -> void:
 	var a_clear = 1.0 if level >= 10 else 0.45
 	var a_well = 1.0 if level >= 20 else 0.45
 	btn_skill_freeze.modulate = Color(1, 1, 1, a_freeze)
-	btn_skill_freeze.tooltip_text = "Freeze" if level >= 5 else "Reach level 5"
 	btn_skill_clear.modulate = Color(1, 1, 1, a_clear)
-	btn_skill_clear.tooltip_text = "Clear Board" if level >= 10 else "Reach level 10"
 	btn_skill_invuln.modulate = Color(1, 1, 1, a_well)
-	btn_skill_invuln.tooltip_text = "Safe Well" if level >= 20 else "Reach level 20"
 	if btn_skill_freeze.get_child_count() > 0 and btn_skill_freeze.get_child(0) is Label:
 		btn_skill_freeze.get_child(0).modulate = Color(1, 1, 1, a_freeze)
 	if btn_skill_clear.get_child_count() > 0 and btn_skill_clear.get_child(0) is Label:
 		btn_skill_clear.get_child(0).modulate = Color(1, 1, 1, a_clear)
 	if btn_skill_invuln.get_child_count() > 0 and btn_skill_invuln.get_child(0) is Label:
 		btn_skill_invuln.get_child(0).modulate = Color(1, 1, 1, a_well)
+
+
+func show_toast(text: String, duration_sec: float = 1.8) -> void:
+	if toast_panel == null or toast_label == null:
+		return
+	toast_label.text = text
+	toast_panel.visible = true
+	toast_hide_at_ms = Time.get_ticks_msec() + int(max(0.1, duration_sec) * 1000.0)
+
+
+func _update_toast() -> void:
+	if toast_panel == null:
+		return
+	if not toast_panel.visible:
+		return
+	if Time.get_ticks_msec() >= toast_hide_at_ms:
+		toast_panel.visible = false
 
 
 func _show_game_over_overlay() -> void:
@@ -1724,6 +1758,7 @@ func _mouse_to_board_cell(mouse_pos: Vector2) -> Vector2i:
 # Loop (classic-like slow start)
 # ============================================================
 func _process(delta: float) -> void:
+	_update_toast()
 	if is_game_over:
 		return
 
