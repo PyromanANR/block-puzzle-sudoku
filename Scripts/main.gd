@@ -150,6 +150,10 @@ var missing_sfx_warned = {}
 var last_dual_drop_min = -1.0
 
 const NORMAL_RESPAWN_DELAY_MS = 260
+const PANIC_HIGH_THRESHOLD = 0.85
+const PANIC_MID_THRESHOLD = 0.60
+const PANIC_PULSE_SPEED = 2.0
+const PANIC_BLINK_SPEED = 7.0
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -1123,6 +1127,17 @@ func _lock_falling_to_pile() -> void:
 		_schedule_next_falling_piece()
 
 
+func _selected_neon_pile_index() -> int:
+	if selected_from_pile_index >= 0 and selected_from_pile_index < pile.size():
+		return selected_from_pile_index
+	if pile.size() <= 0:
+		return -1
+	var max_selectable = min(pile_selectable, pile.size())
+	if max_selectable <= 0:
+		return -1
+	return pile.size() - 1
+
+
 func _well_geometry() -> Dictionary:
 	var drop_h = drop_zone_draw.size.y
 	var drop_w = drop_zone_draw.size.x
@@ -1228,6 +1243,32 @@ func _redraw_well() -> void:
 	slots_progress_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_progress_fg)
 
+	if well_ready:
+		var ring = Label.new()
+		ring.text = "⟳"
+		ring.position = Vector2(slots_w - 34, 4)
+		ring.rotation = float(now_ms % 2000) / 2000.0 * TAU
+		ring.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+		ring.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, 0.65 + 0.35 * neon))
+		ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		well_slots_draw.add_child(ring)
+
+	var loop_bg = ColorRect.new()
+	loop_bg.color = Color(1, 1, 1, 0.08)
+	loop_bg.position = Vector2(8, 48)
+	loop_bg.size = Vector2(slots_w - 16, 4)
+	loop_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_draw.add_child(loop_bg)
+
+	var loop_fg = ColorRect.new()
+	loop_fg.color = Color(1.0, 0.92, 0.52, 0.45 + 0.35 * neon)
+	var travel = max(1.0, loop_bg.size.x - 30.0)
+	var phase = fmod(float(now_ms) * 0.12, travel)
+	loop_fg.position = Vector2(loop_bg.position.x + phase, loop_bg.position.y)
+	loop_fg.size = Vector2(30, 4)
+	loop_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_draw.add_child(loop_fg)
+
 	var slots_top = max(pile_top, 52.0)
 	var slot_w = slots_w - 16.0
 	var available_h = max(140.0, pile_bottom - slots_top)
@@ -1252,6 +1293,7 @@ func _redraw_well() -> void:
 
 		if is_active:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
+			slot.modulate = Color(1.0, 1.0, 0.85 + 0.15 * neon, 1.0)
 		else:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_locked())
 			var lock_lbl = Label.new()
@@ -1295,6 +1337,28 @@ func _redraw_well() -> void:
 				neon_frame.add_theme_stylebox_override("panel", neon_style)
 				slot.add_child(neon_frame)
 		elif is_active:
+			var neon_phase_empty = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
+			var neon_alpha_empty = lerp(neon_min, neon_max, neon_phase_empty)
+			var neon_frame_empty = Panel.new()
+			neon_frame_empty.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			neon_frame_empty.offset_left = 2
+			neon_frame_empty.offset_top = 2
+			neon_frame_empty.offset_right = -2
+			neon_frame_empty.offset_bottom = -2
+			neon_frame_empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var neon_style_empty = StyleBoxFlat.new()
+			neon_style_empty.bg_color = Color(0, 0, 0, 0)
+			neon_style_empty.border_width_left = 3
+			neon_style_empty.border_width_top = 3
+			neon_style_empty.border_width_right = 3
+			neon_style_empty.border_width_bottom = 3
+			neon_style_empty.border_color = Color(1.0, 0.92, 0.40, neon_alpha_empty)
+			neon_style_empty.corner_radius_top_left = 8
+			neon_style_empty.corner_radius_top_right = 8
+			neon_style_empty.corner_radius_bottom_left = 8
+			neon_style_empty.corner_radius_bottom_right = 8
+			neon_frame_empty.add_theme_stylebox_override("panel", neon_style_empty)
+			slot.add_child(neon_frame_empty)
 			var empty = Label.new()
 			empty.text = "Empty"
 			empty.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
