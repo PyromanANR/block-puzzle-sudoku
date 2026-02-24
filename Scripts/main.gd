@@ -148,6 +148,7 @@ var time_slow_effect_until_ms = 0
 var sfx_players = {}
 var missing_sfx_warned = {}
 var last_dual_drop_min = -1.0
+var speed_curve_warning_shown = false
 
 const NORMAL_RESPAWN_DELAY_MS = 260
 const PANIC_HIGH_THRESHOLD = 0.85
@@ -241,6 +242,7 @@ func _start_round() -> void:
 	dual_drop_anchor_y = 10.0
 	dual_drop_trigger_count = 0
 	last_dual_drop_min = -1.0
+	speed_curve_warning_shown = false
 	rescue_trigger_count = 0
 	auto_slow_until_ms = 0
 	auto_slow_trigger_count = 0
@@ -455,17 +457,17 @@ func _update_status_hud() -> void:
 	var panic_blink_speed = float(core.call("GetPanicBlinkSpeed"))
 	var danger = panic_value >= panic_blink_threshold or time_scale_reason == "NoMercyExtra" or time_scale_reason == "WellDrag"
 	if panic_value < 0.6:
-		var soft = 0.90 + 0.10 * (0.5 + 0.5 * sin(t * TAU * panic_pulse_speed * 0.5))
-		lbl_panic.modulate = Color(0.88, 0.96, 0.90, soft)
+		var soft = 0.55 + 0.45 * (0.5 + 0.5 * sin(t * TAU * panic_pulse_speed * 0.75))
+		lbl_panic.modulate = Color(0.86, 0.98, 0.90, soft)
 	elif panic_value < panic_blink_threshold:
 		var warm = 0.5 + 0.5 * sin(t * TAU * panic_pulse_speed)
-		lbl_panic.modulate = Color(1.0, 0.82 + 0.16 * warm, 0.52 + 0.24 * warm, 1.0)
+		lbl_panic.modulate = Color(1.0, 0.68 + 0.30 * warm, 0.40 + 0.40 * warm, 0.82 + 0.18 * warm)
 	else:
 		var blink = 0.5 + 0.5 * sin(t * TAU * panic_blink_speed)
 		if danger and blink > 0.5:
-			lbl_panic.modulate = Color(1.0, 0.24, 0.24, 1.0)
+			lbl_panic.modulate = Color(1.0, 0.16, 0.16, 1.0)
 		else:
-			lbl_panic.modulate = Color(1.0, 0.72, 0.40, 1.0)
+			lbl_panic.modulate = Color(1.0, 0.78, 0.42, 0.92)
 	lbl_panic.text = "PANIC %.0f%%" % (panic_value * 100.0)
 	var cooldown_sec = float(core.call("GetTimeSlowCooldownSec"))
 	var remaining_ms = max(0, time_slow_cooldown_until_ms - now)
@@ -1264,11 +1266,9 @@ func _redraw_well() -> void:
 	well_slots_draw.add_child(loop_bg)
 
 	var loop_fg = ColorRect.new()
-	loop_fg.color = Color(1.0, 0.92, 0.52, 0.45 + 0.35 * neon)
-	var travel = max(1.0, loop_bg.size.x - 30.0)
-	var phase = fmod(float(now_ms) * 0.12, travel)
-	loop_fg.position = Vector2(loop_bg.position.x + phase, loop_bg.position.y)
-	loop_fg.size = Vector2(30, 4)
+	loop_fg.color = Color(1.0, 0.92, 0.52, 0.45)
+	loop_fg.position = loop_bg.position
+	loop_fg.size = Vector2((slots_w - 16.0) * fill_ratio, 4)
 	loop_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(loop_fg)
 
@@ -1339,28 +1339,6 @@ func _redraw_well() -> void:
 				neon_frame.add_theme_stylebox_override("panel", neon_style)
 				slot.add_child(neon_frame)
 		elif is_active:
-			var neon_phase_empty = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
-			var neon_alpha_empty = lerp(neon_min, neon_max, neon_phase_empty)
-			var neon_frame_empty = Panel.new()
-			neon_frame_empty.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			neon_frame_empty.offset_left = 2
-			neon_frame_empty.offset_top = 2
-			neon_frame_empty.offset_right = -2
-			neon_frame_empty.offset_bottom = -2
-			neon_frame_empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var neon_style_empty = StyleBoxFlat.new()
-			neon_style_empty.bg_color = Color(0, 0, 0, 0)
-			neon_style_empty.border_width_left = 3
-			neon_style_empty.border_width_top = 3
-			neon_style_empty.border_width_right = 3
-			neon_style_empty.border_width_bottom = 3
-			neon_style_empty.border_color = Color(1.0, 0.92, 0.40, neon_alpha_empty)
-			neon_style_empty.corner_radius_top_left = 8
-			neon_style_empty.corner_radius_top_right = 8
-			neon_style_empty.corner_radius_bottom_left = 8
-			neon_style_empty.corner_radius_bottom_right = 8
-			neon_frame_empty.add_theme_stylebox_override("panel", neon_style_empty)
-			slot.add_child(neon_frame_empty)
 			var empty = Label.new()
 			empty.text = "Empty"
 			empty.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
@@ -1576,6 +1554,13 @@ func _process(delta: float) -> void:
 	var fall_speed = float(core.call("GetFallSpeed", float(level)))
 	speed_ui = fall_speed / 16.0
 	lbl_speed.text = "Speed: %.2f" % speed_ui
+	if not speed_curve_warning_shown:
+		var elapsed_min = float(core.call("GetElapsedMinutesForDebug"))
+		if elapsed_min > 3.2:
+			var expected_lower_bound_for_segment_b = float(core.call("GetBaseFallSpeed")) * float(core.call("GetPeak1TargetMultiplier")) * 1.02
+			if fall_speed < expected_lower_bound_for_segment_b:
+				push_warning("Speed curve sanity: elapsed=%.2f min, speed=%.2f, expected>=%.2f" % [elapsed_min, fall_speed, expected_lower_bound_for_segment_b])
+				speed_curve_warning_shown = true
 
 	var now_ms = Time.get_ticks_msec()
 	if pending_spawn_piece and now_ms >= spawn_wait_until_ms:
