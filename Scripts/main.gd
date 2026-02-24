@@ -677,82 +677,16 @@ func _build_ui() -> void:
 	top_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.size_flags_stretch_ratio = 1.5
-	top_row.add_theme_constant_override("separation", 12)
 	main_v.add_child(top_row)
-
-	var side_left = Panel.new()
-	side_left.custom_minimum_size = Vector2(220, 0)
-	side_left.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	side_left.add_theme_stylebox_override("panel", _style_hud_panel())
-	top_row.add_child(side_left)
-	var side_left_margin = MarginContainer.new()
-	side_left_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	side_left_margin.add_theme_constant_override("margin_left", 10)
-	side_left_margin.add_theme_constant_override("margin_right", 10)
-	side_left_margin.add_theme_constant_override("margin_top", 10)
-	side_left_margin.add_theme_constant_override("margin_bottom", 10)
-	side_left.add_child(side_left_margin)
-	var time_slow_block = HBoxContainer.new()
-	time_slow_block.add_theme_constant_override("separation", 8)
-	side_left_margin.add_child(time_slow_block)
-	_add_icon_or_fallback(time_slow_block, ICON_TIMESLOW_PNG_PATH, "TS", 22, 28)
-	lbl_rescue = Label.new()
-	lbl_rescue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
-	time_slow_block.add_child(lbl_rescue)
 
 	board_panel = Panel.new()
 	board_panel.custom_minimum_size = Vector2(700, 740)
 	board_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	board_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	board_panel.size_flags_stretch_ratio = 1.0
 	board_panel.add_theme_stylebox_override("panel", _style_board_panel())
 	top_row.add_child(board_panel)
 
-	var side_right = Panel.new()
-	side_right.custom_minimum_size = Vector2(220, 0)
-	side_right.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	side_right.add_theme_stylebox_override("panel", _style_hud_panel())
-	top_row.add_child(side_right)
-	var side_right_margin = MarginContainer.new()
-	side_right_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	side_right_margin.add_theme_constant_override("margin_left", 10)
-	side_right_margin.add_theme_constant_override("margin_right", 10)
-	side_right_margin.add_theme_constant_override("margin_top", 10)
-	side_right_margin.add_theme_constant_override("margin_bottom", 10)
-	side_right.add_child(side_right_margin)
-	var skills_group = VBoxContainer.new()
-	skills_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_group.add_theme_constant_override("separation", 10)
-	side_right_margin.add_child(skills_group)
-
-	var skills_tag = Label.new()
-	skills_tag.text = "Skills"
-	skills_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	skills_tag.add_theme_font_size_override("font_size", _skin_font_size("tiny", 14))
-	skills_group.add_child(skills_tag)
-
-	var skill_rows_center = CenterContainer.new()
-	skill_rows_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_group.add_child(skill_rows_center)
-
-	var skill_rows = HBoxContainer.new()
-	skill_rows.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	skill_rows.add_theme_constant_override("separation", 18)
-	skill_rows.alignment = BoxContainer.ALIGNMENT_CENTER
-	skill_rows_center.add_child(skill_rows)
-
 	next_box = null
-
-	btn_skill_freeze = _build_skill_icon_button("F", SKILL_ICON_FREEZE_PATH)
-	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
-	skill_rows.add_child(btn_skill_freeze)
-	btn_skill_clear = _build_skill_icon_button("C", SKILL_ICON_CLEAR_PATH)
-	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
-	skill_rows.add_child(btn_skill_clear)
-	btn_skill_invuln = _build_skill_icon_button("W", SKILL_ICON_SAFE_WELL_PATH)
-	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
-	skill_rows.add_child(btn_skill_invuln)
 
 	well_panel = Panel.new()
 	well_panel.custom_minimum_size = Vector2(0, 420)
@@ -1266,6 +1200,59 @@ func _clear_color_grid() -> void:
 		color_grid.append(row)
 
 
+func _build_board_side_overlays() -> void:
+	var left_overlay = VBoxContainer.new()
+	left_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left_overlay.custom_minimum_size = Vector2(220, 0)
+	board_panel.add_child(left_overlay)
+
+	var time_slow_block = HBoxContainer.new()
+	time_slow_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_block.add_theme_constant_override("separation", 8)
+	left_overlay.add_child(time_slow_block)
+	_add_icon_or_fallback(time_slow_block, ICON_TIMESLOW_PNG_PATH, "TS", 22, 28)
+	lbl_rescue = Label.new()
+	lbl_rescue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
+	lbl_rescue.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_block.add_child(lbl_rescue)
+
+	var left_size = left_overlay.get_combined_minimum_size()
+	left_overlay.size = Vector2(min(220.0, left_size.x), left_size.y)
+	left_overlay.position = Vector2(24, floor((board_panel.size.y - left_size.y) * 0.5))
+
+	var right_overlay = VBoxContainer.new()
+	right_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_overlay.add_theme_constant_override("separation", 10)
+	board_panel.add_child(right_overlay)
+
+	var skills_tag = Label.new()
+	skills_tag.text = "Skills"
+	skills_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	skills_tag.add_theme_font_size_override("font_size", 14)
+	skills_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_overlay.add_child(skills_tag)
+
+	var skill_rows = HBoxContainer.new()
+	skill_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_rows.add_theme_constant_override("separation", 18)
+	right_overlay.add_child(skill_rows)
+
+	btn_skill_freeze = _build_skill_icon_button("F", SKILL_ICON_FREEZE_PATH)
+	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
+	skill_rows.add_child(btn_skill_freeze)
+	btn_skill_clear = _build_skill_icon_button("C", SKILL_ICON_CLEAR_PATH)
+	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
+	skill_rows.add_child(btn_skill_clear)
+	btn_skill_invuln = _build_skill_icon_button("W", SKILL_ICON_SAFE_WELL_PATH)
+	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
+	skill_rows.add_child(btn_skill_invuln)
+
+	var right_size = right_overlay.get_combined_minimum_size()
+	right_overlay.size = right_size
+	right_overlay.position = Vector2(board_panel.size.x - 24 - right_size.x, floor((board_panel.size.y - right_size.y) * 0.5))
+
+
 func _build_board_grid() -> void:
 	for ch in board_panel.get_children():
 		ch.queue_free()
@@ -1343,6 +1330,7 @@ func _build_board_grid() -> void:
 	glare.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	board_panel.add_child(glare)
 
+	_build_board_side_overlays()
 	_refresh_board_visual()
 
 
