@@ -128,6 +128,8 @@ const SKILL_ICON_FREEZE_PATH := "res://Assets/UI/icons/skill_freeze.png"
 const SKILL_ICON_CLEAR_PATH := "res://Assets/UI/icons/skill_clear_board.png"
 const SKILL_ICON_SAFE_WELL_PATH := "res://Assets/UI/icons/skill_safe_well.png"
 
+var skill_hint_until_ms = 0
+
 var fall_piece = null
 var fall_y: float = 10.0
 var fall_piece_2 = null
@@ -676,6 +678,7 @@ func _build_ui() -> void:
 
 	var lower_margin = MarginContainer.new()
 	lower_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lower_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lower_margin.add_theme_constant_override("margin_left", 12)
 	lower_margin.add_theme_constant_override("margin_right", 12)
 	lower_margin.add_theme_constant_override("margin_top", 10)
@@ -708,14 +711,14 @@ func _build_ui() -> void:
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	time_slow_row.add_child(lbl_rescue)
 
-	var skills_spacer = Control.new()
-	skills_spacer.custom_minimum_size = Vector2(12, 0)
-	hud_row.add_child(skills_spacer)
-
 	var skills_tag = Label.new()
 	skills_tag.text = "Skils"
 	skills_tag.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	hud_row.add_child(skills_tag)
+
+	var skills_spacer = Control.new()
+	skills_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hud_row.add_child(skills_spacer)
 
 	var skills_group = VBoxContainer.new()
 	skills_group.add_theme_constant_override("separation", 4)
@@ -1431,27 +1434,34 @@ func _redraw_well() -> void:
 
 
 	var slots_header_row = HBoxContainer.new()
-	slots_header_row.position = Vector2(8, 6)
-	slots_header_row.size = Vector2(max(0.0, slots_w - 16.0), 22)
+	slots_header_row.position = Vector2(8, 4)
+	slots_header_row.size = Vector2(max(0.0, slots_w - 16.0), 24)
 	slots_header_row.add_theme_constant_override("separation", 8)
 	slots_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_header_row)
 
 	var slots_header = Label.new()
 	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
+	slots_header.custom_minimum_size = Vector2(0, 24)
+	slots_header.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
 	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45, 0.92))
 	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	slots_header_row.add_child(slots_header)
 
+	var slots_progress_wrap = CenterContainer.new()
+	slots_progress_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slots_progress_wrap.custom_minimum_size = Vector2(120, 24)
+	slots_header_row.add_child(slots_progress_wrap)
+
 	var slots_progress = ProgressBar.new()
 	slots_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slots_progress.custom_minimum_size = Vector2(120, 12)
+	slots_progress.custom_minimum_size = Vector2(120, 10)
 	slots_progress.max_value = 1.0
 	slots_progress.value = fill_ratio
 	slots_progress.show_percentage = false
 	slots_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slots_header_row.add_child(slots_progress)
+	slots_progress_wrap.add_child(slots_progress)
 
 	var slots_top = max(pile_top, 52.0)
 	var slot_w = slots_w - 16.0
