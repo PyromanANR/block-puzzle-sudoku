@@ -730,6 +730,12 @@ func _build_ui() -> void:
 	time_slow_bar_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_bar_margin.add_child(time_slow_bar_center)
 
+	var time_slow_stack = Control.new()
+	time_slow_stack.name = "time_slow_stack"
+	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_bar_center.add_child(time_slow_stack)
+
 	bar_time_slow = ProgressBar.new()
 	bar_time_slow.custom_minimum_size = Vector2(14, 0)
 	bar_time_slow.max_value = 100
@@ -737,13 +743,23 @@ func _build_ui() -> void:
 	bar_time_slow.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	bar_time_slow.show_percentage = false
 	bar_time_slow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_bar_center.add_child(bar_time_slow)
+	bar_time_slow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bar_time_slow.anchor_left = 0.5
+	bar_time_slow.anchor_right = 0.5
+	bar_time_slow.offset_left = -7
+	bar_time_slow.offset_right = 7
+	bar_time_slow.offset_top = 0
+	bar_time_slow.offset_bottom = 0
+	var time_slow_bg = StyleBoxFlat.new()
+	time_slow_bg.bg_color = Color(0.10, 0.12, 0.14, 0.25)
+	bar_time_slow.add_theme_stylebox_override("background", time_slow_bg)
+	time_slow_stack.add_child(bar_time_slow)
 
 	btn_time_slow = TextureButton.new()
 	btn_time_slow.custom_minimum_size = Vector2(56, 56)
 	btn_time_slow.size = Vector2(56, 56)
 	btn_time_slow.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	btn_time_slow.ignore_texture_size = false
+	btn_time_slow.ignore_texture_size = true
 	btn_time_slow.mouse_filter = Control.MOUSE_FILTER_STOP
 	var time_slow_tex = _load_ui_icon("timeslow")
 	if time_slow_tex != null:
@@ -765,7 +781,7 @@ func _build_ui() -> void:
 	btn_time_slow.offset_top = -28
 	btn_time_slow.offset_right = 28
 	btn_time_slow.offset_bottom = 28
-	time_slow_mid.add_child(btn_time_slow)
+	time_slow_stack.add_child(btn_time_slow)
 
 	well_slots_panel = Panel.new()
 	well_slots_panel.name = "well_panel"
@@ -1030,8 +1046,8 @@ func _load_texture_or_null(path: String) -> Texture2D:
 
 func _build_skill_icon_button(icon_key: String) -> TextureButton:
 	var b = TextureButton.new()
-	b.custom_minimum_size = Vector2(56, 56)
-	b.size = Vector2(56, 56)
+	b.custom_minimum_size = Vector2(64, 64)
+	b.size = Vector2(64, 64)
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	b.ignore_texture_size = false
 	b.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1164,20 +1180,48 @@ func _build_board_side_overlays() -> void:
 	skills_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_overlay.add_child(skills_tag)
 
-	var skill_rows = VBoxContainer.new()
-	skill_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skill_rows.add_theme_constant_override("separation", 14)
-	right_overlay.add_child(skill_rows)
+	var skill_even_area = VBoxContainer.new()
+	skill_even_area.name = "skill_even_area"
+	skill_even_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_even_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skill_even_area.add_theme_constant_override("separation", 0)
+	right_overlay.add_child(skill_even_area)
+
+	var skill_spacer_top = Control.new()
+	skill_spacer_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_spacer_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skill_spacer_top.size_flags_stretch_ratio = 1.0
+	skill_even_area.add_child(skill_spacer_top)
 
 	btn_skill_freeze = _build_skill_icon_button("freeze")
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
-	skill_rows.add_child(btn_skill_freeze)
+	skill_even_area.add_child(btn_skill_freeze)
+
+	var skill_spacer_mid_a = Control.new()
+	skill_spacer_mid_a.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_spacer_mid_a.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skill_spacer_mid_a.size_flags_stretch_ratio = 1.0
+	skill_even_area.add_child(skill_spacer_mid_a)
+
 	btn_skill_clear = _build_skill_icon_button("clear")
 	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
-	skill_rows.add_child(btn_skill_clear)
+	skill_even_area.add_child(btn_skill_clear)
+
+	var skill_spacer_mid_b = Control.new()
+	skill_spacer_mid_b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_spacer_mid_b.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skill_spacer_mid_b.size_flags_stretch_ratio = 1.0
+	skill_even_area.add_child(skill_spacer_mid_b)
+
 	btn_skill_invuln = _build_skill_icon_button("safe_well")
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
-	skill_rows.add_child(btn_skill_invuln)
+	skill_even_area.add_child(btn_skill_invuln)
+
+	var skill_spacer_bottom = Control.new()
+	skill_spacer_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skill_spacer_bottom.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skill_spacer_bottom.size_flags_stretch_ratio = 1.0
+	skill_even_area.add_child(skill_spacer_bottom)
 	_reposition_board_side_overlays()
 
 
@@ -1197,8 +1241,9 @@ func _reposition_board_side_overlays() -> void:
 	overlay_scale = clamp(overlay_scale, 0.20, 1.0)
 	board_overlay_right.scale = Vector2(overlay_scale, overlay_scale)
 	var right_size = right_base_size * overlay_scale
-	var right_x = min(host_right - right_size.x, grid_right)
-	board_overlay_right.position = Vector2(right_x, floor((host_h - right_size.y) * 0.5))
+	var desired_x = grid_right + max(12.0, (right_pad - right_size.x) * 0.5)
+	var clamp_x = min(desired_x, host_right - right_size.x - 12.0)
+	board_overlay_right.position = Vector2(clamp_x, floor((host_h - right_size.y) * 0.5))
 
 
 func _build_board_grid() -> void:
@@ -1541,15 +1586,6 @@ func _redraw_well() -> void:
 	slots_header_row.add_theme_constant_override("separation", 10)
 	slots_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_header_row)
-
-	var slots_header = Label.new()
-	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
-	slots_header.custom_minimum_size = Vector2(0, 28)
-	slots_header.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45, 0.92))
-	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slots_header_row.add_child(slots_header)
 
 	var slots_progress = ProgressBar.new()
 	slots_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
