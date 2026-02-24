@@ -21,7 +21,7 @@ public class PieceGenerator
 
     private static readonly HashSet<string> WellKinds = new()
     {
-        "Dot", "DominoH", "DominoV", "TwoDots", "TriLineH", "TriLineV", "TriL", "CornerBridge", "Square2"
+        "Dot", "DominoH", "DominoV", "TwoDotsA", "TwoDotsB", "TriLineH", "TriLineV", "TriL", "CornerBridge", "Square2"
     };
 
     private static readonly string[] BaseKinds = new[]
@@ -32,7 +32,7 @@ public class PieceGenerator
         "Dot","Square2"
     };
 
-    private static readonly string[] DominoKinds = new[] { "DominoH", "DominoV", "TwoDots" };
+    private static readonly string[] DominoKinds = new[] { "DominoH", "DominoV", "TwoDotsA", "TwoDotsB" };
     private static readonly string[] TrominoKinds = new[] { "TriLineH", "TriLineV", "TriL", "CornerBridge" };
     private static readonly string[] PentominoLiteKinds = new[] { "Plus5", "PentaL" };
 
@@ -56,7 +56,8 @@ public class PieceGenerator
         { "Square2", new [] { new Vector2I(0,0), new Vector2I(1,0), new Vector2I(0,1), new Vector2I(1,1) } },
         { "Plus5", new [] { new Vector2I(1,0), new Vector2I(0,1), new Vector2I(1,1), new Vector2I(2,1), new Vector2I(1,2) } },
         { "PentaL", new [] { new Vector2I(0,0), new Vector2I(0,1), new Vector2I(0,2), new Vector2I(1,2), new Vector2I(2,2) } },
-        { "TwoDots", new [] { new Vector2I(0,0), new Vector2I(1,0) } },
+        { "TwoDotsA", new [] { new Vector2I(0,0), new Vector2I(1,1) } },
+        { "TwoDotsB", new [] { new Vector2I(0,1), new Vector2I(1,0) } },
     };
 
     public PieceGenerator(RandomNumberGenerator rng, BalanceConfig config)
@@ -310,9 +311,11 @@ public class PieceGenerator
         if (roll <= 46) return "Dot";
         if (roll <= 58) return "DominoH";
         if (roll <= 68) return "DominoV";
-        if (roll <= 78) return "Square2";
-        if (roll <= 86) return "TriL";
-        if (roll <= 93) return "TriLineH";
+        if (roll <= 73) return "TwoDotsA";
+        if (roll <= 78) return "TwoDotsB";
+        if (roll <= 83) return "Square2";
+        if (roll <= 90) return "TriL";
+        if (roll <= 97) return "TriLineH";
         return "Plus5";
     }
 
@@ -426,6 +429,9 @@ public class PieceGenerator
 
     public static PieceData MakePiece(string kind)
     {
+        if (kind == "TwoDots")
+            kind = "TwoDotsA";
+
         var p = new PieceData { Kind = kind };
         foreach (var c in Lib[kind])
             p.Cells.Add(c);
