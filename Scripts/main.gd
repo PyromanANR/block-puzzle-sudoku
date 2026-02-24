@@ -631,6 +631,7 @@ func _build_ui() -> void:
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root_margin.mouse_filter = Control.MOUSE_FILTER_PASS
 	root_margin.add_theme_constant_override("margin_left", 24)
 	root_margin.add_theme_constant_override("margin_right", 24)
 	root_margin.add_theme_constant_override("margin_top", 118)
@@ -658,7 +659,7 @@ func _build_ui() -> void:
 	next_box = null
 
 	var lower_panel = Panel.new()
-	lower_panel.custom_minimum_size = Vector2(0, 168)
+	lower_panel.custom_minimum_size = Vector2(0, 92)
 	lower_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lower_panel.add_theme_stylebox_override("panel", _style_hud_panel())
 	main_v.add_child(lower_panel)
@@ -678,11 +679,13 @@ func _build_ui() -> void:
 
 	var status_col = VBoxContainer.new()
 	status_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	status_col.add_theme_constant_override("separation", 8)
 	lower_status.add_child(status_col)
 
 	var skills_col = VBoxContainer.new()
 	skills_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skills_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	skills_col.add_theme_constant_override("separation", 6)
 	lower_status.add_child(skills_col)
 
@@ -692,12 +695,19 @@ func _build_ui() -> void:
 	skills_col.add_child(skills_title)
 
 	var skill_rows = HBoxContainer.new()
+	skill_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	skill_rows.add_theme_constant_override("separation", 8)
 	skills_col.add_child(skill_rows)
 
-	skill_rows.add_child(_build_skill_card("Reroll", 5, 1))
-	skill_rows.add_child(_build_skill_card("Freeze", 10, 3))
-	skill_rows.add_child(_build_skill_card("Clear", 20, 6))
+	var skill_reroll = _build_skill_card("Reroll", 5, 1)
+	skill_reroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_rows.add_child(skill_reroll)
+	var skill_freeze = _build_skill_card("Freeze", 10, 3)
+	skill_freeze.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_rows.add_child(skill_freeze)
+	var skill_clear = _build_skill_card("Clear", 20, 6)
+	skill_clear.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_rows.add_child(skill_clear)
 
 	var time_slow_row = HBoxContainer.new()
 	time_slow_row.add_theme_constant_override("separation", 6)
@@ -756,6 +766,7 @@ func _build_ui() -> void:
 	well_draw.add_child(well_slots_panel)
 
 	well_slots_draw = Control.new()
+	well_slots_draw.clip_contents = true
 	well_slots_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	well_slots_draw.offset_left = 10
 	well_slots_draw.offset_right = -10
@@ -789,7 +800,7 @@ func _build_ui() -> void:
 	overlay_dim.color = Color(0, 0, 0, 0.55)
 	overlay_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay_dim.visible = false
-	overlay_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(overlay_dim)
 
 	overlay_text = Label.new()
@@ -882,6 +893,8 @@ func _apply_header_button_icon(btn: TextureButton, icon_path: String, fallback_t
 func _build_skill_card(label_text: String, req_level: int, progress_level: int) -> Control:
 	var panel = Panel.new()
 	panel.custom_minimum_size = Vector2(0, 84)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.clip_contents = true
 	panel.add_theme_stylebox_override("panel", _style_preview_box())
 	var row = HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -900,6 +913,7 @@ func _build_skill_card(label_text: String, req_level: int, progress_level: int) 
 
 	var col = VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_child(col)
 
 	var t = Label.new()
@@ -918,6 +932,7 @@ func _build_skill_card(label_text: String, req_level: int, progress_level: int) 
 		pb.value = progress_level
 		pb.show_percentage = false
 		pb.custom_minimum_size = Vector2(0, 14)
+		pb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		col.add_child(pb)
 		var lock = Label.new()
 		lock.text = "Locked until Lv.%d" % req_level
@@ -928,6 +943,7 @@ func _build_skill_card(label_text: String, req_level: int, progress_level: int) 
 
 
 func _show_game_over_overlay() -> void:
+	overlay_dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay_dim.visible = true
 	overlay_text.visible = true
 	overlay_dim.gui_input.connect(func(ev):
@@ -939,6 +955,7 @@ func _show_game_over_overlay() -> void:
 
 func _hide_game_over_overlay() -> void:
 	overlay_dim.visible = false
+	overlay_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay_text.visible = false
 
 
@@ -1307,13 +1324,6 @@ func _redraw_well() -> void:
 	drop_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	drop_zone_draw.add_child(drop_marker)
 
-	var drop_label = Label.new()
-	drop_label.text = "DROP"
-	drop_label.position = Vector2(8, fall_top - 28)
-	drop_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
-	drop_label.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.82, 0.82, 0.82)))
-	drop_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	drop_zone_draw.add_child(drop_label)
 
 	var slots_header = Label.new()
 	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
@@ -1327,7 +1337,7 @@ func _redraw_well() -> void:
 	var slots_progress_bg = ColorRect.new()
 	slots_progress_bg.color = Color(1, 1, 1, 0.12)
 	slots_progress_bg.position = Vector2(8, 34)
-	slots_progress_bg.size = Vector2(slots_w - 16, 10)
+	slots_progress_bg.size = Vector2(max(0.0, slots_w - 16.0), 10)
 	slots_progress_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_progress_bg)
 
