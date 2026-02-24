@@ -1,14 +1,20 @@
-# UI/Asset Credits
+# Credits
 
-This project uses a skin-ready UI pipeline and references open assets/licenses below.
+## Audio
 
-- Kenney UI Pack — CC0 1.0.
-  - Source: https://kenney.nl/assets/ui-pack
-  - Usage: visual direction and UI style reference for cartridge/gamepad-like controls.
+- Procedural game SFX generated for this project via simple synthesized waveforms (Python `wave` script), dedicated to **CC0 1.0 / Public Domain** by this repository update.
+  - Files: `res://Assets/Audio/*.wav`
+  - Note: Audio files are added manually after merge (binary not supported by Codex PR).
+  - Events covered: UI hover/click, pick/place, invalid drop, well enter, clear, panic tick.
 
-- OpenGameArt: "Game Console Controller Buttons" — CC0.
-  - Source: https://opengameart.org/content/game-console-controller-buttons
-  - Usage: reference for button prompt style/icons.
+- Kenney UI Audio (CC0) is used as style/reference inspiration for short UI/game feedback sounds.
+  - Source: https://kenney.nl/assets/ui-audio
+  - License: CC0 1.0
 
-- Godot 4 built-in Theme/StyleBoxFlat/Control rendering.
-  - Usage: procedural implementation of the current default skin visuals.
+- OpenGameArt CC0 SFX packs referenced for style direction on arcade pop/clear/ding cues.
+  - Source: https://opengameart.org/
+  - License: CC0 1.0 (pack-dependent)
+
+## UI / Rendering
+
+- Godot 4 built-in Control/Theme/StyleBox rendering is used for UI visuals and feedback animation.

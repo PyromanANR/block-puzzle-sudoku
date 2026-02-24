@@ -48,19 +48,16 @@ public partial class CoreBridge : Node
         _difficulty = save.Call("get_current_difficulty").AsString();
         _noMercy = save.Call("get_no_mercy").AsBool();
 
-        float maxSpeedMultiplier = 9.0f;
         int pileMax = 7;
         int topSelectable = 2;
 
         if (_difficulty == "Easy")
         {
-            maxSpeedMultiplier = 8.0f;
             pileMax = 8;
             topSelectable = 3;
         }
         else if (_difficulty == "Hard")
         {
-            maxSpeedMultiplier = 10.0f;
             pileMax = 6;
             topSelectable = _noMercy ? 0 : 1;
         }
@@ -68,7 +65,6 @@ public partial class CoreBridge : Node
         _config.PileMax = pileMax;
         _config.WellSize = pileMax;
         _config.TopSelectable = topSelectable;
-        _config.MaxFallSpeedCap = _config.BaseFallSpeed * maxSpeedMultiplier;
     }
 
     public BoardModel CreateBoard()
@@ -144,21 +140,38 @@ public partial class CoreBridge : Node
 
     public float GetFallSpeed(float level)
     {
-        var levelGrowth = Mathf.Pow(_config.LevelSpeedGrowth, Mathf.Max(0f, level - 1f));
         var elapsedMinutes = GetElapsedMinutes();
 
-        var kneeMinutes = Mathf.Max(0.1f, _config.SpeedKneeMinutes);
-        var fastRampT = Mathf.Clamp(elapsedMinutes / kneeMinutes, 0f, 1f);
-        var fastRamp = 1.0f + _config.TimeSpeedRampPerMinute * kneeMinutes * fastRampT;
+        var peak1Minutes = Mathf.Max(0.1f, _config.SpeedPeak1Minutes);
+        var peak2Minutes = Mathf.Max(peak1Minutes + 0.1f, _config.SpeedPeak2Minutes);
+        var mult1 = GetKneeMultiplierForDifficulty();
+        var mult2 = mult1 * 1.5f;
 
-        var tailMinutes = Mathf.Max(0f, elapsedMinutes - kneeMinutes);
-        var tailRamp = 1.0f + _config.PostKneeSpeedTailStrength * Mathf.Log(1.0f + tailMinutes);
+        float speedMultiplier;
+        if (elapsedMinutes <= peak1Minutes)
+        {
+            var p = Mathf.Clamp(elapsedMinutes / peak1Minutes, 0f, 1f);
+            var e = Mathf.Pow(p, Mathf.Max(0.01f, _config.SpeedEaseExponent1));
+            speedMultiplier = Mathf.Lerp(1.0f, mult1, e);
+        }
+        else if (elapsedMinutes <= peak2Minutes)
+        {
+            var p = Mathf.Clamp((elapsedMinutes - peak1Minutes) / (peak2Minutes - peak1Minutes), 0f, 1f);
+            var e = Mathf.Pow(p, Mathf.Max(0.01f, _config.SpeedEaseExponent2));
+            speedMultiplier = Mathf.Lerp(mult1, mult2, e);
+        }
+        else
+        {
+            var afterPeak2 = Mathf.Max(0f, elapsedMinutes - peak2Minutes);
+            var tail = 1.0f + _config.SpeedTailStrength * Mathf.Log(1.0f + afterPeak2);
+            speedMultiplier = mult2 * tail;
+        }
 
         var growthMul = 1.0f;
         if (Time.GetTicksMsec() < _rescueStabilityUntilMs)
             growthMul = _config.RescueStabilityGrowthMul;
 
-        var target = _config.BaseFallSpeed * levelGrowth * fastRamp * tailRamp * growthMul * _director.GetFallMultiplier(_config);
+        var target = _config.BaseFallSpeed * speedMultiplier * growthMul;
         _lastTargetSpeed = target;
 
         var now = Time.GetTicksMsec();
@@ -171,7 +184,8 @@ public partial class CoreBridge : Node
         if (now - _lastDebugSpeedLogMs >= 1000)
         {
             _lastDebugSpeedLogMs = now;
-            GD.Print($"[SPEED] target={target:0.00}, smoothed={_smoothedFallSpeed:0.00}, level={level:0.0}, elapsedMin={elapsedMinutes:0.00}");
+            var currentMultiplier = _smoothedFallSpeed / Mathf.Max(0.001f, _config.BaseFallSpeed);
+            GD.Print($"[SPEED] elapsedMin={elapsedMinutes:0.00}, currentMul={currentMultiplier:0.00}, peak1Mul={mult1:0.00}, peak2Mul={mult2:0.00}, target={target:0.00}");
         }
 #endif
 
@@ -216,44 +230,71 @@ public partial class CoreBridge : Node
     }
 
 
+    private float GetKneeMultiplierForDifficulty()
+    {
+        if (_difficulty == "Easy")
+            return _config.KneeMultEasy;
+        if (_difficulty == "Hard")
+            return _config.KneeMultHard;
+        return _config.KneeMultMedium;
+    }
+
+    public float GetElapsedMinutesForDebug() => GetElapsedMinutes();
+
+    public float GetPeak1TargetMultiplier() => GetKneeMultiplierForDifficulty();
+
+    public float GetPeak2TargetMultiplier() => GetKneeMultiplierForDifficulty() * 1.5f;
+
+    public float GetSpeedTailMultiplier()
+    {
+        var elapsedMinutes = GetElapsedMinutes();
+        var peak2Minutes = Mathf.Max(0.1f, _config.SpeedPeak2Minutes);
+        var tailMinutes = Mathf.Max(0f, elapsedMinutes - peak2Minutes);
+        return 1.0f + _config.SpeedTailStrength * Mathf.Log(1.0f + tailMinutes);
+    }
+
+    public string GetSpeedSegmentForDebug()
+    {
+        var elapsed = GetElapsedMinutes();
+        if (elapsed <= _config.SpeedPeak1Minutes)
+            return "A";
+        if (elapsed <= _config.SpeedPeak2Minutes)
+            return "B";
+        return "C";
+    }
+
+    public float GetDualDropChanceCurrent()
+    {
+        var elapsed = GetElapsedMinutes();
+        var cap = _config.DualDropChanceCapMedium;
+        if (_difficulty == "Easy")
+            cap = _config.DualDropChanceCapEasy;
+        else if (_difficulty == "Hard")
+            cap = _config.DualDropChanceCapHard;
+
+        var capMinutes = Mathf.Max(0.1f, _config.DualDropChanceCapMinutes);
+        var t = Mathf.Clamp(elapsed / capMinutes, 0f, 1f);
+        return Mathf.Lerp(_config.DualDropChanceStart, cap, t);
+    }
+
     public float GetWellDragTimeScale(float wellFillRatio)
     {
         var t = Mathf.Clamp(wellFillRatio, 0f, 1f);
         return Mathf.Lerp(_config.WellDragSlowMin, _config.WellDragSlowMax, t);
     }
 
-    public bool ConsumeFastNextBoost()
+    public bool ConsumeDualDropTrigger()
     {
-        var elapsed = GetElapsedMinutes();
-        var knee = Mathf.Max(0.1f, _config.SpeedKneeMinutes);
-
-        var atKnee = _config.FastNextChanceAtKneeMedium;
-        var cap = _config.FastNextChanceCapMedium;
-        if (_difficulty == "Easy")
-        {
-            atKnee = _config.FastNextChanceAtKneeEasy;
-            cap = _config.FastNextChanceCapEasy;
-        }
-        else if (_difficulty == "Hard")
-        {
-            atKnee = _config.FastNextChanceAtKneeHard;
-            cap = _config.FastNextChanceCapHard;
-        }
-
-        var chance = _config.FastNextChanceStart;
-        if (elapsed <= knee)
-        {
-            var t = Mathf.Clamp(elapsed / knee, 0f, 1f);
-            chance = Mathf.Lerp(_config.FastNextChanceStart, atKnee, t);
-        }
-        else
-        {
-            var capMinutes = Mathf.Max(knee + 0.1f, _config.FastNextCapMinutes);
-            var t = Mathf.Clamp((elapsed - knee) / (capMinutes - knee), 0f, 1f);
-            chance = Mathf.Lerp(atKnee, cap, t);
-        }
-
+        var chance = GetDualDropChanceCurrent();
         return _rng.Randf() < chance;
+    }
+
+    public float GetDualDropStaggerSec() => _config.DualDropStaggerSec;
+
+    public float GetNoMercyExtraTimeScale(float wellFillRatio)
+    {
+        var t = Mathf.Clamp(wellFillRatio, 0f, 1f);
+        return Mathf.Lerp(_config.NoMercyExtraSlowMin, _config.NoMercyExtraSlowMax, t);
     }
 
     public bool ShouldTriggerAutoSlow(float boardFillRatio, float wellFillRatio)
@@ -270,14 +311,19 @@ public partial class CoreBridge : Node
     }
 
     public float GetAutoSlowScale() => _config.AutoSlowScale;
-    public float GetAutoSlowDurationSec() => _config.AutoSlowDuration;
+    public float GetAutoSlowDurationSec() => _config.AutoSlowDurationSec;
+    public float GetMicroFreezeSec() => _config.MicroFreezeSec;
+
+    public float GetBaseFallSpeed() => _config.BaseFallSpeed;
+    public float GetLevelSpeedGrowth() => _config.LevelSpeedGrowth;
+    public float GetDisplayedFallSpeed() => _smoothedFallSpeed;
 
     public float GetRescueWindowSec() => _config.RescueWindowSec;
     public int GetRescueScoreBonus() => _config.RescueScoreBonus;
 
     public void TriggerRescueStability()
     {
-        _rescueStabilityUntilMs = Time.GetTicksMsec() + (ulong)(_config.RescueStabilityDuration * 1000.0f);
+        _rescueStabilityUntilMs = Time.GetTicksMsec() + (ulong)(_config.RescueStabilityDurationSec * 1000.0f);
     }
 
     public Dictionary RunSimulationBatch(int games, int seed = 1)
