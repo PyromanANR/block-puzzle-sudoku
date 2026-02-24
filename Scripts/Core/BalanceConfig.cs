@@ -100,6 +100,11 @@ public class BalanceConfig
     public float WellFirstEntrySlowDurationSec = 1.5f;
     public float WellFirstEntrySlowTimeScale = 0.50f;
 
+    // Invalid-drop grace reposition
+    public float InvalidDropGraceSec = 2.0f;
+    public float InvalidDropFailSlowSec = 0.4f;
+    public float InvalidDropFailTimeScale = 0.85f;
+
     // Generator anti-streak / pool
     public int GeneratorMaxSameInRow = 2;
     public int GeneratorHistoryLen = 6;
