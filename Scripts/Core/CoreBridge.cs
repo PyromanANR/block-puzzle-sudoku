@@ -144,8 +144,10 @@ public partial class CoreBridge : Node
 
         var peak1Minutes = Mathf.Max(0.1f, _config.SpeedPeak1Minutes);
         var peak2Minutes = Mathf.Max(peak1Minutes + 0.1f, _config.SpeedPeak2Minutes);
+        var peak3Minutes = Mathf.Max(peak2Minutes + 0.1f, _config.SpeedPeak3Minutes);
         var mult1 = GetKneeMultiplierForDifficulty();
         var mult2 = mult1 * 1.5f;
+        var mult3 = mult2 * 1.5f;
 
         float speedMultiplier;
         if (elapsedMinutes <= peak1Minutes)
@@ -156,38 +158,32 @@ public partial class CoreBridge : Node
         }
         else if (elapsedMinutes <= peak2Minutes)
         {
-            var p = Mathf.Clamp((elapsedMinutes - peak1Minutes) / (peak2Minutes - peak1Minutes), 0f, 1f);
+            var p = Mathf.Clamp((elapsedMinutes - peak1Minutes) / Mathf.Max(0.001f, peak2Minutes - peak1Minutes), 0f, 1f);
             var e = Mathf.Pow(p, Mathf.Max(0.01f, _config.SpeedEaseExponent2));
             speedMultiplier = Mathf.Lerp(mult1, mult2, e);
         }
+        else if (elapsedMinutes <= peak3Minutes)
+        {
+            var p = Mathf.Clamp((elapsedMinutes - peak2Minutes) / Mathf.Max(0.001f, peak3Minutes - peak2Minutes), 0f, 1f);
+            var e = Mathf.Pow(p, Mathf.Max(0.01f, _config.SpeedEaseExponent2));
+            speedMultiplier = Mathf.Lerp(mult2, mult3, e);
+        }
         else
         {
-            var afterPeak2 = Mathf.Max(0f, elapsedMinutes - peak2Minutes);
-            var tail = 1.0f + _config.SpeedTailStrength * Mathf.Log(1.0f + afterPeak2);
-            speedMultiplier = mult2 * tail;
+            var afterPeak3 = Mathf.Max(0f, elapsedMinutes - peak3Minutes);
+            var tail = 1.0f + _config.SpeedTailStrength * Mathf.Log(1.0f + afterPeak3);
+            speedMultiplier = mult3 * tail;
         }
 
-        var growthMul = 1.0f;
-        if (Time.GetTicksMsec() < _rescueStabilityUntilMs)
-            growthMul = _config.RescueStabilityGrowthMul;
-
-        var target = _config.BaseFallSpeed * speedMultiplier * growthMul;
-        _lastTargetSpeed = target;
-
+        var target = _config.BaseFallSpeed * speedMultiplier;
         var now = Time.GetTicksMsec();
         var dt = Mathf.Max(0.001f, (now - _lastSpeedCalcMs) / 1000.0f);
         _lastSpeedCalcMs = now;
+
         var maxDelta = _config.MaxFallSpeedDeltaPerSec * dt;
         _smoothedFallSpeed = Mathf.MoveToward(_smoothedFallSpeed, target, maxDelta);
-
-#if DEBUG
-        if (now - _lastDebugSpeedLogMs >= 1000)
-        {
-            _lastDebugSpeedLogMs = now;
-            var currentMultiplier = _smoothedFallSpeed / Mathf.Max(0.001f, _config.BaseFallSpeed);
-            GD.Print($"[SPEED] elapsedMin={elapsedMinutes:0.00}, currentMul={currentMultiplier:0.00}, peak1Mul={mult1:0.00}, peak2Mul={mult2:0.00}, target={target:0.00}");
-        }
-#endif
+        _smoothedFallSpeed = Mathf.Min(_smoothedFallSpeed, _config.MaxFallSpeedCap);
+        _lastTargetSpeed = target;
 
         return _smoothedFallSpeed;
     }
@@ -248,8 +244,8 @@ public partial class CoreBridge : Node
     public float GetSpeedTailMultiplier()
     {
         var elapsedMinutes = GetElapsedMinutes();
-        var peak2Minutes = Mathf.Max(0.1f, _config.SpeedPeak2Minutes);
-        var tailMinutes = Mathf.Max(0f, elapsedMinutes - peak2Minutes);
+        var peak3Minutes = Mathf.Max(0.1f, _config.SpeedPeak3Minutes);
+        var tailMinutes = Mathf.Max(0f, elapsedMinutes - peak3Minutes);
         return 1.0f + _config.SpeedTailStrength * Mathf.Log(1.0f + tailMinutes);
     }
 
@@ -260,7 +256,9 @@ public partial class CoreBridge : Node
             return "A";
         if (elapsed <= _config.SpeedPeak2Minutes)
             return "B";
-        return "C";
+        if (elapsed <= _config.SpeedPeak3Minutes)
+            return "C";
+        return "D";
     }
 
     public float GetDualDropChanceCurrent()
@@ -336,6 +334,11 @@ public partial class CoreBridge : Node
     public float GetWellNeonPulseSpeed() => _config.WellNeonPulseSpeed;
     public float GetWellNeonMinAlpha() => _config.WellNeonMinAlpha;
     public float GetWellNeonMaxAlpha() => _config.WellNeonMaxAlpha;
+    public float GetTimeSlowEffectDurationSec() => _config.TimeSlowEffectDurationSec;
+    public float GetTimeSlowEffectTimeScale() => _config.TimeSlowEffectTimeScale;
+    public float GetPanicPulseSpeed() => _config.PanicPulseSpeed;
+    public float GetPanicBlinkSpeed() => _config.PanicBlinkSpeed;
+    public float GetPanicBlinkThreshold() => _config.PanicBlinkThreshold;
 
     public void TriggerRescueStability()
     {

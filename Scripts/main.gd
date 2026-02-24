@@ -144,6 +144,7 @@ var time_scale_reason = "Normal"
 var time_slow_cooldown_until_ms = 0
 var time_slow_overlay_until_ms = 0
 var time_slow_overlay_input_release_ms = 0
+var time_slow_effect_until_ms = 0
 var sfx_players = {}
 var missing_sfx_warned = {}
 var last_dual_drop_min = -1.0
@@ -256,6 +257,7 @@ func _start_round() -> void:
 	time_slow_cooldown_until_ms = 0
 	time_slow_overlay_until_ms = 0
 	time_slow_overlay_input_release_ms = 0
+	time_slow_effect_until_ms = 0
 	Engine.time_scale = 1.0
 
 	pile.clear()
@@ -293,6 +295,7 @@ func _trigger_game_over() -> void:
 	time_slow_cooldown_until_ms = 0
 	time_slow_overlay_until_ms = 0
 	time_slow_overlay_input_release_ms = 0
+	time_slow_effect_until_ms = 0
 	if time_slow_overlay != null:
 		time_slow_overlay.visible = false
 	Engine.time_scale = 1.0
@@ -392,6 +395,11 @@ func _update_time_scale_runtime() -> void:
 		if micro_scale < final_scale:
 			final_scale = micro_scale
 			reason = "MicroFreeze"
+	if time_slow_effect_until_ms > now:
+		var ts_scale = float(core.call("GetTimeSlowEffectTimeScale"))
+		if ts_scale < final_scale:
+			final_scale = ts_scale
+			reason = "TimeSlow"
 	_set_time_scale(reason, final_scale)
 
 
@@ -442,15 +450,18 @@ func _update_status_hud() -> void:
 	var now = Time.get_ticks_msec()
 	var t = float(now) / 1000.0
 	var panic_value = _well_fill_ratio()
-	var danger = panic_value >= PANIC_HIGH_THRESHOLD or time_scale_reason == "NoMercyExtra" or time_scale_reason == "WellDrag"
-	if panic_value < PANIC_MID_THRESHOLD:
-		var soft = 0.90 + 0.10 * (0.5 + 0.5 * sin(t * TAU * PANIC_PULSE_SPEED * 0.5))
+	var panic_blink_threshold = float(core.call("GetPanicBlinkThreshold"))
+	var panic_pulse_speed = float(core.call("GetPanicPulseSpeed"))
+	var panic_blink_speed = float(core.call("GetPanicBlinkSpeed"))
+	var danger = panic_value >= panic_blink_threshold or time_scale_reason == "NoMercyExtra" or time_scale_reason == "WellDrag"
+	if panic_value < 0.6:
+		var soft = 0.90 + 0.10 * (0.5 + 0.5 * sin(t * TAU * panic_pulse_speed * 0.5))
 		lbl_panic.modulate = Color(0.88, 0.96, 0.90, soft)
-	elif panic_value < PANIC_HIGH_THRESHOLD:
-		var warm = 0.5 + 0.5 * sin(t * TAU * PANIC_PULSE_SPEED)
+	elif panic_value < panic_blink_threshold:
+		var warm = 0.5 + 0.5 * sin(t * TAU * panic_pulse_speed)
 		lbl_panic.modulate = Color(1.0, 0.82 + 0.16 * warm, 0.52 + 0.24 * warm, 1.0)
 	else:
-		var blink = 0.5 + 0.5 * sin(t * TAU * PANIC_BLINK_SPEED)
+		var blink = 0.5 + 0.5 * sin(t * TAU * panic_blink_speed)
 		if danger and blink > 0.5:
 			lbl_panic.modulate = Color(1.0, 0.24, 0.24, 1.0)
 		else:
@@ -469,7 +480,7 @@ func _update_status_hud() -> void:
 
 
 # Trigger condition: successful placement of a piece taken from WELL.
-# Cooldown: 30 sec real time using ticks, so it ignores Engine.time_scale.
+# Cooldown: 60 sec real time using ticks, so it ignores Engine.time_scale.
 func _try_trigger_time_slow_from_well_placement() -> void:
 	var now = Time.get_ticks_msec()
 	if now < time_slow_cooldown_until_ms:
@@ -478,6 +489,7 @@ func _try_trigger_time_slow_from_well_placement() -> void:
 	var overlay_sec = float(core.call("GetTimeSlowReadyOverlayDurationSec"))
 	time_slow_overlay_until_ms = now + int(overlay_sec * 1000.0)
 	time_slow_overlay_input_release_ms = now + 300
+	time_slow_effect_until_ms = now + int(float(core.call("GetTimeSlowEffectDurationSec")) * 1000.0)
 	if time_slow_overlay != null:
 		time_slow_overlay.visible = true
 		time_slow_overlay.modulate = Color(0.45, 0.78, 1.0, 0.55)
@@ -537,7 +549,7 @@ func _build_ui() -> void:
 	root_frame.add_child(title_label)
 
 	btn_exit = TextureButton.new()
-	btn_exit.custom_minimum_size = Vector2(42, 42)
+	btn_exit.custom_minimum_size = Vector2(64, 64)
 	btn_exit.position = Vector2(16, 16)
 	btn_exit.tooltip_text = "Exit"
 	if ResourceLoader.exists("res://Assets/UI/close.png"):
@@ -550,16 +562,17 @@ func _build_ui() -> void:
 		root_frame.add_child(close_fallback)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
+	btn_exit.z_index = 30
 	root_frame.add_child(btn_exit)
 
 	btn_settings = TextureButton.new()
-	btn_settings.custom_minimum_size = Vector2(42, 42)
+	btn_settings.custom_minimum_size = Vector2(64, 64)
 	btn_settings.tooltip_text = "Settings"
 	btn_settings.position = Vector2(size.x - 58, 16)
 	btn_settings.anchor_left = 1.0
 	btn_settings.anchor_right = 1.0
-	btn_settings.offset_left = -58
-	btn_settings.offset_right = -16
+	btn_settings.offset_left = -74
+	btn_settings.offset_right = -10
 	if ResourceLoader.exists("res://Assets/UI/gear.png"):
 		btn_settings.texture_normal = load("res://Assets/UI/gear.png")
 	else:
@@ -574,6 +587,7 @@ func _build_ui() -> void:
 		root_frame.add_child(gear_fallback)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
+	btn_settings.z_index = 30
 	root_frame.add_child(btn_settings)
 
 	var root_margin = MarginContainer.new()
@@ -994,7 +1008,7 @@ func _draw_preview(target: Panel, piece) -> void:
 		return
 
 	var desired_cell = int(clamp(float(cell_size) * 0.75, 14.0, 34.0))
-	var preview_cell_size = _fitted_cell_size(piece, desired_cell, preview_size, 0.92)
+	var preview_cell_size = _fitted_cell_size(piece, desired_cell, preview_size, 0.97)
 
 	var min_x = 999
 	var min_y = 999
@@ -1177,9 +1191,7 @@ func _redraw_well() -> void:
 
 	var fill_ratio = clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
 	var now_ms = Time.get_ticks_msec()
-	var well_ready = pile.size() > 0 and min(pile_selectable, pile.size()) > 0
-	var neon = 0.5 + 0.5 * sin(float(now_ms) / 280.0)
-
+	
 	var drop_header = Label.new()
 	drop_header.text = "DROP ZONE"
 	drop_header.position = Vector2(8, 4)
@@ -1207,10 +1219,8 @@ func _redraw_well() -> void:
 	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
 	slots_header.position = Vector2(8, 4)
 	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	var pulse_alpha = clamp(well_header_pulse_left * 2.4, 0.0, 0.75)
-	var neon_alpha = 0.20 * neon if well_ready else 0.0
-	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78 + neon_alpha, 0.45, 0.85 + pulse_alpha * 0.2 + neon_alpha * 0.5))
-	slots_header.scale = Vector2(1.0 + pulse_alpha * 0.08 + neon_alpha * 0.10, 1.0 + pulse_alpha * 0.08 + neon_alpha * 0.10)
+	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45, 0.92))
+	slots_header.scale = Vector2.ONE
 	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_header)
 
@@ -1299,13 +1309,13 @@ func _redraw_well() -> void:
 				slot.gui_input.connect(func(ev): _on_pile_slot_input(ev, pile_index))
 
 			var slot_frame = Vector2(slot.size.x - 10, slot.size.y - 10)
-			var slot_cell = _fitted_cell_size(p, slot_preview_cell, slot_frame, 0.9)
+			var slot_cell = _fitted_cell_size(p, slot_preview_cell, slot_frame, 0.97)
 			var preview = _make_piece_preview(p, slot_cell, slot_frame)
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
 			if is_active:
 				var neon_phase = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
-				neon_alpha = lerp(neon_min, neon_max, neon_phase)
+				var neon_alpha = lerp(neon_min, neon_max, neon_phase)
 				var neon_frame = Panel.new()
 				neon_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 				neon_frame.offset_left = 2
@@ -1360,7 +1370,7 @@ func _redraw_well() -> void:
 		var drop_cell_size = int(clamp(float(cell_size) * 1.0, 18.0, 54.0))
 		var fall_frame_w = min(drop_w - 20.0, 300.0)
 		var fall_frame = Vector2(fall_frame_w, 170)
-		var fitted_drop_cell = _fitted_cell_size(fall_piece, drop_cell_size, fall_frame, 0.9)
+		var fitted_drop_cell = _fitted_cell_size(fall_piece, drop_cell_size, fall_frame, 0.97)
 		var fall = _make_piece_preview(fall_piece, fitted_drop_cell, fall_frame)
 		var fx = (drop_w - fall.size.x) * 0.5
 		var fy = clamp(fall_y, fall_top, fall_bottom)
@@ -1373,7 +1383,7 @@ func _redraw_well() -> void:
 		var drop_cell_size_2 = int(clamp(float(cell_size) * 1.0, 18.0, 54.0))
 		var fall_frame_w_2 = min(drop_w - 20.0, 300.0)
 		var fall_frame_2 = Vector2(fall_frame_w_2, 170)
-		var fitted_drop_cell_2 = _fitted_cell_size(fall_piece_2, drop_cell_size_2, fall_frame_2, 0.9)
+		var fitted_drop_cell_2 = _fitted_cell_size(fall_piece_2, drop_cell_size_2, fall_frame_2, 0.97)
 		var fall2 = _make_piece_preview(fall_piece_2, fitted_drop_cell_2, fall_frame_2)
 		var fx2 = (drop_w - fall2.size.x) * 0.5
 		var fy2 = clamp(fall_y_2, fall_top, fall_bottom)

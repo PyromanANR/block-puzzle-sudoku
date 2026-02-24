@@ -57,8 +57,8 @@
   "MicroFreezeSec": 0.1,
   "SpeedEaseExponent": 2.0,
   "FastNextDelayMul": 0.6,
-  "SpeedPeak1Minutes": 5.0,
-  "SpeedPeak2Minutes": 10.0,
+  "SpeedPeak1Minutes": 3.0,
+  "SpeedPeak2Minutes": 6.0,
   "SpeedEaseExponent1": 2.0,
   "SpeedEaseExponent2": 2.0,
   "SpeedTailStrength": 0.08,
@@ -78,8 +78,14 @@
   "DualDropStaggerMaxSec": 1.8,
   "TimeSlowReadyOverlayDurationSec": 0.8,
   "TimeSlowReadySfxPath": "res://Assets/Audio/time_slow.wav",
-  "TimeSlowCooldownSec": 30.0,
+  "TimeSlowCooldownSec": 60.0,
   "WellNeonPulseSpeed": 2.5,
   "WellNeonMinAlpha": 0.4,
-  "WellNeonMaxAlpha": 1.0
+  "WellNeonMaxAlpha": 1.0,
+  "SpeedPeak3Minutes": 10.0,
+  "TimeSlowEffectDurationSec": 2.0,
+  "TimeSlowEffectTimeScale": 0.55,
+  "PanicPulseSpeed": 2.0,
+  "PanicBlinkSpeed": 7.0,
+  "PanicBlinkThreshold": 0.85
 }
