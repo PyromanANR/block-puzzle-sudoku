@@ -55,5 +55,6 @@
   "AutoSlowDurationSec": 1.0,
   "RescueStabilityDurationSec": 5.0,
   "MicroFreezeSec": 0.1,
-  "SpeedEaseExponent": 2.0
+  "SpeedEaseExponent": 2.0,
+  "FastNextDelayMul": 0.6
 }

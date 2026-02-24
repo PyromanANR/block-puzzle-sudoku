@@ -279,6 +279,8 @@ public partial class CoreBridge : Node
         return _rng.Randf() < chance;
     }
 
+    public float GetFastNextDelayMul() => _config.FastNextDelayMul;
+
     public bool ShouldTriggerAutoSlow(float boardFillRatio, float wellFillRatio)
     {
         var now = Time.GetTicksMsec();

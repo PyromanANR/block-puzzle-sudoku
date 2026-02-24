@@ -135,9 +135,9 @@ var sfx_players = {}
 var missing_sfx_warned = {}
 var next_preview_kind = ""
 var next_actual_kind = ""
+var last_fast_next_trigger_min = -1.0
 
 const NORMAL_RESPAWN_DELAY_MS = 260
-const FAST_RESPAWN_DELAY_MS = 80
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -219,6 +219,7 @@ func _start_round() -> void:
 	spawn_wait_until_ms = 0
 	pending_spawn_piece = false
 	fast_next_trigger_count = 0
+	last_fast_next_trigger_min = -1.0
 	rescue_trigger_count = 0
 	auto_slow_until_ms = 0
 	auto_slow_trigger_count = 0
@@ -272,8 +273,8 @@ func _wire_button_sfx(btn) -> void:
 func _audio_setup() -> void:
 	_ensure_sfx("ui_hover", "res://Assets/Audio/ui_hover.wav", -12.0)
 	_ensure_sfx("ui_click", "res://Assets/Audio/ui_click.wav", -10.0)
-	_ensure_sfx("pick", "res://Assets/Audio/pick_piece.wav", -18.0)
-	_ensure_sfx("place", "res://Assets/Audio/place_piece.wav", -12.0)
+	_ensure_sfx("pick", "res://Assets/Audio/pick_piece.wav", -11.0)
+	_ensure_sfx("place", "res://Assets/Audio/place_piece.wav", -9.0)
 	_ensure_sfx("invalid", "res://Assets/Audio/invalid_drop.wav", -9.0)
 	_ensure_sfx("well_enter", "res://Assets/Audio/well_enter.wav", -6.0)
 	_ensure_sfx("clear", "res://Assets/Audio/clear.wav", -7.0)
@@ -346,12 +347,14 @@ func _well_fill_ratio() -> float:
 func _schedule_next_falling_piece(use_fast_next) -> void:
 	pending_spawn_piece = true
 	var now = Time.get_ticks_msec()
+	var delay_ms = NORMAL_RESPAWN_DELAY_MS
 	if use_fast_next:
-		spawn_wait_until_ms = now + FAST_RESPAWN_DELAY_MS
+		var delay_mul = float(core.call("GetFastNextDelayMul"))
+		delay_ms = int(round(float(NORMAL_RESPAWN_DELAY_MS) * clamp(delay_mul, 0.10, 1.0)))
 		fast_next_trigger_count += 1
-		print("[FAST-NEXT] triggered count=%d" % fast_next_trigger_count)
-	else:
-		spawn_wait_until_ms = now + NORMAL_RESPAWN_DELAY_MS
+		last_fast_next_trigger_min = float(core.call("GetElapsedMinutesForDebug"))
+		print("[FAST-NEXT] triggered count=%d delay_ms=%d min=%.2f" % [fast_next_trigger_count, delay_ms, last_fast_next_trigger_min])
+	spawn_wait_until_ms = now + delay_ms
 
 
 func _trigger_micro_freeze() -> void:
@@ -375,7 +378,7 @@ func _update_debug_overlay() -> void:
 	var tail_mul = float(core.call("GetPostKneeTailMultiplier"))
 	var fast_next_chance = float(core.call("GetFastNextChanceCurrent"))
 	var speed_mult = float(core.call("GetDisplayedFallSpeed")) / max(0.001, float(core.call("GetBaseFallSpeed")))
-	lbl_debug.text = "DBG\nmin: %.2f  speedMul: %.2f\nknee target: %.2f  tail: %.3f\nwell fill: %.2f  time_scale: %.2f (%s)\nfast-next: %.1f%%  triggers: %d\nnext preview: %s\nnext actual: %s\nrescue triggers: %d  auto-slow: %d" % [elapsed, speed_mult, knee_target, tail_mul, _well_fill_ratio(), Engine.time_scale, time_scale_reason, fast_next_chance * 100.0, fast_next_trigger_count, next_preview_kind, next_actual_kind, rescue_trigger_count, auto_slow_trigger_count]
+	lbl_debug.text = "DBG\nmin: %.2f  speedMul: %.2f\nknee target: %.2f  tail: %.3f\nwell fill: %.2f  time_scale: %.2f (%s)\nfast-next: %.1f%%  triggers: %d  last@min: %.2f\nnext preview: %s\nnext actual: %s\nrescue triggers: %d  auto-slow: %d" % [elapsed, speed_mult, knee_target, tail_mul, _well_fill_ratio(), Engine.time_scale, time_scale_reason, fast_next_chance * 100.0, fast_next_trigger_count, last_fast_next_trigger_min, next_preview_kind, next_actual_kind, rescue_trigger_count, auto_slow_trigger_count]
 
 
 # ============================================================
@@ -903,15 +906,16 @@ func _spawn_falling_piece() -> void:
 	if preview_piece != null:
 		preview_kind = String(preview_piece.get("Kind"))
 	fall_piece = core.call("PopNextPieceForBoard", board)
+	var actual_next_piece = core.call("PeekNextPieceForBoard", board)
 	next_actual_kind = ""
-	if fall_piece != null:
-		next_actual_kind = String(fall_piece.get("Kind"))
-	if preview_kind != "" and next_actual_kind != "" and preview_kind != next_actual_kind:
-		push_error("[NEXT-DESYNC] preview=%s actual=%s" % [preview_kind, next_actual_kind])
+	if actual_next_piece != null:
+		next_actual_kind = String(actual_next_piece.get("Kind"))
 	fall_y = 10.0
 	pending_spawn_piece = false
 	next_box.queue_redraw()
 	_update_previews()
+	if next_preview_kind != "" and next_actual_kind != "" and next_preview_kind != next_actual_kind:
+		push_error("NEXT DESYNC: preview=%s actual=%s" % [next_preview_kind, next_actual_kind])
 
 func _lock_falling_to_pile() -> void:
 	if selected_piece == fall_piece:
@@ -923,7 +927,8 @@ func _lock_falling_to_pile() -> void:
 	if pile.size() > pile_max:
 		_trigger_game_over()
 		return
-	_schedule_next_falling_piece(false)
+	var use_fast_next = bool(core.call("ConsumeFastNextBoost"))
+	_schedule_next_falling_piece(use_fast_next)
 
 
 func _well_geometry() -> Dictionary:

@@ -63,6 +63,7 @@ public class BalanceConfig
     public float FastNextChanceCapMedium = 0.22f;
     public float FastNextChanceCapHard = 0.26f;
     public float FastNextCapMinutes = 12.0f;
+    public float FastNextDelayMul = 0.60f;
 
     // Auto-slow panic rescue
     public float AutoSlowThresholdBoard = 0.85f;
