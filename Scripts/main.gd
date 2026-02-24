@@ -124,8 +124,9 @@ const HEADER_BUTTON_SIZE := 76.0
 const EXIT_BUTTON_SIZE := 84.0
 const HEADER_BUTTON_MARGIN := 20.0
 const SKILL_ICON_SIZE := 48.0
-
-var skill_hint_until_ms = 0
+const SKILL_ICON_FREEZE_PATH := "res://Assets/UI/icons/skill_freeze.png"
+const SKILL_ICON_CLEAR_PATH := "res://Assets/UI/icons/skill_clear_board.png"
+const SKILL_ICON_SAFE_WELL_PATH := "res://Assets/UI/icons/skill_safe_well.png"
 
 var fall_piece = null
 var fall_y: float = 10.0
@@ -724,13 +725,13 @@ func _build_ui() -> void:
 	skill_rows.add_theme_constant_override("separation", 8)
 	skills_group.add_child(skill_rows)
 
-	btn_skill_freeze = _build_skill_icon_button("F")
+	btn_skill_freeze = _build_skill_icon_button("F", SKILL_ICON_FREEZE_PATH)
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
 	skill_rows.add_child(btn_skill_freeze)
-	btn_skill_clear = _build_skill_icon_button("C")
+	btn_skill_clear = _build_skill_icon_button("C", SKILL_ICON_CLEAR_PATH)
 	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
 	skill_rows.add_child(btn_skill_clear)
-	btn_skill_invuln = _build_skill_icon_button("W")
+	btn_skill_invuln = _build_skill_icon_button("W", SKILL_ICON_SAFE_WELL_PATH)
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
 	skill_rows.add_child(btn_skill_invuln)
 
@@ -968,13 +969,38 @@ func _build_skill_card(label_text: String, req_level: int, progress_level: int) 
 	return panel
 
 
-func _build_skill_icon_button(fallback_text: String) -> TextureButton:
+func _load_texture_or_null(path: String) -> Texture2D:
+	if path == "":
+		return null
+	if not ResourceLoader.exists(path):
+		return null
+	var tex = load(path)
+	if tex is Texture2D:
+		return tex as Texture2D
+	return null
+
+
+func _build_skill_icon_button(fallback_text: String, icon_path: String) -> TextureButton:
 	var b = TextureButton.new()
 	b.custom_minimum_size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	b.ignore_texture_size = true
 	b.mouse_filter = Control.MOUSE_FILTER_STOP
-	_apply_header_button_icon(b, "", fallback_text, 20)
+	var tex = _load_texture_or_null(icon_path)
+	if tex != null:
+		b.texture_normal = tex
+		b.texture_hover = tex
+		b.texture_pressed = tex
+		b.texture_disabled = tex
+	else:
+		var fallback = Label.new()
+		fallback.text = fallback_text
+		fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		fallback.add_theme_font_size_override("font_size", 20)
+		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(fallback)
 	return b
 
 
@@ -1004,12 +1030,21 @@ func _on_skill_icon_pressed(btn: TextureButton, required_level: int, locked_msg:
 func _update_skill_icon_states() -> void:
 	if btn_skill_freeze == null or btn_skill_clear == null or btn_skill_invuln == null:
 		return
-	btn_skill_freeze.modulate = Color(1, 1, 1, 1.0 if level >= 5 else 0.45)
+	var a_freeze = 1.0 if level >= 5 else 0.45
+	var a_clear = 1.0 if level >= 10 else 0.45
+	var a_well = 1.0 if level >= 20 else 0.45
+	btn_skill_freeze.modulate = Color(1, 1, 1, a_freeze)
 	btn_skill_freeze.tooltip_text = "Freeze" if level >= 5 else "Reach level 5"
-	btn_skill_clear.modulate = Color(1, 1, 1, 1.0 if level >= 10 else 0.45)
+	btn_skill_clear.modulate = Color(1, 1, 1, a_clear)
 	btn_skill_clear.tooltip_text = "Clear Board" if level >= 10 else "Reach level 10"
-	btn_skill_invuln.modulate = Color(1, 1, 1, 1.0 if level >= 20 else 0.45)
+	btn_skill_invuln.modulate = Color(1, 1, 1, a_well)
 	btn_skill_invuln.tooltip_text = "Safe Well" if level >= 20 else "Reach level 20"
+	if btn_skill_freeze.get_child_count() > 0 and btn_skill_freeze.get_child(0) is Label:
+		btn_skill_freeze.get_child(0).modulate = Color(1, 1, 1, a_freeze)
+	if btn_skill_clear.get_child_count() > 0 and btn_skill_clear.get_child(0) is Label:
+		btn_skill_clear.get_child(0).modulate = Color(1, 1, 1, a_clear)
+	if btn_skill_invuln.get_child_count() > 0 and btn_skill_invuln.get_child(0) is Label:
+		btn_skill_invuln.get_child(0).modulate = Color(1, 1, 1, a_well)
 
 
 func _show_game_over_overlay() -> void:
