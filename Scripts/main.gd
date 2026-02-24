@@ -577,49 +577,63 @@ func _build_ui() -> void:
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(title_label)
 
-	var header_row = HBoxContainer.new()
-	header_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header_row.offset_left = HEADER_BUTTON_MARGIN + 4
-	header_row.offset_right = -(HEADER_BUTTON_MARGIN + 4)
-	header_row.offset_top = HEADER_BUTTON_MARGIN
-	header_row.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE + 8
-	header_row.add_theme_constant_override("separation", 8)
-	header_row.mouse_filter = Control.MOUSE_FILTER_STOP
-	header_row.z_index = 40
-	header_row.z_as_relative = false
-	root_frame.add_child(header_row)
-
 	btn_exit = TextureButton.new()
+	btn_exit.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	btn_exit.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
+	btn_exit.offset_left = HEADER_BUTTON_MARGIN
+	btn_exit.offset_top = HEADER_BUTTON_MARGIN
+	btn_exit.offset_right = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
+	btn_exit.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
 	btn_exit.tooltip_text = "Exit"
 	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_exit.ignore_texture_size = true
+	btn_exit.mouse_filter = Control.MOUSE_FILTER_STOP
 	_apply_header_button_icon(btn_exit, "res://Assets/UI/icons/icon_close.png", "X", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
 	btn_exit.z_index = 50
-	header_row.add_child(btn_exit)
-
-	var header_spacer = Control.new()
-	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_row.add_child(header_spacer)
+	btn_exit.z_as_relative = false
+	root_frame.add_child(btn_exit)
 
 	btn_settings = TextureButton.new()
+	btn_settings.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
+	btn_settings.offset_left = -(HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE)
+	btn_settings.offset_top = HEADER_BUTTON_MARGIN
+	btn_settings.offset_right = -HEADER_BUTTON_MARGIN
+	btn_settings.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
 	btn_settings.tooltip_text = "Settings"
 	btn_settings.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_settings.ignore_texture_size = true
+	btn_settings.mouse_filter = Control.MOUSE_FILTER_STOP
 	_apply_header_button_icon(btn_settings, "res://Assets/UI/icons/icon_settings.png", "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
 	btn_settings.z_index = 50
-	header_row.add_child(btn_settings)
+	btn_settings.z_as_relative = false
+	root_frame.add_child(btn_settings)
+
+	var header_metrics = HBoxContainer.new()
+	header_metrics.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	header_metrics.offset_left = 120
+	header_metrics.offset_right = -120
+	header_metrics.offset_top = 74
+	header_metrics.offset_bottom = 112
+	header_metrics.alignment = BoxContainer.ALIGNMENT_CENTER
+	header_metrics.add_theme_constant_override("separation", 12)
+	header_metrics.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_frame.add_child(header_metrics)
+
+	lbl_score = _hud_metric_row(header_metrics, "res://Assets/UI/icons/icon_score.png", "S", "Score", "0")
+	lbl_speed = _hud_metric_row(header_metrics, "res://Assets/UI/icons/icon_speed.png", "⚡", "Speed", "1.00")
+	lbl_time = _hud_metric_row(header_metrics, "res://Assets/UI/icons/icon_time.png", "⏱", "Time", "00:00")
+	lbl_level = _hud_metric_row(header_metrics, "", "L", "Level", "1")
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_margin.add_theme_constant_override("margin_left", 24)
 	root_margin.add_theme_constant_override("margin_right", 24)
-	root_margin.add_theme_constant_override("margin_top", 80)
+	root_margin.add_theme_constant_override("margin_top", 118)
 	root_margin.add_theme_constant_override("margin_bottom", 24)
 	root_frame.add_child(root_margin)
 
@@ -632,7 +646,6 @@ func _build_ui() -> void:
 	var top_row = HBoxContainer.new()
 	top_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_row.add_theme_constant_override("separation", 16)
 	main_v.add_child(top_row)
 
 	board_panel = Panel.new()
@@ -642,55 +655,53 @@ func _build_ui() -> void:
 	board_panel.add_theme_stylebox_override("panel", _style_board_panel())
 	top_row.add_child(board_panel)
 
-	hud_panel = Panel.new()
-	hud_panel.custom_minimum_size = Vector2(300, 0)
-	hud_panel.size_flags_horizontal = Control.SIZE_FILL
-	hud_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hud_panel.add_theme_stylebox_override("panel", _style_hud_panel())
-	top_row.add_child(hud_panel)
-
-	var hud_scroll = ScrollContainer.new()
-	hud_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	hud_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	hud_scroll.clip_contents = true
-	hud_panel.add_child(hud_scroll)
-
-	var hv_margin = MarginContainer.new()
-	hv_margin.custom_minimum_size = Vector2(0, 640)
-	hv_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hv_margin.add_theme_constant_override("margin_left", 10)
-	hv_margin.add_theme_constant_override("margin_right", 10)
-	hv_margin.add_theme_constant_override("margin_top", 10)
-	hv_margin.add_theme_constant_override("margin_bottom", 10)
-	hud_scroll.add_child(hv_margin)
-
-	var hv = VBoxContainer.new()
-	hv.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hv.add_theme_constant_override("separation", 10)
-	hv_margin.add_child(hv)
-
-	var metrics_row = HBoxContainer.new()
-	metrics_row.add_theme_constant_override("separation", 8)
-	hv.add_child(metrics_row)
-	lbl_score = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_score.png", "S", "Score", "0")
-	lbl_speed = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_speed.png", "⚡", "Speed", "1.00")
-	lbl_time = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_time.png", "⏱", "Time", "00:00")
-	lbl_level = _hud_line("Level", "1")
-	lbl_level.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	hv.add_child(lbl_level)
 	next_box = null
 
-	var hud_spacer = Control.new()
-	hud_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hv.add_child(hud_spacer)
+	var lower_panel = Panel.new()
+	lower_panel.custom_minimum_size = Vector2(0, 168)
+	lower_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lower_panel.add_theme_stylebox_override("panel", _style_hud_panel())
+	main_v.add_child(lower_panel)
 
-	var lower_status = VBoxContainer.new()
-	lower_status.add_theme_constant_override("separation", 8)
-	hv.add_child(lower_status)
+	var lower_margin = MarginContainer.new()
+	lower_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lower_margin.add_theme_constant_override("margin_left", 12)
+	lower_margin.add_theme_constant_override("margin_right", 12)
+	lower_margin.add_theme_constant_override("margin_top", 10)
+	lower_margin.add_theme_constant_override("margin_bottom", 10)
+	lower_panel.add_child(lower_margin)
+
+	var lower_status = HBoxContainer.new()
+	lower_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lower_status.add_theme_constant_override("separation", 24)
+	lower_margin.add_child(lower_status)
+
+	var status_col = VBoxContainer.new()
+	status_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_col.add_theme_constant_override("separation", 8)
+	lower_status.add_child(status_col)
+
+	var skills_col = VBoxContainer.new()
+	skills_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skills_col.add_theme_constant_override("separation", 6)
+	lower_status.add_child(skills_col)
+
+	var skills_title = Label.new()
+	skills_title.text = "Skills"
+	skills_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
+	skills_col.add_child(skills_title)
+
+	var skill_rows = HBoxContainer.new()
+	skill_rows.add_theme_constant_override("separation", 8)
+	skills_col.add_child(skill_rows)
+
+	skill_rows.add_child(_build_skill_card("Reroll", 5, 1))
+	skill_rows.add_child(_build_skill_card("Freeze", 10, 3))
+	skill_rows.add_child(_build_skill_card("Clear", 20, 6))
 
 	var time_slow_row = HBoxContainer.new()
 	time_slow_row.add_theme_constant_override("separation", 6)
-	lower_status.add_child(time_slow_row)
+	status_col.add_child(time_slow_row)
 	_add_icon_or_fallback(time_slow_row, "res://Assets/UI/icons/icon_timeslow.png", "⏳", 18)
 	lbl_rescue = Label.new()
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
@@ -698,19 +709,11 @@ func _build_ui() -> void:
 
 	var panic_row = HBoxContainer.new()
 	panic_row.add_theme_constant_override("separation", 6)
-	lower_status.add_child(panic_row)
+	status_col.add_child(panic_row)
 	_add_icon_or_fallback(panic_row, "res://Assets/UI/icons/icon_panic.png", "!", 18)
 	lbl_panic = Label.new()
 	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
 	panic_row.add_child(lbl_panic)
-
-	var skills_title = Label.new()
-	skills_title.text = "Skills"
-	skills_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
-	lower_status.add_child(skills_title)
-	lower_status.add_child(_build_skill_card("Reroll", 5, 1))
-	lower_status.add_child(_build_skill_card("Freeze", 10, 3))
-	lower_status.add_child(_build_skill_card("Clear", 20, 6))
 
 	well_panel = Panel.new()
 	well_panel.custom_minimum_size = Vector2(0, 420)
