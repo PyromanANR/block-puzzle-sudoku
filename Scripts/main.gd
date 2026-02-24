@@ -1170,24 +1170,21 @@ func _clear_color_grid() -> void:
 
 func _build_board_side_overlays() -> void:
 
-	var right_overlay = PanelContainer.new()
-	right_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_overlay.custom_minimum_size = Vector2(76, 0)
-	right_overlay.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var panel_style = StyleBoxFlat.new()
-	panel_style.set_border_width_all(2)
-	panel_style.border_color = Color(0.15, 0.15, 0.15, 0.9)
-	panel_style.bg_color = Color(0, 0, 0, 0)
-	right_overlay.add_theme_stylebox_override("panel", panel_style)
-	board_panel.add_child(right_overlay)
-	board_overlay_right = right_overlay
+	var skills_panel = PanelContainer.new()
+	skills_panel.name = "skills_panel"
+	skills_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skills_panel.custom_minimum_size = Vector2(76, 0)
+	skills_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	skills_panel.add_theme_stylebox_override("panel", _style_skills_panel())
+	board_panel.add_child(skills_panel)
+	board_overlay_right = skills_panel
 
 	var skill_even_area = VBoxContainer.new()
 	skill_even_area.name = "skill_even_area"
 	skill_even_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_even_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	skill_even_area.add_theme_constant_override("separation", 0)
-	right_overlay.add_child(skill_even_area)
+	skills_panel.add_child(skill_even_area)
 
 	var skill_spacer_top = Control.new()
 	skill_spacer_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1197,11 +1194,7 @@ func _build_board_side_overlays() -> void:
 	var slot1 = PanelContainer.new()
 	slot1.custom_minimum_size = Vector2(64, 64)
 	slot1.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var slot_style_1 = StyleBoxFlat.new()
-	slot_style_1.bg_color = Color(0.0, 0.0, 0.0, 0.18)
-	slot_style_1.border_color = Color(0.12, 0.12, 0.12, 0.95)
-	slot_style_1.set_border_width_all(2)
-	slot1.add_theme_stylebox_override("panel", slot_style_1)
+	slot1.add_theme_stylebox_override("panel", _style_skills_slot())
 	skill_even_area.add_child(slot1)
 
 	btn_skill_freeze = _build_skill_icon_button("freeze")
@@ -1224,11 +1217,7 @@ func _build_board_side_overlays() -> void:
 	var slot2 = PanelContainer.new()
 	slot2.custom_minimum_size = Vector2(64, 64)
 	slot2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var slot_style_2 = StyleBoxFlat.new()
-	slot_style_2.bg_color = Color(0.0, 0.0, 0.0, 0.18)
-	slot_style_2.border_color = Color(0.12, 0.12, 0.12, 0.95)
-	slot_style_2.set_border_width_all(2)
-	slot2.add_theme_stylebox_override("panel", slot_style_2)
+	slot2.add_theme_stylebox_override("panel", _style_skills_slot())
 	skill_even_area.add_child(slot2)
 
 	btn_skill_clear = _build_skill_icon_button("clear")
@@ -1251,11 +1240,7 @@ func _build_board_side_overlays() -> void:
 	var slot3 = PanelContainer.new()
 	slot3.custom_minimum_size = Vector2(64, 64)
 	slot3.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var slot_style_3 = StyleBoxFlat.new()
-	slot_style_3.bg_color = Color(0.0, 0.0, 0.0, 0.18)
-	slot_style_3.border_color = Color(0.12, 0.12, 0.12, 0.95)
-	slot_style_3.set_border_width_all(2)
-	slot3.add_theme_stylebox_override("panel", slot_style_3)
+	slot3.add_theme_stylebox_override("panel", _style_skills_slot())
 	skill_even_area.add_child(slot3)
 
 	btn_skill_invuln = _build_skill_icon_button("safe_well")
@@ -2192,6 +2177,50 @@ func _color_for_kind(kind: String) -> Color:
 # ============================================================
 # Styles
 # ============================================================
+
+
+func _style_skills_panel() -> StyleBox:
+	var base_style = root_frame.get_theme_stylebox("panel") if root_frame != null else null
+	if base_style == null:
+		base_style = board_panel.get_theme_stylebox("panel") if board_panel != null else null
+	if base_style is StyleBoxFlat:
+		var panel_style = (base_style as StyleBoxFlat).duplicate() as StyleBoxFlat
+		panel_style.set_border_width_all(2)
+		panel_style.bg_color = Color(panel_style.bg_color.r, panel_style.bg_color.g, panel_style.bg_color.b, 0.0)
+		panel_style.border_color = Color(panel_style.border_color.r * 0.75, panel_style.border_color.g * 0.75, panel_style.border_color.b * 0.75, panel_style.border_color.a)
+		return panel_style
+	var fallback = StyleBoxFlat.new()
+	var representative = well_slots_panel.get_theme_stylebox("panel") if well_slots_panel != null else null
+	var panel_base_color = _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42))
+	if representative is StyleBoxFlat:
+		panel_base_color = (representative as StyleBoxFlat).bg_color
+	fallback.bg_color = Color(panel_base_color.r, panel_base_color.g, panel_base_color.b, 0.0)
+	fallback.set_border_width_all(2)
+	fallback.border_color = Color(panel_base_color.r * 0.75, panel_base_color.g * 0.75, panel_base_color.b * 0.75, 0.95)
+	return fallback
+
+
+func _style_skills_slot() -> StyleBox:
+	var base_style = root_frame.get_theme_stylebox("panel") if root_frame != null else null
+	if base_style == null:
+		base_style = board_panel.get_theme_stylebox("panel") if board_panel != null else null
+	if base_style is StyleBoxFlat:
+		var slot_style = (base_style as StyleBoxFlat).duplicate() as StyleBoxFlat
+		slot_style.set_border_width_all(2)
+		slot_style.border_color = Color(slot_style.bg_color.r * 0.75, slot_style.bg_color.g * 0.75, slot_style.bg_color.b * 0.75, 0.95)
+		slot_style.bg_color = Color(slot_style.bg_color.r * 0.85, slot_style.bg_color.g * 0.85, slot_style.bg_color.b * 0.85, 0.20)
+		return slot_style
+	var fallback = StyleBoxFlat.new()
+	var representative = well_slots_panel.get_theme_stylebox("panel") if well_slots_panel != null else null
+	var base_color = _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42))
+	if representative is StyleBoxFlat:
+		base_color = (representative as StyleBoxFlat).bg_color
+	fallback.bg_color = Color(base_color.r * 0.85, base_color.g * 0.85, base_color.b * 0.85, 0.20)
+	fallback.set_border_width_all(2)
+	fallback.border_color = Color(base_color.r * 0.75, base_color.g * 0.75, base_color.b * 0.75, 0.95)
+	return fallback
+
+
 func _style_cartridge_frame() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42))
