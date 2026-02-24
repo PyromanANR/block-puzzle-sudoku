@@ -88,6 +88,16 @@ public class BalanceConfig
     // Micro-freeze feedback
     public float MicroFreezeSec = 0.10f;
 
+    // Time-slow FX / cooldown
+    public float TimeSlowReadyOverlayDurationSec = 0.8f;
+    public string TimeSlowReadySfxPath = "res://Assets/Audio/time_slow.wav";
+    public float TimeSlowCooldownSec = 30.0f;
+
+    // WELL neon pulse
+    public float WellNeonPulseSpeed = 2.5f;
+    public float WellNeonMinAlpha = 0.40f;
+    public float WellNeonMaxAlpha = 1.0f;
+
     // Scoring / leveling
     public int PointsPerLevel = 360;
 

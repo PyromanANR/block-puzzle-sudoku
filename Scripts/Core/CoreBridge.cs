@@ -330,6 +330,12 @@ public partial class CoreBridge : Node
 
     public float GetRescueWindowSec() => _config.RescueWindowSec;
     public int GetRescueScoreBonus() => _config.RescueScoreBonus;
+    public float GetTimeSlowCooldownSec() => _config.TimeSlowCooldownSec;
+    public float GetTimeSlowReadyOverlayDurationSec() => _config.TimeSlowReadyOverlayDurationSec;
+    public string GetTimeSlowReadySfxPath() => _config.TimeSlowReadySfxPath;
+    public float GetWellNeonPulseSpeed() => _config.WellNeonPulseSpeed;
+    public float GetWellNeonMinAlpha() => _config.WellNeonMinAlpha;
+    public float GetWellNeonMaxAlpha() => _config.WellNeonMaxAlpha;
 
     public void TriggerRescueStability()
     {
