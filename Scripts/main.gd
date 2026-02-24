@@ -93,6 +93,11 @@ var overlay_text: Label
 var is_game_over: bool = false
 var fx_layer: CanvasLayer
 var time_slow_overlay: ColorRect
+var pending_invalid_piece = null
+var pending_invalid_from_pile_index: int = -1
+var pending_invalid_root: Control
+var pending_invalid_until_ms = 0
+var invalid_drop_slow_until_ms = 0
 var toast_layer: CanvasLayer
 var toast_panel: Panel
 var toast_label: Label
@@ -301,6 +306,7 @@ func _start_round() -> void:
 	_hide_game_over_overlay()
 	if toast_panel != null:
 		toast_panel.visible = false
+	_clear_pending_invalid_piece()
 
 
 func _trigger_game_over() -> void:
@@ -337,6 +343,7 @@ func _trigger_game_over() -> void:
 	_show_game_over_overlay()
 	if toast_panel != null:
 		toast_panel.visible = false
+	_clear_pending_invalid_piece()
 
 
 
@@ -435,6 +442,11 @@ func _update_time_scale_runtime() -> void:
 		if ts_scale < final_scale:
 			final_scale = ts_scale
 			reason = "TimeSlow"
+	if invalid_drop_slow_until_ms > now:
+		var invalid_slow_scale = float(core.call("GetInvalidDropFailTimeScale"))
+		if invalid_slow_scale < final_scale:
+			final_scale = invalid_slow_scale
+			reason = "InvalidDropFail"
 	_set_time_scale(reason, final_scale)
 
 
@@ -836,11 +848,11 @@ func _build_ui() -> void:
 	toast_panel.visible = false
 	toast_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	toast_panel.add_theme_stylebox_override("panel", _style_preview_box())
-	toast_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	toast_panel.offset_left = 180
-	toast_panel.offset_right = -180
-	toast_panel.offset_top = -96
-	toast_panel.offset_bottom = -44
+	toast_panel.set_anchors_preset(Control.PRESET_CENTER)
+	toast_panel.offset_left = -220
+	toast_panel.offset_right = 220
+	toast_panel.offset_top = -36
+	toast_panel.offset_bottom = 36
 	toast_layer.add_child(toast_panel)
 	var toast_margin = MarginContainer.new()
 	toast_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1660,6 +1672,9 @@ func _finish_drag() -> void:
 	ghost_root.visible = false
 
 	var anchor = drag_anchor
+	var release_mouse = get_viewport().get_mouse_position()
+	var selected_snapshot = selected_piece
+	var source_snapshot = selected_from_pile_index
 	drag_anchor = Vector2i(-999, -999)
 	_clear_highlight()
 
@@ -1671,9 +1686,60 @@ func _finish_drag() -> void:
 	if was_selected and not placed:
 		_play_sfx("invalid")
 		core.call("RegisterCancelledDrag")
+		_spawn_pending_invalid_piece(selected_snapshot, source_snapshot, release_mouse)
 
 	selected_piece = null
 	selected_from_pile_index = -1
+
+
+func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2) -> void:
+	_clear_pending_invalid_piece()
+	if piece == null:
+		return
+	pending_invalid_piece = piece
+	pending_invalid_from_pile_index = source_index
+	pending_invalid_until_ms = Time.get_ticks_msec() + int(float(core.call("GetInvalidDropGraceSec")) * 1000.0)
+	var frame = Vector2(max(48.0, float(cell_size) * 2.0), max(48.0, float(cell_size) * 2.0))
+	pending_invalid_root = Control.new()
+	pending_invalid_root.size = frame
+	pending_invalid_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	pending_invalid_root.z_index = 1200
+	pending_invalid_root.z_as_relative = false
+	pending_invalid_root.position = screen_pos - frame * 0.5
+	pending_invalid_root.gui_input.connect(_on_pending_invalid_input)
+	var pv = _make_piece_preview(piece, max(16, int(float(cell_size) * 0.78)), frame)
+	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pending_invalid_root.add_child(pv)
+	root_frame.add_child(pending_invalid_root)
+
+
+func _clear_pending_invalid_piece() -> void:
+	if pending_invalid_root != null and is_instance_valid(pending_invalid_root):
+		pending_invalid_root.queue_free()
+	pending_invalid_root = null
+	pending_invalid_piece = null
+	pending_invalid_from_pile_index = -1
+	pending_invalid_until_ms = 0
+
+
+func _on_pending_invalid_input(event: InputEvent) -> void:
+	if pending_invalid_piece == null:
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		selected_piece = pending_invalid_piece
+		selected_from_pile_index = pending_invalid_from_pile_index
+		_clear_pending_invalid_piece()
+		_play_sfx("pick")
+		_start_drag_selected()
+
+
+func _update_pending_invalid_grace() -> void:
+	if pending_invalid_piece == null:
+		return
+	if Time.get_ticks_msec() < pending_invalid_until_ms:
+		return
+	_clear_pending_invalid_piece()
+	invalid_drop_slow_until_ms = Time.get_ticks_msec() + int(float(core.call("GetInvalidDropFailSlowSec")) * 1000.0)
 
 
 func _force_cancel_drag(reason: String = "", committed: bool = false) -> void:
@@ -1776,6 +1842,7 @@ func _mouse_to_board_cell(mouse_pos: Vector2) -> Vector2i:
 # ============================================================
 func _process(delta: float) -> void:
 	_update_toast()
+	_update_pending_invalid_grace()
 	if is_game_over:
 		return
 
