@@ -75,7 +75,9 @@ var lbl_score: Label
 var lbl_speed: Label
 var lbl_level: Label
 var lbl_time: Label
-var lbl_debug: Label
+var lbl_panic: Label
+var lbl_rescue: Label
+var lbl_dual: Label
 var next_box: Panel
 
 var btn_settings: Button
@@ -122,7 +124,10 @@ var frozen_left: float = 0.0
 var spawn_wait_until_ms = 0
 var pending_spawn_piece = false
 var pending_dual_spawn_ms = 0
+var pending_dual_fallback_ms = 0
 var dual_drop_cycle_pending = false
+var dual_drop_waiting_for_gap = false
+var dual_drop_anchor_y = 10.0
 var dual_drop_trigger_count = 0
 var rescue_trigger_count = 0
 var auto_slow_until_ms = 0
@@ -137,11 +142,17 @@ var well_header_pulse_left = 0.0
 var time_scale_reason = "Normal"
 var sfx_players = {}
 var missing_sfx_warned = {}
-var next_preview_kind = ""
-var next_pending_kind = ""
 var last_dual_drop_min = -1.0
 
 const NORMAL_RESPAWN_DELAY_MS = 260
+const PANIC_HIGH_THRESHOLD = 0.85
+const PANIC_MID_THRESHOLD = 0.60
+const PANIC_PULSE_SPEED = 2.0
+const PANIC_BLINK_SPEED = 7.0
+const NEON_PULSE_SPEED = 2.5
+const NEON_MIN_ALPHA = 0.40
+const NEON_MAX_ALPHA = 1.0
+const NEON_RING_ROTATE_DEG = 180.0
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -223,7 +234,10 @@ func _start_round() -> void:
 	spawn_wait_until_ms = 0
 	pending_spawn_piece = false
 	pending_dual_spawn_ms = 0
+	pending_dual_fallback_ms = 0
 	dual_drop_cycle_pending = false
+	dual_drop_waiting_for_gap = false
+	dual_drop_anchor_y = 10.0
 	dual_drop_trigger_count = 0
 	last_dual_drop_min = -1.0
 	rescue_trigger_count = 0
@@ -262,6 +276,18 @@ func _trigger_game_over() -> void:
 	if is_game_over:
 		return
 	is_game_over = true
+	pending_spawn_piece = false
+	spawn_wait_until_ms = 0
+	pending_dual_spawn_ms = 0
+	pending_dual_fallback_ms = 0
+	dual_drop_cycle_pending = false
+	dual_drop_waiting_for_gap = false
+	rescue_from_well_pending = false
+	rescue_eligible_until_ms = 0
+	auto_slow_until_ms = 0
+	micro_freeze_until_ms = 0
+	panic_sfx_cooldown_ms = 0
+	Engine.time_scale = 1.0
 	set_process(false)
 
 	# Save global progress (Stage 1)
@@ -372,13 +398,6 @@ func _is_no_mercy_active() -> bool:
 	return Save.get_current_difficulty() == "Hard" and Save.get_no_mercy()
 
 
-func _update_pending_next_kind() -> void:
-	var pending_piece = core.call("PeekNextPieceForBoard", board)
-	next_pending_kind = ""
-	if pending_piece != null:
-		next_pending_kind = String(pending_piece.get("Kind"))
-
-
 func _well_fill_ratio() -> float:
 	if pile_max <= 0:
 		return 0.0
@@ -392,7 +411,6 @@ func _schedule_next_falling_piece() -> void:
 	if dual_drop_cycle_pending:
 		dual_drop_trigger_count += 1
 		last_dual_drop_min = float(core.call("GetElapsedMinutesForDebug"))
-		print("[DUAL-DROP] trigger count=%d min=%.2f" % [dual_drop_trigger_count, last_dual_drop_min])
 
 
 func _trigger_micro_freeze() -> void:
@@ -405,23 +423,49 @@ func _trigger_auto_slow_if_needed() -> void:
 		auto_slow_trigger_count += 1
 		var dur = float(core.call("GetAutoSlowDurationSec"))
 		auto_slow_until_ms = Time.get_ticks_msec() + int(dur * 1000.0)
-		print("[AUTO-SLOW] trigger count=%d" % auto_slow_trigger_count)
 
 
-func _update_debug_overlay() -> void:
-	if lbl_debug == null:
+func _update_status_hud() -> void:
+	if lbl_panic == null or lbl_rescue == null or lbl_dual == null:
 		return
-	var elapsed = float(core.call("GetElapsedMinutesForDebug"))
-	var peak1_target = float(core.call("GetPeak1TargetMultiplier"))
-	var peak2_target = float(core.call("GetPeak2TargetMultiplier"))
-	var tail_mul = float(core.call("GetSpeedTailMultiplier"))
-	var segment = String(core.call("GetSpeedSegmentForDebug"))
-	var dual_drop_chance = float(core.call("GetDualDropChanceCurrent"))
-	var speed_mult = float(core.call("GetDisplayedFallSpeed")) / max(0.001, float(core.call("GetBaseFallSpeed")))
-	_update_pending_next_kind()
-	if next_preview_kind != "" and next_pending_kind != "" and next_preview_kind != next_pending_kind:
-		push_error("NEXT DESYNC: preview=%s pending=%s" % [next_preview_kind, next_pending_kind])
-	lbl_debug.text = "DBG\nmin: %.2f  speedMul: %.2f  seg:%s\npeak1@5: %.2f  peak2@10: %.2f  tail: %.3f\ndual-drop: %.1f%%  triggers: %d  last@min: %.2f\nactive falling: %d\nnext preview: %s\nnext pending: %s\nwell fill: %.2f\ntime_scale: %.2f (%s)\nrescue triggers: %d  auto-slow: %d" % [elapsed, speed_mult, segment, peak1_target, peak2_target, tail_mul, dual_drop_chance * 100.0, dual_drop_trigger_count, last_dual_drop_min, _active_falling_count(), next_preview_kind, next_pending_kind, _well_fill_ratio(), Engine.time_scale, time_scale_reason, rescue_trigger_count, auto_slow_trigger_count]
+	var now = Time.get_ticks_msec()
+	var t = float(now) / 1000.0
+	var panic_value = _well_fill_ratio()
+	var danger = panic_value >= PANIC_HIGH_THRESHOLD or time_scale_reason == "NoMercyExtra" or time_scale_reason == "WellDrag"
+	if panic_value < PANIC_MID_THRESHOLD:
+		var soft = 0.90 + 0.10 * (0.5 + 0.5 * sin(t * TAU * PANIC_PULSE_SPEED * 0.5))
+		lbl_panic.modulate = Color(0.88, 0.96, 0.90, soft)
+	elif panic_value < PANIC_HIGH_THRESHOLD:
+		var warm = 0.5 + 0.5 * sin(t * TAU * PANIC_PULSE_SPEED)
+		lbl_panic.modulate = Color(1.0, 0.82 + 0.16 * warm, 0.52 + 0.24 * warm, 1.0)
+	else:
+		var blink = 0.5 + 0.5 * sin(t * TAU * PANIC_BLINK_SPEED)
+		if danger and blink > 0.5:
+			lbl_panic.modulate = Color(1.0, 0.24, 0.24, 1.0)
+		else:
+			lbl_panic.modulate = Color(1.0, 0.72, 0.40, 1.0)
+	lbl_panic.text = "PANIC %.0f%%" % (panic_value * 100.0)
+	var rescue_left = max(0, rescue_eligible_until_ms - now)
+	if rescue_from_well_pending and rescue_left > 0:
+		var rescue_total = max(0.001, float(core.call("GetRescueWindowSec")))
+		var rescue_ratio = clamp(float(rescue_left) / (rescue_total * 1000.0), 0.0, 1.0)
+		lbl_rescue.text = "RESCUE READY %.1fs (%.0f%%)" % [float(rescue_left) / 1000.0, rescue_ratio * 100.0]
+		lbl_rescue.modulate = Color(0.60, 1.0, 0.70, 1.0)
+	else:
+		lbl_rescue.text = "WELL READY"
+		lbl_rescue.modulate = Color(0.80, 0.84, 0.88, 1.0)
+	var dual_text = "Dual x%d" % _active_falling_count()
+	if pending_dual_spawn_ms > 0:
+		var left = max(0, pending_dual_spawn_ms - now)
+		dual_text = "DUAL INCOMING %.1fs" % (float(left) / 1000.0)
+		var dp = 0.5 + 0.5 * sin(t * TAU * 2.4)
+		lbl_dual.modulate = Color(1.0, 0.95, 0.60 + 0.35 * dp, 1.0)
+	elif dual_drop_cycle_pending or dual_drop_waiting_for_gap:
+		dual_text = "DUAL READY"
+		lbl_dual.modulate = Color(1.0, 0.92, 0.62, 1.0)
+	else:
+		lbl_dual.modulate = Color(0.86, 0.88, 0.92, 1.0)
+	lbl_dual.text = dual_text
 
 
 # ============================================================
@@ -526,11 +570,17 @@ func _build_ui() -> void:
 	next_box.add_theme_stylebox_override("panel", _style_preview_box())
 	hv.add_child(next_box)
 
-	lbl_debug = Label.new()
-	lbl_debug.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl_debug.add_theme_font_size_override("font_size", _skin_font_size("small", 14))
-	lbl_debug.custom_minimum_size = Vector2(0, 150)
-	hv.add_child(lbl_debug)
+	lbl_panic = Label.new()
+	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+	hv.add_child(lbl_panic)
+
+	lbl_rescue = Label.new()
+	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	hv.add_child(lbl_rescue)
+
+	lbl_dual = Label.new()
+	lbl_dual.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
+	hv.add_child(lbl_dual)
 
 	var skills_title = Label.new()
 	skills_title.text = "Skills"
@@ -731,9 +781,8 @@ func _hide_game_over_overlay() -> void:
 
 
 func _on_settings() -> void:
-	# Debug utility: quick simulation snapshot from CoreBridge.
-	var sim6 = core.call("RunSimulationBatch", 120, 42)
-	print("Balance sim default:", sim6)
+	# Reserved for settings panel.
+	return
 
 
 func _on_exit() -> void:
@@ -872,11 +921,7 @@ func _refresh_board_visual() -> void:
 # ============================================================
 func _update_previews() -> void:
 	var next_piece = core.call("PeekNextPieceForBoard", board)
-	next_preview_kind = ""
-	if next_piece != null:
-		next_preview_kind = String(next_piece.get("Kind"))
 	_draw_preview(next_box, next_piece)
-	_update_pending_next_kind()
 
 
 func _draw_preview(target: Panel, piece) -> void:
@@ -945,28 +990,42 @@ func _fitted_cell_size(piece, desired_cell: int, frame: Vector2, fit_ratio: floa
 
 
 func _spawn_falling_piece() -> void:
-	var preview_piece = core.call("PeekNextPieceForBoard", board)
-	var preview_kind = ""
-	if preview_piece != null:
-		preview_kind = String(preview_piece.get("Kind"))
 	fall_piece = core.call("PopNextPieceForBoard", board)
-	var actual_next_piece = core.call("PeekNextPieceForBoard", board)
-	next_actual_kind = ""
-	if actual_next_piece != null:
-		next_actual_kind = String(actual_next_piece.get("Kind"))
 	fall_y = 10.0
 	pending_spawn_piece = false
 	if dual_drop_cycle_pending:
-		pending_dual_spawn_ms = Time.get_ticks_msec() + int(float(core.call("GetDualDropStaggerSec")) * 1000.0)
+		var speed_mul = float(core.call("GetDisplayedFallSpeed")) / max(0.001, float(core.call("GetBaseFallSpeed")))
+		var stagger_sec = float(core.call("GetDualDropStaggerSecForSpeedMul", speed_mul))
+		pending_dual_spawn_ms = Time.get_ticks_msec() + int(stagger_sec * 1000.0)
+		pending_dual_fallback_ms = Time.get_ticks_msec() + 2000
+		dual_drop_waiting_for_gap = true
+		dual_drop_anchor_y = fall_y
 		dual_drop_cycle_pending = false
 	next_box.queue_redraw()
 	_update_previews()
-	if next_preview_kind != "" and next_pending_kind != "" and next_preview_kind != next_pending_kind:
-		push_error("NEXT DESYNC: preview=%s pending=%s" % [next_preview_kind, next_pending_kind])
+
+func _dual_drop_can_spawn(now_ms: int) -> bool:
+	if is_game_over:
+		return false
+	if pending_dual_spawn_ms <= 0 or now_ms < pending_dual_spawn_ms:
+		return false
+	if not dual_drop_waiting_for_gap:
+		return true
+	var min_gap_cells = float(core.call("GetDualDropMinGapCells"))
+	var min_gap_px = min_gap_cells * float(cell_size)
+	if fall_piece == null:
+		return true
+	if fall_y >= dual_drop_anchor_y + min_gap_px:
+		return true
+	if pending_dual_fallback_ms > 0 and now_ms >= pending_dual_fallback_ms:
+		return true
+	return false
 
 func _spawn_second_falling_piece() -> void:
 	if is_game_over:
 		pending_dual_spawn_ms = 0
+		pending_dual_fallback_ms = 0
+		dual_drop_waiting_for_gap = false
 		return
 	if fall_piece_2 != null:
 		return
@@ -978,10 +1037,10 @@ func _spawn_second_falling_piece() -> void:
 		fall_piece_2 = p2
 		fall_y_2 = 10.0
 	pending_dual_spawn_ms = 0
+	pending_dual_fallback_ms = 0
+	dual_drop_waiting_for_gap = false
 	next_box.queue_redraw()
 	_update_previews()
-	if next_preview_kind != "" and next_pending_kind != "" and next_preview_kind != next_pending_kind:
-		push_error("NEXT DESYNC: preview=%s pending=%s" % [next_preview_kind, next_pending_kind])
 
 
 func _lock_falling_to_pile() -> void:
@@ -997,6 +1056,17 @@ func _lock_falling_to_pile() -> void:
 		return
 	if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
 		_schedule_next_falling_piece()
+
+
+func _selected_neon_pile_index() -> int:
+	if selected_from_pile_index >= 0 and selected_from_pile_index < pile.size():
+		return selected_from_pile_index
+	if pile.size() <= 0:
+		return -1
+	var max_selectable = min(pile_selectable, pile.size())
+	if max_selectable <= 0:
+		return -1
+	return pile.size() - 1
 
 
 func _well_geometry() -> Dictionary:
@@ -1051,6 +1121,9 @@ func _redraw_well() -> void:
 	var fall_bottom = float(g["fall_bottom"])
 
 	var fill_ratio = clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
+	var now_ms = Time.get_ticks_msec()
+	var well_ready = pile.size() > 0 and min(pile_selectable, pile.size()) > 0
+	var neon = 0.5 + 0.5 * sin(float(now_ms) / 280.0)
 
 	var drop_header = Label.new()
 	drop_header.text = "DROP ZONE"
@@ -1080,8 +1153,9 @@ func _redraw_well() -> void:
 	slots_header.position = Vector2(8, 4)
 	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
 	var pulse_alpha = clamp(well_header_pulse_left * 2.4, 0.0, 0.75)
-	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45, 0.85 + pulse_alpha * 0.2))
-	slots_header.scale = Vector2(1.0 + pulse_alpha * 0.08, 1.0 + pulse_alpha * 0.08)
+	var neon_alpha = 0.20 * neon if well_ready else 0.0
+	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78 + neon_alpha, 0.45, 0.85 + pulse_alpha * 0.2 + neon_alpha * 0.5))
+	slots_header.scale = Vector2(1.0 + pulse_alpha * 0.08 + neon_alpha * 0.10, 1.0 + pulse_alpha * 0.08 + neon_alpha * 0.10)
 	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_header)
 
@@ -1110,6 +1184,7 @@ func _redraw_well() -> void:
 	var per_slot = available_h / float(max(1, pile_max))
 	var dynamic_h = max(46.0, min(76.0, per_slot - SLOT_GAP))
 	var slot_preview_cell = int(clamp(float(cell_size) * 0.64, 12.0, 34.0))
+	var neon_index = _selected_neon_pile_index()
 
 	for slot_i in range(pile_max):
 		var y = pile_bottom - dynamic_h - float(slot_i) * (dynamic_h + SLOT_GAP)
@@ -1125,6 +1200,7 @@ func _redraw_well() -> void:
 
 		if is_active:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
+			slot.modulate = Color(1.0, 1.0, 0.85 + 0.15 * neon, 1.0)
 		else:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_locked())
 			var lock_lbl = Label.new()
@@ -1144,6 +1220,37 @@ func _redraw_well() -> void:
 			var preview = _make_piece_preview(p, slot_cell, slot_frame)
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
+			if is_active and pile_index == neon_index:
+				var neon_phase = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * NEON_PULSE_SPEED)
+				var neon_alpha = lerp(NEON_MIN_ALPHA, NEON_MAX_ALPHA, neon_phase)
+				var neon_frame = Panel.new()
+				neon_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+				neon_frame.offset_left = 2
+				neon_frame.offset_top = 2
+				neon_frame.offset_right = -2
+				neon_frame.offset_bottom = -2
+				neon_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				var neon_style = StyleBoxFlat.new()
+				neon_style.bg_color = Color(0, 0, 0, 0)
+				neon_style.border_width_left = 3
+				neon_style.border_width_top = 3
+				neon_style.border_width_right = 3
+				neon_style.border_width_bottom = 3
+				neon_style.border_color = Color(1.0, 0.92, 0.40, neon_alpha)
+				neon_style.corner_radius_top_left = 8
+				neon_style.corner_radius_top_right = 8
+				neon_style.corner_radius_bottom_left = 8
+				neon_style.corner_radius_bottom_right = 8
+				neon_frame.add_theme_stylebox_override("panel", neon_style)
+				slot.add_child(neon_frame)
+				var loop_ring = Label.new()
+				loop_ring.text = "⟳"
+				loop_ring.position = Vector2(slot.size.x - 26, 4)
+				loop_ring.rotation = deg_to_rad(float(now_ms) * (NEON_RING_ROTATE_DEG / 1000.0))
+				loop_ring.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
+				loop_ring.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, neon_alpha))
+				loop_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				slot.add_child(loop_ring)
 		elif is_active:
 			var empty = Label.new()
 			empty.text = "Empty"
@@ -1303,7 +1410,6 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 			score += int(core.call("GetRescueScoreBonus"))
 			core.call("TriggerRescueStability")
 			rescue_trigger_count += 1
-			print("[RESCUE] triggered count=%d" % rescue_trigger_count)
 	rescue_from_well_pending = false
 	_trigger_auto_slow_if_needed()
 
@@ -1359,9 +1465,10 @@ func _process(delta: float) -> void:
 	speed_ui = fall_speed / 16.0
 	lbl_speed.text = "Speed: %.2f" % speed_ui
 
-	if pending_spawn_piece and Time.get_ticks_msec() >= spawn_wait_until_ms:
+	var now_ms = Time.get_ticks_msec()
+	if pending_spawn_piece and now_ms >= spawn_wait_until_ms:
 		_spawn_falling_piece()
-	if pending_dual_spawn_ms > 0 and Time.get_ticks_msec() >= pending_dual_spawn_ms:
+	if pending_dual_spawn_ms > 0 and _dual_drop_can_spawn(now_ms):
 		_spawn_second_falling_piece()
 
 	var geom = _well_geometry()
@@ -1385,7 +1492,7 @@ func _process(delta: float) -> void:
 				_schedule_next_falling_piece()
 
 	_redraw_well()
-	_update_debug_overlay()
+	_update_status_hud()
 
 	# Drag: ghost always visible
 	if dragging and selected_piece != null:
@@ -1436,6 +1543,7 @@ func _update_difficulty() -> void:
 func _update_hud() -> void:
 	lbl_score.text = "Score: %d" % score
 	_update_previews()
+	_update_status_hud()
 
 
 # ============================================================

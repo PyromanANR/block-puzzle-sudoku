@@ -289,7 +289,17 @@ public partial class CoreBridge : Node
         return _rng.Randf() < chance;
     }
 
-    public float GetDualDropStaggerSec() => _config.DualDropStaggerSec;
+    public float GetDualDropMinGapCells() => _config.DualDropMinGapCells;
+
+    public float GetDualDropStaggerSecForSpeedMul(float speedMul)
+    {
+        var start = Mathf.Max(0.01f, _config.DualDropStaggerSpeedStartMul);
+        var end = Mathf.Max(start + 0.01f, _config.DualDropStaggerSpeedEndMul);
+        var t = Mathf.Clamp((speedMul - start) / (end - start), 0f, 1f);
+        var smooth = t * t * (3.0f - 2.0f * t);
+        var stagger = _config.DualDropStaggerBaseSec + _config.DualDropStaggerExtraSec * smooth;
+        return Mathf.Clamp(stagger, _config.DualDropStaggerBaseSec, _config.DualDropStaggerMaxSec);
+    }
 
     public float GetNoMercyExtraTimeScale(float wellFillRatio)
     {
