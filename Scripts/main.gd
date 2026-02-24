@@ -722,14 +722,26 @@ func _build_ui() -> void:
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
 	time_slow_block.add_child(lbl_rescue)
 
-	var skills_group = CenterContainer.new()
+	var middle_spacer = Control.new()
+	middle_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	middle_spacer.size_flags_stretch_ratio = 1.0
+	hud_row.add_child(middle_spacer)
+
+	var skills_group = HBoxContainer.new()
 	skills_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_group.size_flags_stretch_ratio = 1.6
+	skills_group.size_flags_stretch_ratio = 1.0
+	skills_group.alignment = BoxContainer.ALIGNMENT_END
+	skills_group.add_theme_constant_override("separation", 10)
 	hud_row.add_child(skills_group)
+
+	var skills_tag = Label.new()
+	skills_tag.text = "Skills"
+	skills_tag.add_theme_font_size_override("font_size", _skin_font_size("tiny", 14))
+	skills_group.add_child(skills_tag)
 
 	var skill_rows = HBoxContainer.new()
 	skill_rows.add_theme_constant_override("separation", 18)
-	skill_rows.alignment = BoxContainer.ALIGNMENT_CENTER
+	skill_rows.alignment = BoxContainer.ALIGNMENT_END
 	skills_group.add_child(skill_rows)
 
 	btn_skill_freeze = _build_skill_icon_button("F", SKILL_ICON_FREEZE_PATH)
@@ -741,12 +753,6 @@ func _build_ui() -> void:
 	btn_skill_invuln = _build_skill_icon_button("W", SKILL_ICON_SAFE_WELL_PATH)
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
 	skill_rows.add_child(btn_skill_invuln)
-
-	var right_block = Control.new()
-	right_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_block.size_flags_stretch_ratio = 1.0
-	hud_row.add_child(right_block)
-
 
 	well_panel = Panel.new()
 	well_panel.custom_minimum_size = Vector2(0, 420)
@@ -768,14 +774,15 @@ func _build_ui() -> void:
 	drop_zone_panel = Panel.new()
 	drop_zone_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drop_zone_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	drop_zone_panel.size_flags_stretch_ratio = 5.2
+	drop_zone_panel.size_flags_stretch_ratio = 1.0
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
 	panic_indicator_root = CenterContainer.new()
+	panic_indicator_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panic_indicator_root.custom_minimum_size = Vector2(56, 0)
 	panic_indicator_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_draw.add_child(panic_indicator_root)
+	well_panel.add_child(panic_indicator_root)
 	panic_indicator_visual = _build_panic_indicator_visual()
 	panic_indicator_root.add_child(panic_indicator_visual)
 
@@ -791,7 +798,7 @@ func _build_ui() -> void:
 	well_slots_panel = Panel.new()
 	well_slots_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_slots_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	well_slots_panel.size_flags_stretch_ratio = 4.8
+	well_slots_panel.size_flags_stretch_ratio = 1.0
 	well_slots_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(well_slots_panel)
 	well_slots_base_rotation = well_slots_panel.rotation_degrees
