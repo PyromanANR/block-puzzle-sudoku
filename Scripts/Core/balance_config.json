@@ -95,5 +95,8 @@
   "GeneratorUseBag": true,
   "PiecePoolEnableDomino": true,
   "PiecePoolEnableTromino": true,
-  "PiecePoolEnablePentominoLite": true
+  "PiecePoolEnablePentominoLite": true,
+  "InvalidDropGraceSec": 2.0,
+  "InvalidDropFailSlowSec": 0.4,
+  "InvalidDropFailTimeScale": 0.85
 }
