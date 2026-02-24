@@ -1303,9 +1303,9 @@ func _redraw_well() -> void:
 			var preview = _make_piece_preview(p, slot_cell, slot_frame)
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
-			if is_active and pile_index == neon_index:
+			if is_active:
 				var neon_phase = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
-				var neon_alpha = lerp(neon_min, neon_max, neon_phase)
+				neon_alpha = lerp(neon_min, neon_max, neon_phase)
 				var neon_frame = Panel.new()
 				neon_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 				neon_frame.offset_left = 2
