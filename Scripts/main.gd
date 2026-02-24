@@ -1040,7 +1040,7 @@ func _build_skill_icon_button(icon_key: String) -> TextureButton:
 	b.custom_minimum_size = Vector2(64, 64)
 	b.size = Vector2(64, 64)
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	b.ignore_texture_size = true
+	b.ignore_texture_size = false
 	b.mouse_filter = Control.MOUSE_FILTER_STOP
 	var tex = _load_ui_icon(icon_key)
 	if tex != null:
