@@ -1191,6 +1191,9 @@ func _redraw_well() -> void:
 
 	var fill_ratio = clamp(float(pile.size()) / float(pile_max), 0.0, 1.0)
 	var now_ms = Time.get_ticks_msec()
+	var well_ready = now_ms >= time_slow_cooldown_until_ms
+	var neon_speed = float(core.call("GetWellNeonPulseSpeed"))
+	var neon = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
 	
 	var drop_header = Label.new()
 	drop_header.text = "DROP ZONE"
@@ -1275,7 +1278,6 @@ func _redraw_well() -> void:
 	var per_slot = available_h / float(max(1, pile_max))
 	var dynamic_h = max(46.0, min(76.0, per_slot - SLOT_GAP))
 	var slot_preview_cell = int(clamp(float(cell_size) * 0.78, 12.0, 40.0))
-	var neon_speed = float(core.call("GetWellNeonPulseSpeed"))
 	var neon_min = float(core.call("GetWellNeonMinAlpha"))
 	var neon_max = float(core.call("GetWellNeonMaxAlpha"))
 
