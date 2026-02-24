@@ -127,6 +127,8 @@ const SKILL_ICON_SIZE := 48.0
 
 var skill_hint_until_ms = 0
 
+var skill_hint_until_ms = 0
+
 var fall_piece = null
 var fall_y: float = 10.0
 var fall_piece_2 = null
