@@ -77,6 +77,8 @@ var lbl_level: Label
 var lbl_time: Label
 var lbl_rescue: Label
 var lbl_skill_hint: Label
+var btn_time_slow: TextureButton
+var bar_time_slow: ProgressBar
 var next_box: Panel
 
 var btn_settings: TextureButton
@@ -515,20 +517,27 @@ func _trigger_auto_slow_if_needed() -> void:
 
 
 func _update_status_hud() -> void:
-	if lbl_rescue == null:
+	if bar_time_slow == null:
 		return
 	var now = Time.get_ticks_msec()
 	var fill_ratio = _well_fill_ratio()
 	var cooldown_sec = float(core.call("GetTimeSlowCooldownSec"))
 	var remaining_ms = max(0, time_slow_cooldown_until_ms - now)
-	if remaining_ms <= 0:
-		lbl_rescue.text = "TIME SLOW READY"
-		lbl_rescue.modulate = Color(0.68, 0.98, 1.0, 1.0)
-	else:
-		var remaining_sec = float(remaining_ms) / 1000.0
-		var pct = 100.0 * (1.0 - clamp(remaining_sec / max(0.001, cooldown_sec), 0.0, 1.0))
-		lbl_rescue.text = "TIME SLOW CD %.1fs (%.0f%%)" % [remaining_sec, pct]
-		lbl_rescue.modulate = Color(0.80, 0.84, 0.88, 1.0)
+	var cooldown_remaining = float(remaining_ms) / 1000.0
+	var progress01 = clamp(1.0 - (cooldown_remaining / max(0.001, cooldown_sec)), 0.0, 1.0)
+	bar_time_slow.value = progress01 * 100.0
+	if btn_time_slow != null:
+		if remaining_ms <= 0:
+			var t = float(Time.get_ticks_msec()) / 1000.0
+			var wave = 0.5 + 0.5 * sin(TAU * 1.35 * t)
+			var icon_scale = 1.00 + 0.08 * wave
+			btn_time_slow.scale = Vector2(icon_scale, icon_scale)
+			btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.00 - 0.20 * wave)
+			bar_time_slow.modulate = Color(1.0 + 0.06 * wave, 1.0 + 0.06 * wave, 1.0 + 0.06 * wave, 1.0)
+		else:
+			btn_time_slow.scale = Vector2.ONE
+			btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.0)
+			bar_time_slow.modulate = Color(1, 1, 1, 1)
 	_update_skill_icon_states()
 	_update_panic_warning_visual(fill_ratio)
 
@@ -882,6 +891,11 @@ func _icon_atlas_path_for_png(icon_path: String) -> String:
 
 
 func _load_icon_texture_with_fallback(icon_path: String) -> Texture2D:
+	var direct_tres_path = "%s.tres" % icon_path.get_basename()
+	if ResourceLoader.exists(direct_tres_path):
+		var direct_tres_tex = load(direct_tres_path)
+		if direct_tres_tex is Texture2D:
+			return direct_tres_tex as Texture2D
 	var atlas_path = _icon_atlas_path_for_png(icon_path)
 	if atlas_path != "" and ResourceLoader.exists(atlas_path):
 		var atlas_tex = load(atlas_path)
@@ -906,6 +920,12 @@ func _icon_placeholder_for_path(icon_path: String, fallback_text: String) -> Str
 			return "TS"
 		ICON_PANIC_PNG_PATH:
 			return "P"
+		SKILL_ICON_FREEZE_PATH:
+			return "F"
+		SKILL_ICON_CLEAR_PATH:
+			return "C"
+		SKILL_ICON_SAFE_WELL_PATH:
+			return "W"
 		_:
 			return fallback_text
 
@@ -1203,26 +1223,48 @@ func _clear_color_grid() -> void:
 func _build_board_side_overlays() -> void:
 	var left_overlay = VBoxContainer.new()
 	left_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left_overlay.custom_minimum_size = Vector2(220, 0)
+	left_overlay.custom_minimum_size = Vector2(56, 0)
+	left_overlay.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	left_overlay.add_theme_constant_override("separation", 8)
 	board_panel.add_child(left_overlay)
 
-	var time_slow_block = HBoxContainer.new()
-	time_slow_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_block.add_theme_constant_override("separation", 8)
-	left_overlay.add_child(time_slow_block)
-	_add_icon_or_fallback(time_slow_block, ICON_TIMESLOW_PNG_PATH, "TS", 22, 28)
-	lbl_rescue = Label.new()
-	lbl_rescue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
-	lbl_rescue.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_block.add_child(lbl_rescue)
+	btn_time_slow = TextureButton.new()
+	btn_time_slow.custom_minimum_size = Vector2(56, 56)
+	btn_time_slow.size = Vector2(56, 56)
+	btn_time_slow.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	btn_time_slow.ignore_texture_size = false
+	btn_time_slow.mouse_filter = Control.MOUSE_FILTER_STOP
+	var time_slow_tex = _load_icon_texture_with_fallback(ICON_TIMESLOW_PNG_PATH)
+	if time_slow_tex != null:
+		btn_time_slow.texture_normal = time_slow_tex
+		btn_time_slow.texture_hover = time_slow_tex
+		btn_time_slow.texture_pressed = time_slow_tex
+		btn_time_slow.texture_disabled = time_slow_tex
+	else:
+		var ts_fallback = Label.new()
+		ts_fallback.text = "TS"
+		ts_fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ts_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ts_fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		ts_fallback.add_theme_font_size_override("font_size", 20)
+		ts_fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btn_time_slow.add_child(ts_fallback)
+	left_overlay.add_child(btn_time_slow)
+
+	bar_time_slow = ProgressBar.new()
+	bar_time_slow.custom_minimum_size = Vector2(56, 12)
+	bar_time_slow.max_value = 100
+	bar_time_slow.show_percentage = false
+	bar_time_slow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left_overlay.add_child(bar_time_slow)
 
 	var left_size = left_overlay.get_combined_minimum_size()
-	left_overlay.size = Vector2(min(220.0, left_size.x), left_size.y)
+	left_overlay.size = Vector2(56, left_size.y)
 	left_overlay.position = Vector2(24, floor((board_panel.size.y - left_size.y) * 0.5))
 
 	var right_overlay = VBoxContainer.new()
 	right_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_overlay.custom_minimum_size = Vector2(56, 0)
 	right_overlay.add_theme_constant_override("separation", 10)
 	board_panel.add_child(right_overlay)
 
@@ -1233,9 +1275,9 @@ func _build_board_side_overlays() -> void:
 	skills_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_overlay.add_child(skills_tag)
 
-	var skill_rows = HBoxContainer.new()
+	var skill_rows = VBoxContainer.new()
 	skill_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skill_rows.add_theme_constant_override("separation", 18)
+	skill_rows.add_theme_constant_override("separation", 14)
 	right_overlay.add_child(skill_rows)
 
 	btn_skill_freeze = _build_skill_icon_button("F", SKILL_ICON_FREEZE_PATH)
@@ -1249,8 +1291,8 @@ func _build_board_side_overlays() -> void:
 	skill_rows.add_child(btn_skill_invuln)
 
 	var right_size = right_overlay.get_combined_minimum_size()
-	right_overlay.size = right_size
-	right_overlay.position = Vector2(board_panel.size.x - 24 - right_size.x, floor((board_panel.size.y - right_size.y) * 0.5))
+	right_overlay.size = Vector2(56, right_size.y)
+	right_overlay.position = Vector2(board_panel.size.x - 24 - 56, floor((board_panel.size.y - right_size.y) * 0.5))
 
 
 func _build_board_grid() -> void:
