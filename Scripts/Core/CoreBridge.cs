@@ -145,9 +145,9 @@ public partial class CoreBridge : Node
         var peak1Minutes = Mathf.Max(0.1f, _config.SpeedPeak1Minutes);
         var peak2Minutes = Mathf.Max(peak1Minutes + 0.1f, _config.SpeedPeak2Minutes);
         var peak3Minutes = Mathf.Max(peak2Minutes + 0.1f, _config.SpeedPeak3Minutes);
-        var mult1 = GetKneeMultiplierForDifficulty();
-        var mult2 = mult1 * 1.5f;
-        var mult3 = mult2 * 1.5f;
+        var mult1 = GetPeak1TargetMultiplier();
+        var mult2 = GetPeak2TargetMultiplier();
+        var mult3 = GetPeak3TargetMultiplier();
 
         float speedMultiplier;
         if (elapsedMinutes <= peak1Minutes)
@@ -226,20 +226,34 @@ public partial class CoreBridge : Node
     }
 
 
-    private float GetKneeMultiplierForDifficulty()
-    {
-        if (_difficulty == "Easy")
-            return _config.KneeMultEasy;
-        if (_difficulty == "Hard")
-            return _config.KneeMultHard;
-        return _config.KneeMultMedium;
-    }
-
     public float GetElapsedMinutesForDebug() => GetElapsedMinutes();
 
-    public float GetPeak1TargetMultiplier() => GetKneeMultiplierForDifficulty();
+    public float GetPeak1TargetMultiplier()
+    {
+        if (_difficulty == "Easy")
+            return 7.0f;
+        if (_difficulty == "Hard")
+            return 9.0f;
+        return 8.0f;
+    }
 
-    public float GetPeak2TargetMultiplier() => GetKneeMultiplierForDifficulty() * 1.5f;
+    public float GetPeak2TargetMultiplier()
+    {
+        if (_difficulty == "Easy")
+            return 10.0f;
+        if (_difficulty == "Hard")
+            return 14.0f;
+        return 12.0f;
+    }
+
+    public float GetPeak3TargetMultiplier()
+    {
+        if (_difficulty == "Easy")
+            return 15.0f;
+        if (_difficulty == "Hard")
+            return 20.0f;
+        return 18.0f;
+    }
 
     public float GetSpeedTailMultiplier()
     {
