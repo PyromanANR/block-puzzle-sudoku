@@ -84,7 +84,7 @@ var btn_exit: TextureButton
 var btn_skill_freeze: TextureButton
 var btn_skill_clear: TextureButton
 var btn_skill_invuln: TextureButton
-var panic_indicator_root: CenterContainer
+var panic_indicator_root: Control
 var panic_indicator_visual: Control
 var exit_dialog: AcceptDialog
 
@@ -676,73 +676,73 @@ func _build_ui() -> void:
 	var top_row = HBoxContainer.new()
 	top_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.size_flags_stretch_ratio = 1.5
+	top_row.add_theme_constant_override("separation", 12)
 	main_v.add_child(top_row)
+
+	var side_left = Panel.new()
+	side_left.custom_minimum_size = Vector2(220, 0)
+	side_left.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side_left.add_theme_stylebox_override("panel", _style_hud_panel())
+	top_row.add_child(side_left)
+	var side_left_margin = MarginContainer.new()
+	side_left_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	side_left_margin.add_theme_constant_override("margin_left", 10)
+	side_left_margin.add_theme_constant_override("margin_right", 10)
+	side_left_margin.add_theme_constant_override("margin_top", 10)
+	side_left_margin.add_theme_constant_override("margin_bottom", 10)
+	side_left.add_child(side_left_margin)
+	var time_slow_block = HBoxContainer.new()
+	time_slow_block.add_theme_constant_override("separation", 8)
+	side_left_margin.add_child(time_slow_block)
+	_add_icon_or_fallback(time_slow_block, ICON_TIMESLOW_PNG_PATH, "TS", 22, 28)
+	lbl_rescue = Label.new()
+	lbl_rescue.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
+	time_slow_block.add_child(lbl_rescue)
 
 	board_panel = Panel.new()
 	board_panel.custom_minimum_size = Vector2(700, 740)
 	board_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	board_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	board_panel.size_flags_stretch_ratio = 1.0
 	board_panel.add_theme_stylebox_override("panel", _style_board_panel())
 	top_row.add_child(board_panel)
 
-	next_box = null
-
-	var lower_panel = Panel.new()
-	lower_panel.custom_minimum_size = Vector2(0, 96)
-	lower_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lower_panel.add_theme_stylebox_override("panel", _style_hud_panel())
-	main_v.add_child(lower_panel)
-
-	var lower_margin = MarginContainer.new()
-	lower_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	lower_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lower_margin.add_theme_constant_override("margin_left", 12)
-	lower_margin.add_theme_constant_override("margin_right", 12)
-	lower_margin.add_theme_constant_override("margin_top", 10)
-	lower_margin.add_theme_constant_override("margin_bottom", 10)
-	lower_panel.add_child(lower_margin)
-
-	var lower_status = VBoxContainer.new()
-	lower_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lower_status.add_theme_constant_override("separation", 6)
-	lower_margin.add_child(lower_status)
-
-	var hud_row = HBoxContainer.new()
-	hud_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hud_row.add_theme_constant_override("separation", 12)
-	lower_status.add_child(hud_row)
-
-	var time_slow_block = HBoxContainer.new()
-	time_slow_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	time_slow_block.size_flags_stretch_ratio = 1.0
-	time_slow_block.add_theme_constant_override("separation", 8)
-	hud_row.add_child(time_slow_block)
-	_add_icon_or_fallback(time_slow_block, ICON_TIMESLOW_PNG_PATH, "TS", 22, 38)
-	lbl_rescue = Label.new()
-	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
-	time_slow_block.add_child(lbl_rescue)
-
-	var middle_spacer = Control.new()
-	middle_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	middle_spacer.size_flags_stretch_ratio = 1.0
-	hud_row.add_child(middle_spacer)
-
-	var skills_group = HBoxContainer.new()
+	var side_right = Panel.new()
+	side_right.custom_minimum_size = Vector2(220, 0)
+	side_right.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side_right.add_theme_stylebox_override("panel", _style_hud_panel())
+	top_row.add_child(side_right)
+	var side_right_margin = MarginContainer.new()
+	side_right_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	side_right_margin.add_theme_constant_override("margin_left", 10)
+	side_right_margin.add_theme_constant_override("margin_right", 10)
+	side_right_margin.add_theme_constant_override("margin_top", 10)
+	side_right_margin.add_theme_constant_override("margin_bottom", 10)
+	side_right.add_child(side_right_margin)
+	var skills_group = VBoxContainer.new()
 	skills_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_group.size_flags_stretch_ratio = 1.0
-	skills_group.alignment = BoxContainer.ALIGNMENT_END
 	skills_group.add_theme_constant_override("separation", 10)
-	hud_row.add_child(skills_group)
+	side_right_margin.add_child(skills_group)
 
 	var skills_tag = Label.new()
 	skills_tag.text = "Skills"
+	skills_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	skills_tag.add_theme_font_size_override("font_size", _skin_font_size("tiny", 14))
 	skills_group.add_child(skills_tag)
 
+	var skill_rows_center = CenterContainer.new()
+	skill_rows_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skills_group.add_child(skill_rows_center)
+
 	var skill_rows = HBoxContainer.new()
+	skill_rows.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	skill_rows.add_theme_constant_override("separation", 18)
-	skill_rows.alignment = BoxContainer.ALIGNMENT_END
-	skills_group.add_child(skill_rows)
+	skill_rows.alignment = BoxContainer.ALIGNMENT_CENTER
+	skill_rows_center.add_child(skill_rows)
+
+	next_box = null
 
 	btn_skill_freeze = _build_skill_icon_button("F", SKILL_ICON_FREEZE_PATH)
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
@@ -758,6 +758,7 @@ func _build_ui() -> void:
 	well_panel.custom_minimum_size = Vector2(0, 420)
 	well_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	well_panel.size_flags_stretch_ratio = 1.0
 	well_panel.add_theme_stylebox_override("panel", _style_bottom_panel())
 	well_panel.clip_contents = true
 	main_v.add_child(well_panel)
@@ -774,26 +775,9 @@ func _build_ui() -> void:
 	drop_zone_panel = Panel.new()
 	drop_zone_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drop_zone_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	drop_zone_panel.size_flags_stretch_ratio = 1.0
+	drop_zone_panel.size_flags_stretch_ratio = 1.22
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
-
-	panic_indicator_root = CenterContainer.new()
-	panic_indicator_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	panic_indicator_root.custom_minimum_size = Vector2(56, 0)
-	panic_indicator_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_panel.add_child(panic_indicator_root)
-	panic_indicator_visual = _build_panic_indicator_visual()
-	panic_indicator_root.add_child(panic_indicator_visual)
-
-	drop_zone_draw = Control.new()
-	drop_zone_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	drop_zone_draw.offset_left = 10
-	drop_zone_draw.offset_right = -10
-	drop_zone_draw.offset_top = 10
-	drop_zone_draw.offset_bottom = -10
-	drop_zone_draw.mouse_filter = Control.MOUSE_FILTER_STOP
-	drop_zone_panel.add_child(drop_zone_draw)
 
 	well_slots_panel = Panel.new()
 	well_slots_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -804,6 +788,15 @@ func _build_ui() -> void:
 	well_slots_base_rotation = well_slots_panel.rotation_degrees
 	well_slots_base_position = well_slots_panel.position
 
+	drop_zone_draw = Control.new()
+	drop_zone_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	drop_zone_draw.offset_left = 10
+	drop_zone_draw.offset_right = -10
+	drop_zone_draw.offset_top = 10
+	drop_zone_draw.offset_bottom = -10
+	drop_zone_draw.mouse_filter = Control.MOUSE_FILTER_STOP
+	drop_zone_panel.add_child(drop_zone_draw)
+
 	well_slots_draw = Control.new()
 	well_slots_draw.clip_contents = false
 	well_slots_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -813,6 +806,14 @@ func _build_ui() -> void:
 	well_slots_draw.offset_bottom = -10
 	well_slots_draw.mouse_filter = Control.MOUSE_FILTER_STOP
 	well_slots_panel.add_child(well_slots_draw)
+
+	panic_indicator_root = Control.new()
+	panic_indicator_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panic_indicator_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_panel.add_child(panic_indicator_root)
+	panic_indicator_visual = _build_panic_indicator_visual()
+	panic_indicator_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panic_indicator_root.add_child(panic_indicator_visual)
 
 	ghost_layer = Control.new()
 	ghost_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -906,12 +907,22 @@ func _hud_metric_row(parent: Control, metric_key: String, prefix: String, value:
 	wrap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	wrap.add_theme_constant_override("separation", 6)
 	parent.add_child(wrap)
-	if metric_key == "score":
-		_add_icon_or_fallback(wrap, ICON_SCORE_PNG_PATH, "S", 16, 28)
-	elif metric_key == "speed":
-		_add_icon_or_fallback(wrap, ICON_SPEED_PNG_PATH, "SPD", 16, 28)
-	elif metric_key == "time":
-		_add_icon_or_fallback(wrap, ICON_TIME_PNG_PATH, "T", 16, 28)
+	var icon_path = ""
+	var fallback_text = ""
+	match metric_key:
+		"score":
+			icon_path = ICON_SCORE_PNG_PATH
+			fallback_text = "S"
+		"speed":
+			icon_path = ICON_SPEED_PNG_PATH
+			fallback_text = "SPD"
+		"time":
+			icon_path = ICON_TIME_PNG_PATH
+			fallback_text = "T"
+		_:
+			icon_path = ""
+	if icon_path != "":
+		_add_icon_or_fallback(wrap, icon_path, fallback_text, 16, 28)
 	var label = Label.new()
 	label.text = "%s: %s" % [prefix, value]
 	label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
@@ -1076,7 +1087,7 @@ func _build_panic_indicator_visual() -> Control:
 	var tex = _load_icon_texture_with_fallback(ICON_PANIC_PNG_PATH)
 	if tex != null:
 		var icon = TextureRect.new()
-		icon.custom_minimum_size = Vector2(40, 40)
+		icon.custom_minimum_size = Vector2(120, 120)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.texture = tex
@@ -1084,12 +1095,31 @@ func _build_panic_indicator_visual() -> Control:
 		return icon
 	var fallback = Label.new()
 	fallback.text = "!"
-	fallback.custom_minimum_size = Vector2(40, 40)
+	fallback.custom_minimum_size = Vector2(120, 120)
 	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	fallback.add_theme_font_size_override("font_size", 28)
 	fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return fallback
+
+
+func _panic_icon_target_position(slots_top: float, dynamic_h: float, slots_total: int) -> Vector2:
+	if slots_total <= 0:
+		return Vector2.ZERO
+	var threshold_row = int(ceil(float(slots_total) * 0.60))
+	threshold_row = clamp(threshold_row, 1, slots_total)
+	var top_y = slots_top
+	var boundary_y = top_y + float(threshold_row) * dynamic_h + (float(threshold_row) - 0.5) * SLOT_GAP
+	var icon_size = panic_indicator_visual.size
+	if icon_size.x <= 0.0 or icon_size.y <= 0.0:
+		icon_size = panic_indicator_visual.custom_minimum_size
+	if icon_size.x <= 0.0 or icon_size.y <= 0.0:
+		icon_size = Vector2(120, 120)
+	var min_y = icon_size.y * 0.5
+	var max_y = max(min_y, well_slots_panel.size.y - icon_size.y * 0.5)
+	var target_y = clamp(boundary_y, min_y, max_y)
+	var target_x = well_slots_panel.size.x * 0.5
+	return Vector2(target_x - icon_size.x * 0.5, target_y - icon_size.y * 0.5)
 
 
 func _update_panic_warning_visual(fill_ratio: float) -> void:
@@ -1106,9 +1136,7 @@ func _update_panic_warning_visual(fill_ratio: float) -> void:
 		panic_indicator_visual.modulate = Color(1, 1, 1, 1.0 - 0.25 * wave)
 		var brightness = min(1.10, 1.0 + 0.10 * wave)
 		well_slots_panel.modulate = Color(brightness, brightness, brightness, 1.0)
-		var x_offset = 2.0 * sin(TAU * 6.0 * t)
-		var y_offset = 1.0 * sin(TAU * 7.0 * t)
-		well_slots_panel.position = well_slots_base_position + Vector2(x_offset, y_offset)
+		well_slots_panel.position = well_slots_base_position
 		well_slots_panel.rotation_degrees = well_slots_base_rotation
 	else:
 		panic_indicator_visual.scale = Vector2.ONE
@@ -1615,6 +1643,8 @@ func _redraw_well() -> void:
 	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
 	var dynamic_h = max(64.0, min(120.0, per_slot - SLOT_GAP * 0.5))
+	if panic_indicator_root != null and panic_indicator_visual != null:
+		panic_indicator_visual.position = _panic_icon_target_position(slots_top, dynamic_h, pile_max)
 	var slot_preview_cell = int(clamp(float(cell_size) * 0.95, 14.0, 52.0))
 	var neon_min = float(core.call("GetWellNeonMinAlpha"))
 	var neon_max = float(core.call("GetWellNeonMaxAlpha"))
