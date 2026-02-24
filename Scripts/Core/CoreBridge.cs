@@ -28,6 +28,9 @@ public partial class CoreBridge : Node
     {
         _rng.Randomize();
         _config = BalanceConfig.LoadOrDefault("res://Scripts/Core/balance_config.json");
+        GD.Print($"BalanceConfig loaded: BaseFallSpeed={_config.BaseFallSpeed}, MaxFallSpeedCap={_config.MaxFallSpeedCap}");
+        if (_config.MaxFallSpeedCap / Mathf.Max(0.001f, _config.BaseFallSpeed) < 10f)
+            GD.PushWarning("BalanceConfig sanity: MaxFallSpeedCap seems low; speed may clamp early.");
         _generator = new PieceGenerator(_rng, _config);
 
         _startMs = Time.GetTicksMsec();

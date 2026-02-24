@@ -125,12 +125,17 @@ public class BalanceConfig
 
             using var file = FileAccess.Open(path, FileAccess.ModeFlags.Read);
             var text = file.GetAsText();
-            var cfg = JsonSerializer.Deserialize<BalanceConfig>(text);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                IncludeFields = true
+            };
+            var cfg = JsonSerializer.Deserialize<BalanceConfig>(text, options);
             return cfg ?? new BalanceConfig();
         }
         catch (Exception e)
         {
-            GD.PrintErr($"BalanceConfig load failed: {e.Message}");
+            GD.PrintErr($"BalanceConfig load failed: {e}");
             return new BalanceConfig();
         }
     }
