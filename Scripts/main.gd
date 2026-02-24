@@ -694,7 +694,7 @@ func _build_ui() -> void:
 	well_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	well_panel.size_flags_stretch_ratio = 1.0
 	well_panel.add_theme_stylebox_override("panel", _style_bottom_panel())
-	well_panel.clip_contents = true
+	well_panel.clip_contents = false
 	main_v.add_child(well_panel)
 
 	well_draw = HBoxContainer.new()
@@ -1590,14 +1590,10 @@ func _redraw_well() -> void:
 	var slots_header_row = HBoxContainer.new()
 	slots_header_row.position = Vector2(8, 4)
 	slots_header_row.size = Vector2(max(0.0, slots_w - 16.0), 28)
-	slots_header_row.add_theme_constant_override("separation", 0)
+	slots_header_row.add_theme_constant_override("separation", 10)
 	slots_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_header_row)
 
-	var slots_header_wrap = CenterContainer.new()
-	slots_header_wrap.custom_minimum_size = Vector2(128, 28)
-	slots_header_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slots_header_row.add_child(slots_header_wrap)
 	var slots_header = Label.new()
 	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
 	slots_header.custom_minimum_size = Vector2(0, 28)
@@ -1605,29 +1601,19 @@ func _redraw_well() -> void:
 	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
 	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45, 0.92))
 	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slots_header_wrap.add_child(slots_header)
-
-	var slots_mid_spacer = Control.new()
-	slots_mid_spacer.custom_minimum_size = Vector2(10, 0)
-	slots_mid_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slots_header_row.add_child(slots_mid_spacer)
-
-	var slots_progress_wrap = CenterContainer.new()
-	slots_progress_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slots_progress_wrap.custom_minimum_size = Vector2(240, 28)
-	slots_header_row.add_child(slots_progress_wrap)
+	slots_header_row.add_child(slots_header)
 
 	var slots_progress = ProgressBar.new()
 	slots_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slots_progress.custom_minimum_size = Vector2(240, 14)
+	slots_progress.custom_minimum_size = Vector2(0, 18)
 	slots_progress.max_value = 1.0
 	slots_progress.value = fill_ratio
 	slots_progress.show_percentage = false
 	slots_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slots_progress_wrap.add_child(slots_progress)
+	slots_header_row.add_child(slots_progress)
 
 	var slots_top = max(pile_top, 58.0)
-	var slot_w = slots_w - 16.0
+	var slot_w = max(0.0, slots_w - 16.0)
 	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
 	var dynamic_h = max(64.0, min(120.0, per_slot - SLOT_GAP * 0.5))
