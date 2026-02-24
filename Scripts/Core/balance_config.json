@@ -69,5 +69,17 @@
   "DualDropChanceCapHard": 0.2,
   "DualDropStaggerSec": 1.0,
   "NoMercyExtraSlowMin": 0.7,
-  "NoMercyExtraSlowMax": 0.4
+  "NoMercyExtraSlowMax": 0.4,
+  "DualDropMinGapCells": 2.0,
+  "DualDropStaggerBaseSec": 1.0,
+  "DualDropStaggerExtraSec": 0.6,
+  "DualDropStaggerSpeedStartMul": 7.0,
+  "DualDropStaggerSpeedEndMul": 14.0,
+  "DualDropStaggerMaxSec": 1.8,
+  "TimeSlowReadyOverlayDurationSec": 0.8,
+  "TimeSlowReadySfxPath": "res://Assets/Audio/time_slow.wav",
+  "TimeSlowCooldownSec": 30.0,
+  "WellNeonPulseSpeed": 2.5,
+  "WellNeonMinAlpha": 0.4,
+  "WellNeonMaxAlpha": 1.0
 }
