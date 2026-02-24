@@ -2,7 +2,7 @@
   "BaseFallSpeed": 18.0,
   "LevelSpeedGrowth": 1.16,
   "TimeSpeedRampPerMinute": 0.16,
-  "MaxFallSpeedCap": 92.0,
+  "MaxFallSpeedCap": 360.0,
   "MaxFallSpeedDeltaPerSec": 26.0,
   "DdaMinFallMultiplier": 0.9,
   "DdaMaxFallMultiplier": 1.28,
