@@ -43,8 +43,12 @@ public class BalanceConfig
 
 
     // Endless speed curve / knee
-    public float SpeedKneeMinutes = 6.0f;
-    public float PostKneeSpeedTailStrength = 0.035f;
+    public float SpeedKneeMinutes = 6.5f;
+    public float SpeedEaseExponent = 2.0f;
+    public float KneeMultEasy = 8.0f;
+    public float KneeMultMedium = 9.0f;
+    public float KneeMultHard = 10.0f;
+    public float PostKneeTailStrength = 0.08f;
 
     // WELL drag slow-motion
     public float WellDragSlowMin = 0.90f;
@@ -64,14 +68,17 @@ public class BalanceConfig
     public float AutoSlowThresholdBoard = 0.85f;
     public float AutoSlowThresholdWell = 0.85f;
     public float AutoSlowScale = 0.75f;
-    public float AutoSlowDuration = 1.0f;
+    public float AutoSlowDurationSec = 1.0f;
     public float AutoSlowCooldownSec = 10.0f;
 
     // WELL rescue reward
     public float RescueWindowSec = 3.0f;
     public int RescueScoreBonus = 80;
-    public float RescueStabilityDuration = 5.0f;
+    public float RescueStabilityDurationSec = 5.0f;
     public float RescueStabilityGrowthMul = 0.50f;
+
+    // Micro-freeze feedback
+    public float MicroFreezeSec = 0.10f;
 
     // Scoring / leveling
     public int PointsPerLevel = 360;
