@@ -96,7 +96,7 @@
   "PiecePoolEnableDomino": true,
   "PiecePoolEnableTromino": true,
   "PiecePoolEnablePentominoLite": true,
-  "InvalidDropGraceSec": 2.0,
+  "InvalidDropGraceSec": 1.2,
   "InvalidDropFailSlowSec": 0.4,
   "InvalidDropFailTimeScale": 0.85
 }
