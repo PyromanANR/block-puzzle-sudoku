@@ -951,7 +951,7 @@ func _spawn_falling_piece() -> void:
 		preview_kind = String(preview_piece.get("Kind"))
 	fall_piece = core.call("PopNextPieceForBoard", board)
 	var actual_next_piece = core.call("PeekNextPieceForBoard", board)
-	next_actual_kind = ""
+	var next_actual_kind = ""
 	if actual_next_piece != null:
 		next_actual_kind = String(actual_next_piece.get("Kind"))
 	fall_y = 10.0
