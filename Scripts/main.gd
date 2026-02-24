@@ -135,6 +135,17 @@ const SKILL_ICON_SIZE := 48.0
 const SKILL_ICON_FREEZE_PATH := "res://Assets/UI/icons/skill_freeze.png"
 const SKILL_ICON_CLEAR_PATH := "res://Assets/UI/icons/skill_clear_board.png"
 const SKILL_ICON_SAFE_WELL_PATH := "res://Assets/UI/icons/skill_safe_well.png"
+const ICON_SCORE_PNG_PATH := "res://Assets/UI/icons/icon_score.png"
+const ICON_SPEED_PNG_PATH := "res://Assets/UI/icons/icon_speed.png"
+const ICON_TIME_PNG_PATH := "res://Assets/UI/icons/icon_time.png"
+const ICON_TIMESLOW_PNG_PATH := "res://Assets/UI/icons/icon_timeslow.png"
+const ICON_PANIC_PNG_PATH := "res://Assets/UI/icons/icon_panic.png"
+
+const ICON_SCORE_TRES_PATH := "res://Assets/UI/icons/icon_score.tres"
+const ICON_SPEED_TRES_PATH := "res://Assets/UI/icons/icon_speed.tres"
+const ICON_TIME_TRES_PATH := "res://Assets/UI/icons/icon_time.tres"
+const ICON_TIMESLOW_TRES_PATH := "res://Assets/UI/icons/icon_timeslow.tres"
+const ICON_PANIC_TRES_PATH := "res://Assets/UI/icons/icon_panic.tres"
 
 var toast_hide_at_ms = 0
 
@@ -922,18 +933,64 @@ func _hud_metric_row(parent: Control, icon_path: String, fallback: String, prefi
 	return label
 
 
-func _add_icon_or_fallback(parent: Control, icon_path: String, fallback_text: String, fallback_size: int) -> void:
+func _icon_atlas_path_for_png(icon_path: String) -> String:
+	match icon_path:
+		ICON_SCORE_PNG_PATH:
+			return ICON_SCORE_TRES_PATH
+		ICON_SPEED_PNG_PATH:
+			return ICON_SPEED_TRES_PATH
+		ICON_TIME_PNG_PATH:
+			return ICON_TIME_TRES_PATH
+		ICON_TIMESLOW_PNG_PATH:
+			return ICON_TIMESLOW_TRES_PATH
+		ICON_PANIC_PNG_PATH:
+			return ICON_PANIC_TRES_PATH
+		_:
+			return ""
+
+
+func _load_icon_texture_with_fallback(icon_path: String) -> Texture2D:
+	var atlas_path = _icon_atlas_path_for_png(icon_path)
+	if atlas_path != "" and ResourceLoader.exists(atlas_path):
+		var atlas_tex = load(atlas_path)
+		if atlas_tex is Texture2D:
+			return atlas_tex as Texture2D
 	if ResourceLoader.exists(icon_path):
+		var png_tex = load(icon_path)
+		if png_tex is Texture2D:
+			return png_tex as Texture2D
+	return null
+
+
+func _icon_placeholder_for_path(icon_path: String, fallback_text: String) -> String:
+	match icon_path:
+		ICON_SCORE_PNG_PATH:
+			return "S"
+		ICON_SPEED_PNG_PATH:
+			return "SPD"
+		ICON_TIME_PNG_PATH:
+			return "T"
+		ICON_TIMESLOW_PNG_PATH:
+			return "TS"
+		ICON_PANIC_PNG_PATH:
+			return "P"
+		_:
+			return fallback_text
+
+
+func _add_icon_or_fallback(parent: Control, icon_path: String, fallback_text: String, fallback_size: int) -> void:
+	var tex = _load_icon_texture_with_fallback(icon_path)
+	if tex != null:
 		var icon = TextureRect.new()
 		icon.custom_minimum_size = Vector2(18, 18)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.texture = load(icon_path)
+		icon.texture = tex
 		parent.add_child(icon)
 		return
 	var fallback = Label.new()
 	fallback.custom_minimum_size = Vector2(18, 18)
-	fallback.text = fallback_text
+	fallback.text = _icon_placeholder_for_path(icon_path, fallback_text)
 	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	fallback.add_theme_font_size_override("font_size", fallback_size)
