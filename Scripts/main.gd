@@ -123,6 +123,9 @@ const SLOT_GAP := 6
 const HEADER_BUTTON_SIZE := 76.0
 const EXIT_BUTTON_SIZE := 84.0
 const HEADER_BUTTON_MARGIN := 20.0
+const SKILL_ICON_SIZE := 48.0
+
+var skill_hint_until_ms = 0
 
 var skill_hint_until_ms = 0
 
@@ -706,15 +709,22 @@ func _build_ui() -> void:
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	time_slow_row.add_child(lbl_rescue)
 
+	var skills_spacer = Control.new()
+	skills_spacer.custom_minimum_size = Vector2(12, 0)
+	hud_row.add_child(skills_spacer)
+
 	var skills_tag = Label.new()
 	skills_tag.text = "Skils"
 	skills_tag.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	hud_row.add_child(skills_tag)
 
+	var skills_group = VBoxContainer.new()
+	skills_group.add_theme_constant_override("separation", 4)
+	hud_row.add_child(skills_group)
+
 	var skill_rows = HBoxContainer.new()
-	skill_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	skill_rows.add_theme_constant_override("separation", 8)
-	hud_row.add_child(skill_rows)
+	skills_group.add_child(skill_rows)
 
 	btn_skill_freeze = _build_skill_icon_button("F")
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
@@ -727,9 +737,8 @@ func _build_ui() -> void:
 	skill_rows.add_child(btn_skill_invuln)
 
 	var skill_labels = HBoxContainer.new()
-	skill_labels.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	skill_labels.add_theme_constant_override("separation", 8)
-	lower_status.add_child(skill_labels)
+	skills_group.add_child(skill_labels)
 
 	skill_labels.add_child(_build_skill_icon_label("Freeze"))
 	skill_labels.add_child(_build_skill_icon_label("Clear Board"))
@@ -963,8 +972,7 @@ func _build_skill_card(label_text: String, req_level: int, progress_level: int) 
 
 func _build_skill_icon_button(fallback_text: String) -> TextureButton:
 	var b = TextureButton.new()
-	b.custom_minimum_size = Vector2(42, 42)
-	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.custom_minimum_size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
 	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	b.ignore_texture_size = true
 	b.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -972,13 +980,15 @@ func _build_skill_icon_button(fallback_text: String) -> TextureButton:
 	return b
 
 
-func _build_skill_icon_label(text_value: String) -> Label:
+func _build_skill_icon_label(text_value: String) -> Control:
+	var wrap = CenterContainer.new()
+	wrap.custom_minimum_size = Vector2(SKILL_ICON_SIZE, 16)
 	var l = Label.new()
 	l.text = text_value
-	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
-	return l
+	wrap.add_child(l)
+	return wrap
 
 
 func _on_skill_icon_pressed(btn: TextureButton, required_level: int, locked_msg: String) -> void:
@@ -1387,33 +1397,28 @@ func _redraw_well() -> void:
 	drop_zone_draw.add_child(drop_marker)
 
 
+	var slots_header_row = HBoxContainer.new()
+	slots_header_row.position = Vector2(8, 6)
+	slots_header_row.size = Vector2(max(0.0, slots_w - 16.0), 22)
+	slots_header_row.add_theme_constant_override("separation", 8)
+	slots_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_slots_draw.add_child(slots_header_row)
+
 	var slots_header = Label.new()
 	slots_header.text = "WELL: %d / %d" % [pile.size(), pile_max]
-	slots_header.position = Vector2(8, 4)
 	slots_header.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
 	slots_header.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45, 0.92))
-	slots_header.scale = Vector2.ONE
 	slots_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_slots_draw.add_child(slots_header)
+	slots_header_row.add_child(slots_header)
 
-	var slots_progress_bg = ColorRect.new()
-	slots_progress_bg.color = Color(1, 1, 1, 0.12)
-	slots_progress_bg.position = Vector2(8, 38)
-	slots_progress_bg.size = Vector2(max(0.0, slots_w - 16.0), 10)
-	slots_progress_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_slots_draw.add_child(slots_progress_bg)
-
-	var slots_progress_fg = ColorRect.new()
-	slots_progress_fg.position = slots_progress_bg.position
-	slots_progress_fg.size = Vector2(slots_progress_bg.size.x * fill_ratio, slots_progress_bg.size.y)
-	if fill_ratio >= danger_end_ratio:
-		slots_progress_fg.color = _skin_color("danger", Color(0.95, 0.20, 0.20))
-	elif fill_ratio >= danger_start_ratio:
-		slots_progress_fg.color = Color(0.95, 0.82, 0.28, 0.90)
-	else:
-		slots_progress_fg.color = Color(0.32, 0.85, 0.45, 0.90)
-	slots_progress_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	well_slots_draw.add_child(slots_progress_fg)
+	var slots_progress = ProgressBar.new()
+	slots_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slots_progress.custom_minimum_size = Vector2(120, 12)
+	slots_progress.max_value = 1.0
+	slots_progress.value = fill_ratio
+	slots_progress.show_percentage = false
+	slots_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slots_header_row.add_child(slots_progress)
 
 	var slots_top = max(pile_top, 52.0)
 	var slot_w = slots_w - 16.0
