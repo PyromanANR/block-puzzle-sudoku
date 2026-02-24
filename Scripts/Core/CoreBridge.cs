@@ -28,6 +28,9 @@ public partial class CoreBridge : Node
     {
         _rng.Randomize();
         _config = BalanceConfig.LoadOrDefault("res://Scripts/Core/balance_config.json");
+        GD.Print($"BalanceConfig loaded: BaseFallSpeed={_config.BaseFallSpeed}, MaxFallSpeedCap={_config.MaxFallSpeedCap}");
+        if (_config.MaxFallSpeedCap / Mathf.Max(0.001f, _config.BaseFallSpeed) < 10f)
+            GD.PushWarning("BalanceConfig sanity: MaxFallSpeedCap seems low; speed may clamp early.");
         _generator = new PieceGenerator(_rng, _config);
 
         _startMs = Time.GetTicksMsec();
@@ -145,9 +148,9 @@ public partial class CoreBridge : Node
         var peak1Minutes = Mathf.Max(0.1f, _config.SpeedPeak1Minutes);
         var peak2Minutes = Mathf.Max(peak1Minutes + 0.1f, _config.SpeedPeak2Minutes);
         var peak3Minutes = Mathf.Max(peak2Minutes + 0.1f, _config.SpeedPeak3Minutes);
-        var mult1 = GetKneeMultiplierForDifficulty();
-        var mult2 = mult1 * 1.5f;
-        var mult3 = mult2 * 1.5f;
+        var mult1 = GetPeak1TargetMultiplier();
+        var mult2 = GetPeak2TargetMultiplier();
+        var mult3 = GetPeak3TargetMultiplier();
 
         float speedMultiplier;
         if (elapsedMinutes <= peak1Minutes)
@@ -226,20 +229,34 @@ public partial class CoreBridge : Node
     }
 
 
-    private float GetKneeMultiplierForDifficulty()
-    {
-        if (_difficulty == "Easy")
-            return _config.KneeMultEasy;
-        if (_difficulty == "Hard")
-            return _config.KneeMultHard;
-        return _config.KneeMultMedium;
-    }
-
     public float GetElapsedMinutesForDebug() => GetElapsedMinutes();
 
-    public float GetPeak1TargetMultiplier() => GetKneeMultiplierForDifficulty();
+    public float GetPeak1TargetMultiplier()
+    {
+        if (_difficulty == "Easy")
+            return 7.0f;
+        if (_difficulty == "Hard")
+            return 9.0f;
+        return 8.0f;
+    }
 
-    public float GetPeak2TargetMultiplier() => GetKneeMultiplierForDifficulty() * 1.5f;
+    public float GetPeak2TargetMultiplier()
+    {
+        if (_difficulty == "Easy")
+            return 10.0f;
+        if (_difficulty == "Hard")
+            return 14.0f;
+        return 12.0f;
+    }
+
+    public float GetPeak3TargetMultiplier()
+    {
+        if (_difficulty == "Easy")
+            return 15.0f;
+        if (_difficulty == "Hard")
+            return 20.0f;
+        return 18.0f;
+    }
 
     public float GetSpeedTailMultiplier()
     {
@@ -339,6 +356,15 @@ public partial class CoreBridge : Node
     public float GetPanicPulseSpeed() => _config.PanicPulseSpeed;
     public float GetPanicBlinkSpeed() => _config.PanicBlinkSpeed;
     public float GetPanicBlinkThreshold() => _config.PanicBlinkThreshold;
+    public float GetSpeedPeak1Minutes() => _config.SpeedPeak1Minutes;
+
+    public void ResetRuntimeClock()
+    {
+        _startMs = Time.GetTicksMsec();
+        _lastSpeedCalcMs = _startMs;
+        _smoothedFallSpeed = _config.BaseFallSpeed;
+        _lastTargetSpeed = _smoothedFallSpeed;
+    }
 
     public void TriggerRescueStability()
     {
