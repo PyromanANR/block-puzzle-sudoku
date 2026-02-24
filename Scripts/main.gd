@@ -710,7 +710,10 @@ func _build_ui() -> void:
 	main_v.add_child(well_panel)
 
 	well_draw = HBoxContainer.new()
+	well_draw.name = "bottom_row"
 	well_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	well_draw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	well_draw.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	well_draw.offset_left = 14
 	well_draw.offset_right = -14
 	well_draw.offset_top = 14
@@ -719,6 +722,7 @@ func _build_ui() -> void:
 	well_panel.add_child(well_draw)
 
 	drop_zone_panel = Panel.new()
+	drop_zone_panel.name = "drop_zone_panel"
 	drop_zone_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drop_zone_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	drop_zone_panel.size_flags_stretch_ratio = 1.22
@@ -726,6 +730,7 @@ func _build_ui() -> void:
 	well_draw.add_child(drop_zone_panel)
 
 	well_slots_panel = Panel.new()
+	well_slots_panel.name = "well_panel"
 	well_slots_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_slots_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	well_slots_panel.size_flags_stretch_ratio = 1.0
