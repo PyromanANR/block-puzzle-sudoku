@@ -65,6 +65,12 @@ public class BalanceConfig
     public float DualDropChanceCapMedium = 0.15f;
     public float DualDropChanceCapHard = 0.20f;
     public float DualDropStaggerSec = 1.0f;
+    public float DualDropMinGapCells = 2.0f;
+    public float DualDropStaggerBaseSec = 1.0f;
+    public float DualDropStaggerExtraSec = 0.6f;
+    public float DualDropStaggerSpeedStartMul = 7.0f;
+    public float DualDropStaggerSpeedEndMul = 14.0f;
+    public float DualDropStaggerMaxSec = 1.8f;
 
     // Auto-slow panic rescue
     public float AutoSlowThresholdBoard = 0.85f;
