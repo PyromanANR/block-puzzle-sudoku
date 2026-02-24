@@ -353,6 +353,8 @@ public partial class CoreBridge : Node
     public float GetWellNeonMaxAlpha() => _config.WellNeonMaxAlpha;
     public float GetTimeSlowEffectDurationSec() => _config.TimeSlowEffectDurationSec;
     public float GetTimeSlowEffectTimeScale() => _config.TimeSlowEffectTimeScale;
+    public float GetWellFirstEntrySlowDurationSec() => _config.WellFirstEntrySlowDurationSec;
+    public float GetWellFirstEntrySlowTimeScale() => _config.WellFirstEntrySlowTimeScale;
     public float GetPanicPulseSpeed() => _config.PanicPulseSpeed;
     public float GetPanicBlinkSpeed() => _config.PanicBlinkSpeed;
     public float GetPanicBlinkThreshold() => _config.PanicBlinkThreshold;

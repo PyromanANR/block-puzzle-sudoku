@@ -83,9 +83,17 @@
   "WellNeonMinAlpha": 0.4,
   "WellNeonMaxAlpha": 1.0,
   "SpeedPeak3Minutes": 10.0,
-  "TimeSlowEffectDurationSec": 2.0,
+  "TimeSlowEffectDurationSec": 5.0,
   "TimeSlowEffectTimeScale": 0.55,
   "PanicPulseSpeed": 2.0,
   "PanicBlinkSpeed": 7.0,
-  "PanicBlinkThreshold": 0.85
+  "PanicBlinkThreshold": 0.85,
+  "WellFirstEntrySlowDurationSec": 1.5,
+  "WellFirstEntrySlowTimeScale": 0.5,
+  "GeneratorMaxSameInRow": 2,
+  "GeneratorHistoryLen": 6,
+  "GeneratorUseBag": true,
+  "PiecePoolEnableDomino": true,
+  "PiecePoolEnableTromino": true,
+  "PiecePoolEnablePentominoLite": true
 }
