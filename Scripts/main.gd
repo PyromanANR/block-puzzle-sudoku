@@ -77,17 +77,18 @@ var lbl_level: Label
 var lbl_time: Label
 var lbl_panic: Label
 var lbl_rescue: Label
-var lbl_dual: Label
 var next_box: Panel
 
-var btn_settings: Button
-var btn_exit: Button
+var btn_settings: TextureButton
+var btn_exit: TextureButton
 var exit_dialog: AcceptDialog
 
 # Game Over overlay
 var overlay_dim: ColorRect
 var overlay_text: Label
 var is_game_over: bool = false
+var fx_layer: CanvasLayer
+var time_slow_overlay: ColorRect
 
 # ----------------------------
 # Colors
@@ -140,6 +141,9 @@ var rescue_from_well_pending = false
 var panic_sfx_cooldown_ms = 0
 var well_header_pulse_left = 0.0
 var time_scale_reason = "Normal"
+var time_slow_cooldown_until_ms = 0
+var time_slow_overlay_until_ms = 0
+var time_slow_overlay_input_release_ms = 0
 var sfx_players = {}
 var missing_sfx_warned = {}
 var last_dual_drop_min = -1.0
@@ -149,10 +153,6 @@ const PANIC_HIGH_THRESHOLD = 0.85
 const PANIC_MID_THRESHOLD = 0.60
 const PANIC_PULSE_SPEED = 2.0
 const PANIC_BLINK_SPEED = 7.0
-const NEON_PULSE_SPEED = 2.5
-const NEON_MIN_ALPHA = 0.40
-const NEON_MAX_ALPHA = 1.0
-const NEON_RING_ROTATE_DEG = 180.0
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -253,6 +253,9 @@ func _start_round() -> void:
 	panic_sfx_cooldown_ms = 0
 	well_header_pulse_left = 0.0
 	time_scale_reason = "Normal"
+	time_slow_cooldown_until_ms = 0
+	time_slow_overlay_until_ms = 0
+	time_slow_overlay_input_release_ms = 0
 	Engine.time_scale = 1.0
 
 	pile.clear()
@@ -287,6 +290,11 @@ func _trigger_game_over() -> void:
 	auto_slow_until_ms = 0
 	micro_freeze_until_ms = 0
 	panic_sfx_cooldown_ms = 0
+	time_slow_cooldown_until_ms = 0
+	time_slow_overlay_until_ms = 0
+	time_slow_overlay_input_release_ms = 0
+	if time_slow_overlay != null:
+		time_slow_overlay.visible = false
 	Engine.time_scale = 1.0
 	set_process(false)
 
@@ -313,6 +321,9 @@ func _audio_setup() -> void:
 	_ensure_sfx("well_enter", "res://Assets/Audio/well_enter.wav", -6.0)
 	_ensure_sfx("clear", "res://Assets/Audio/clear.wav", -7.0)
 	_ensure_sfx("panic", "res://Assets/Audio/panic_tick.wav", -14.0)
+	var ts_path = String(core.call("GetTimeSlowReadySfxPath"))
+	if ts_path != "":
+		_ensure_sfx("time_slow", ts_path, -8.0)
 
 
 func _ensure_sfx(key, path, volume_db) -> void:
@@ -426,7 +437,7 @@ func _trigger_auto_slow_if_needed() -> void:
 
 
 func _update_status_hud() -> void:
-	if lbl_panic == null or lbl_rescue == null or lbl_dual == null:
+	if lbl_panic == null or lbl_rescue == null:
 		return
 	var now = Time.get_ticks_msec()
 	var t = float(now) / 1000.0
@@ -445,27 +456,52 @@ func _update_status_hud() -> void:
 		else:
 			lbl_panic.modulate = Color(1.0, 0.72, 0.40, 1.0)
 	lbl_panic.text = "PANIC %.0f%%" % (panic_value * 100.0)
-	var rescue_left = max(0, rescue_eligible_until_ms - now)
-	if rescue_from_well_pending and rescue_left > 0:
-		var rescue_total = max(0.001, float(core.call("GetRescueWindowSec")))
-		var rescue_ratio = clamp(float(rescue_left) / (rescue_total * 1000.0), 0.0, 1.0)
-		lbl_rescue.text = "RESCUE READY %.1fs (%.0f%%)" % [float(rescue_left) / 1000.0, rescue_ratio * 100.0]
-		lbl_rescue.modulate = Color(0.60, 1.0, 0.70, 1.0)
+	var cooldown_sec = float(core.call("GetTimeSlowCooldownSec"))
+	var remaining_ms = max(0, time_slow_cooldown_until_ms - now)
+	if remaining_ms <= 0:
+		lbl_rescue.text = "TIME SLOW READY"
+		lbl_rescue.modulate = Color(0.68, 0.98, 1.0, 1.0)
 	else:
-		lbl_rescue.text = "WELL READY"
+		var remaining_sec = float(remaining_ms) / 1000.0
+		var pct = 100.0 * (1.0 - clamp(remaining_sec / max(0.001, cooldown_sec), 0.0, 1.0))
+		lbl_rescue.text = "TIME SLOW CD %.1fs (%.0f%%)" % [remaining_sec, pct]
 		lbl_rescue.modulate = Color(0.80, 0.84, 0.88, 1.0)
-	var dual_text = "Dual x%d" % _active_falling_count()
-	if pending_dual_spawn_ms > 0:
-		var left = max(0, pending_dual_spawn_ms - now)
-		dual_text = "DUAL INCOMING %.1fs" % (float(left) / 1000.0)
-		var dp = 0.5 + 0.5 * sin(t * TAU * 2.4)
-		lbl_dual.modulate = Color(1.0, 0.95, 0.60 + 0.35 * dp, 1.0)
-	elif dual_drop_cycle_pending or dual_drop_waiting_for_gap:
-		dual_text = "DUAL READY"
-		lbl_dual.modulate = Color(1.0, 0.92, 0.62, 1.0)
-	else:
-		lbl_dual.modulate = Color(0.86, 0.88, 0.92, 1.0)
-	lbl_dual.text = dual_text
+
+
+# Trigger condition: successful placement of a piece taken from WELL.
+# Cooldown: 30 sec real time using ticks, so it ignores Engine.time_scale.
+func _try_trigger_time_slow_from_well_placement() -> void:
+	var now = Time.get_ticks_msec()
+	if now < time_slow_cooldown_until_ms:
+		return
+	time_slow_cooldown_until_ms = now + int(float(core.call("GetTimeSlowCooldownSec")) * 1000.0)
+	var overlay_sec = float(core.call("GetTimeSlowReadyOverlayDurationSec"))
+	time_slow_overlay_until_ms = now + int(overlay_sec * 1000.0)
+	time_slow_overlay_input_release_ms = now + 300
+	if time_slow_overlay != null:
+		time_slow_overlay.visible = true
+		time_slow_overlay.modulate = Color(0.45, 0.78, 1.0, 0.55)
+		time_slow_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_play_sfx("time_slow")
+
+
+func _update_time_slow_overlay() -> void:
+	if time_slow_overlay == null:
+		return
+	if not time_slow_overlay.visible:
+		return
+	var now = Time.get_ticks_msec()
+	if now >= time_slow_overlay_until_ms:
+		time_slow_overlay.visible = false
+		time_slow_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return
+	if now >= time_slow_overlay_input_release_ms:
+		time_slow_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var left = max(1, time_slow_overlay_until_ms - now)
+	var total = max(0.001, float(core.call("GetTimeSlowReadyOverlayDurationSec")) * 1000.0)
+	var p = clamp(float(left) / total, 0.0, 1.0)
+	var wave = 0.5 + 0.5 * sin(float(now) / 70.0)
+	time_slow_overlay.modulate = Color(0.35 + 0.25 * wave, 0.70 + 0.20 * wave, 1.0, 0.45 * p)
 
 
 # ============================================================
@@ -500,6 +536,46 @@ func _build_ui() -> void:
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	root_frame.add_child(title_label)
 
+	btn_exit = TextureButton.new()
+	btn_exit.custom_minimum_size = Vector2(42, 42)
+	btn_exit.position = Vector2(16, 16)
+	btn_exit.tooltip_text = "Exit"
+	if ResourceLoader.exists("res://Assets/UI/close.png"):
+		btn_exit.texture_normal = load("res://Assets/UI/close.png")
+	else:
+		var close_fallback = Label.new()
+		close_fallback.text = "✕"
+		close_fallback.position = Vector2(28, 20)
+		close_fallback.add_theme_font_size_override("font_size", 28)
+		root_frame.add_child(close_fallback)
+	btn_exit.pressed.connect(_on_exit)
+	_wire_button_sfx(btn_exit)
+	root_frame.add_child(btn_exit)
+
+	btn_settings = TextureButton.new()
+	btn_settings.custom_minimum_size = Vector2(42, 42)
+	btn_settings.tooltip_text = "Settings"
+	btn_settings.position = Vector2(size.x - 58, 16)
+	btn_settings.anchor_left = 1.0
+	btn_settings.anchor_right = 1.0
+	btn_settings.offset_left = -58
+	btn_settings.offset_right = -16
+	if ResourceLoader.exists("res://Assets/UI/gear.png"):
+		btn_settings.texture_normal = load("res://Assets/UI/gear.png")
+	else:
+		var gear_fallback = Label.new()
+		gear_fallback.text = "⚙"
+		gear_fallback.anchor_left = 1.0
+		gear_fallback.anchor_right = 1.0
+		gear_fallback.offset_left = -52
+		gear_fallback.offset_right = -16
+		gear_fallback.offset_top = 20
+		gear_fallback.add_theme_font_size_override("font_size", 28)
+		root_frame.add_child(gear_fallback)
+	btn_settings.pressed.connect(_on_settings)
+	_wire_button_sfx(btn_settings)
+	root_frame.add_child(btn_settings)
+
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_margin.add_theme_constant_override("margin_left", 24)
@@ -521,14 +597,14 @@ func _build_ui() -> void:
 	main_v.add_child(top_row)
 
 	board_panel = Panel.new()
-	board_panel.custom_minimum_size = Vector2(620, 680)
+	board_panel.custom_minimum_size = Vector2(700, 740)
 	board_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	board_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	board_panel.add_theme_stylebox_override("panel", _style_board_panel())
 	top_row.add_child(board_panel)
 
 	hud_panel = Panel.new()
-	hud_panel.custom_minimum_size = Vector2(360, 0)
+	hud_panel.custom_minimum_size = Vector2(300, 0)
 	hud_panel.size_flags_horizontal = Control.SIZE_FILL
 	hud_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	hud_panel.add_theme_stylebox_override("panel", _style_hud_panel())
@@ -543,10 +619,10 @@ func _build_ui() -> void:
 	var hv_margin = MarginContainer.new()
 	hv_margin.custom_minimum_size = Vector2(0, 640)
 	hv_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hv_margin.add_theme_constant_override("margin_left", 14)
-	hv_margin.add_theme_constant_override("margin_right", 14)
-	hv_margin.add_theme_constant_override("margin_top", 14)
-	hv_margin.add_theme_constant_override("margin_bottom", 14)
+	hv_margin.add_theme_constant_override("margin_left", 10)
+	hv_margin.add_theme_constant_override("margin_right", 10)
+	hv_margin.add_theme_constant_override("margin_top", 10)
+	hv_margin.add_theme_constant_override("margin_bottom", 10)
 	hud_scroll.add_child(hv_margin)
 
 	var hv = VBoxContainer.new()
@@ -578,10 +654,6 @@ func _build_ui() -> void:
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	hv.add_child(lbl_rescue)
 
-	lbl_dual = Label.new()
-	lbl_dual.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
-	hv.add_child(lbl_dual)
-
 	var skills_title = Label.new()
 	skills_title.text = "Skills"
 	skills_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
@@ -593,33 +665,6 @@ func _build_ui() -> void:
 	var spacer = Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	hv.add_child(spacer)
-
-	var btn_row = HBoxContainer.new()
-	btn_row.alignment = BoxContainer.ALIGNMENT_END
-	btn_row.add_theme_constant_override("separation", 10)
-	hv.add_child(btn_row)
-
-	btn_settings = Button.new()
-	btn_settings.text = "⚙ Settings"
-	btn_settings.custom_minimum_size = Vector2(140, 52)
-	btn_settings.add_theme_stylebox_override("normal", _style_gamepad_button_normal())
-	btn_settings.add_theme_stylebox_override("hover", _style_gamepad_button_hover())
-	btn_settings.add_theme_stylebox_override("pressed", _style_gamepad_button_pressed())
-	btn_settings.add_theme_stylebox_override("focus", _style_gamepad_button_hover())
-	btn_settings.pressed.connect(_on_settings)
-	_wire_button_sfx(btn_settings)
-	btn_row.add_child(btn_settings)
-
-	btn_exit = Button.new()
-	btn_exit.text = "⨯ Exit"
-	btn_exit.custom_minimum_size = Vector2(120, 52)
-	btn_exit.add_theme_stylebox_override("normal", _style_gamepad_button_normal())
-	btn_exit.add_theme_stylebox_override("hover", _style_gamepad_button_hover())
-	btn_exit.add_theme_stylebox_override("pressed", _style_gamepad_button_pressed())
-	btn_exit.add_theme_stylebox_override("focus", _style_gamepad_button_hover())
-	btn_exit.pressed.connect(_on_exit)
-	_wire_button_sfx(btn_exit)
-	btn_row.add_child(btn_exit)
 
 	well_panel = Panel.new()
 	well_panel.custom_minimum_size = Vector2(0, 760)
@@ -680,6 +725,16 @@ func _build_ui() -> void:
 	ghost_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ghost_root.visible = false
 	ghost_layer.add_child(ghost_root)
+
+	fx_layer = CanvasLayer.new()
+	fx_layer.layer = 50
+	add_child(fx_layer)
+	time_slow_overlay = ColorRect.new()
+	time_slow_overlay.color = Color(0.35, 0.70, 1.0, 0.0)
+	time_slow_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_overlay.visible = false
+	fx_layer.add_child(time_slow_overlay)
 
 	overlay_dim = ColorRect.new()
 	overlay_dim.color = Color(0, 0, 0, 0.55)
@@ -1209,8 +1264,10 @@ func _redraw_well() -> void:
 	var available_h = max(140.0, pile_bottom - slots_top)
 	var per_slot = available_h / float(max(1, pile_max))
 	var dynamic_h = max(46.0, min(76.0, per_slot - SLOT_GAP))
-	var slot_preview_cell = int(clamp(float(cell_size) * 0.64, 12.0, 34.0))
-	var neon_index = _selected_neon_pile_index()
+	var slot_preview_cell = int(clamp(float(cell_size) * 0.78, 12.0, 40.0))
+	var neon_speed = float(core.call("GetWellNeonPulseSpeed"))
+	var neon_min = float(core.call("GetWellNeonMinAlpha"))
+	var neon_max = float(core.call("GetWellNeonMaxAlpha"))
 
 	for slot_i in range(pile_max):
 		var y = pile_bottom - dynamic_h - float(slot_i) * (dynamic_h + SLOT_GAP)
@@ -1247,8 +1304,8 @@ func _redraw_well() -> void:
 			preview.position = Vector2((slot.size.x - preview.size.x) * 0.5, (slot.size.y - preview.size.y) * 0.5)
 			slot.add_child(preview)
 			if is_active and pile_index == neon_index:
-				var neon_phase = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * NEON_PULSE_SPEED)
-				var neon_alpha = lerp(NEON_MIN_ALPHA, NEON_MAX_ALPHA, neon_phase)
+				var neon_phase = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
+				var neon_alpha = lerp(neon_min, neon_max, neon_phase)
 				var neon_frame = Panel.new()
 				neon_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 				neon_frame.offset_left = 2
@@ -1269,15 +1326,29 @@ func _redraw_well() -> void:
 				neon_style.corner_radius_bottom_right = 8
 				neon_frame.add_theme_stylebox_override("panel", neon_style)
 				slot.add_child(neon_frame)
-				var loop_ring = Label.new()
-				loop_ring.text = "⟳"
-				loop_ring.position = Vector2(slot.size.x - 26, 4)
-				loop_ring.rotation = deg_to_rad(float(now_ms) * (NEON_RING_ROTATE_DEG / 1000.0))
-				loop_ring.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
-				loop_ring.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, neon_alpha))
-				loop_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				slot.add_child(loop_ring)
 		elif is_active:
+			var neon_phase_empty = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
+			var neon_alpha_empty = lerp(neon_min, neon_max, neon_phase_empty)
+			var neon_frame_empty = Panel.new()
+			neon_frame_empty.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			neon_frame_empty.offset_left = 2
+			neon_frame_empty.offset_top = 2
+			neon_frame_empty.offset_right = -2
+			neon_frame_empty.offset_bottom = -2
+			neon_frame_empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var neon_style_empty = StyleBoxFlat.new()
+			neon_style_empty.bg_color = Color(0, 0, 0, 0)
+			neon_style_empty.border_width_left = 3
+			neon_style_empty.border_width_top = 3
+			neon_style_empty.border_width_right = 3
+			neon_style_empty.border_width_bottom = 3
+			neon_style_empty.border_color = Color(1.0, 0.92, 0.40, neon_alpha_empty)
+			neon_style_empty.corner_radius_top_left = 8
+			neon_style_empty.corner_radius_top_right = 8
+			neon_style_empty.corner_radius_bottom_left = 8
+			neon_style_empty.corner_radius_bottom_right = 8
+			neon_frame_empty.add_theme_stylebox_override("panel", neon_style_empty)
+			slot.add_child(neon_frame_empty)
 			var empty = Label.new()
 			empty.text = "Empty"
 			empty.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
@@ -1286,9 +1357,9 @@ func _redraw_well() -> void:
 			slot.add_child(empty)
 
 	if fall_piece != null and not is_game_over:
-		var drop_cell_size = int(clamp(float(cell_size) * 0.66, 14.0, 34.0))
-		var fall_frame_w = min(drop_w - 20.0, 230.0)
-		var fall_frame = Vector2(fall_frame_w, 120)
+		var drop_cell_size = int(clamp(float(cell_size) * 1.0, 18.0, 54.0))
+		var fall_frame_w = min(drop_w - 20.0, 300.0)
+		var fall_frame = Vector2(fall_frame_w, 170)
 		var fitted_drop_cell = _fitted_cell_size(fall_piece, drop_cell_size, fall_frame, 0.9)
 		var fall = _make_piece_preview(fall_piece, fitted_drop_cell, fall_frame)
 		var fx = (drop_w - fall.size.x) * 0.5
@@ -1299,9 +1370,9 @@ func _redraw_well() -> void:
 		drop_zone_draw.add_child(fall)
 
 	if fall_piece_2 != null and not is_game_over:
-		var drop_cell_size_2 = int(clamp(float(cell_size) * 0.66, 14.0, 34.0))
-		var fall_frame_w_2 = min(drop_w - 20.0, 230.0)
-		var fall_frame_2 = Vector2(fall_frame_w_2, 120)
+		var drop_cell_size_2 = int(clamp(float(cell_size) * 1.0, 18.0, 54.0))
+		var fall_frame_w_2 = min(drop_w - 20.0, 300.0)
+		var fall_frame_2 = Vector2(fall_frame_w_2, 170)
 		var fitted_drop_cell_2 = _fitted_cell_size(fall_piece_2, drop_cell_size_2, fall_frame_2, 0.9)
 		var fall2 = _make_piece_preview(fall_piece_2, fitted_drop_cell_2, fall_frame_2)
 		var fx2 = (drop_w - fall2.size.x) * 0.5
@@ -1412,7 +1483,8 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	score += cleared_count * 2
 
 	# Remove from pile if it came from pile
-	if selected_from_pile_index >= 0 and selected_from_pile_index < pile.size():
+	var placed_from_well = selected_from_pile_index >= 0 and selected_from_pile_index < pile.size()
+	if placed_from_well:
 		pile.remove_at(selected_from_pile_index)
 		_force_cancel_drag("CommittedToBoard", true)
 	else:
@@ -1432,10 +1504,12 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		_play_sfx("clear")
 		clear_flash_left = 0.20
 		clear_flash_cells = cleared
-		if rescue_from_well_pending and Time.get_ticks_msec() <= rescue_eligible_until_ms:
-			score += int(core.call("GetRescueScoreBonus"))
-			core.call("TriggerRescueStability")
-			rescue_trigger_count += 1
+	if rescue_from_well_pending and Time.get_ticks_msec() <= rescue_eligible_until_ms:
+		score += int(core.call("GetRescueScoreBonus"))
+		core.call("TriggerRescueStability")
+		rescue_trigger_count += 1
+	if placed_from_well:
+		_try_trigger_time_slow_from_well_placement()
 	rescue_from_well_pending = false
 	_trigger_auto_slow_if_needed()
 
@@ -1519,6 +1593,7 @@ func _process(delta: float) -> void:
 
 	_redraw_well()
 	_update_status_hud()
+	_update_time_slow_overlay()
 
 	# Drag: ghost always visible
 	if dragging and selected_piece != null:
@@ -1570,6 +1645,7 @@ func _update_hud() -> void:
 	lbl_score.text = "Score: %d" % score
 	_update_previews()
 	_update_status_hud()
+	_update_time_slow_overlay()
 
 
 # ============================================================
