@@ -706,35 +706,28 @@ func _build_ui() -> void:
 	drop_zone_panel.name = "drop_zone_panel"
 	drop_zone_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drop_zone_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	drop_zone_panel.size_flags_stretch_ratio = 1.22
+	drop_zone_panel.size_flags_stretch_ratio = 1.0
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
-	var time_slow_mid = Control.new()
+	var time_slow_mid = PanelContainer.new()
 	time_slow_mid.name = "time_slow_mid"
-	time_slow_mid.custom_minimum_size = Vector2(72, 0)
+	time_slow_mid.custom_minimum_size = Vector2(36, 0)
 	time_slow_mid.size_flags_horizontal = Control.SIZE_FILL
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var time_slow_frame = StyleBoxFlat.new()
+	time_slow_frame.border_width_all = 2
+	time_slow_frame.border_color = Color(0.15, 0.15, 0.15, 0.9)
+	time_slow_frame.bg_color = Color(0, 0, 0, 0)
+	time_slow_mid.add_theme_stylebox_override("panel", time_slow_frame)
 	well_draw.add_child(time_slow_mid)
-
-	var time_slow_bar_margin = MarginContainer.new()
-	time_slow_bar_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	time_slow_bar_margin.add_theme_constant_override("margin_top", 16)
-	time_slow_bar_margin.add_theme_constant_override("margin_bottom", 16)
-	time_slow_bar_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_mid.add_child(time_slow_bar_margin)
-
-	var time_slow_bar_center = CenterContainer.new()
-	time_slow_bar_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	time_slow_bar_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_bar_margin.add_child(time_slow_bar_center)
 
 	var time_slow_stack = Control.new()
 	time_slow_stack.name = "time_slow_stack"
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_bar_center.add_child(time_slow_stack)
+	time_slow_mid.add_child(time_slow_stack)
 
 	bar_time_slow = ProgressBar.new()
 	bar_time_slow.custom_minimum_size = Vector2(14, 0)
@@ -744,20 +737,18 @@ func _build_ui() -> void:
 	bar_time_slow.show_percentage = false
 	bar_time_slow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar_time_slow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bar_time_slow.anchor_left = 0.5
-	bar_time_slow.anchor_right = 0.5
-	bar_time_slow.offset_left = -7
-	bar_time_slow.offset_right = 7
-	bar_time_slow.offset_top = 0
-	bar_time_slow.offset_bottom = 0
+	bar_time_slow.offset_left = 10
+	bar_time_slow.offset_top = 12
+	bar_time_slow.offset_right = -10
+	bar_time_slow.offset_bottom = -12
 	var time_slow_bg = StyleBoxFlat.new()
 	time_slow_bg.bg_color = Color(0.10, 0.12, 0.14, 0.25)
 	bar_time_slow.add_theme_stylebox_override("background", time_slow_bg)
 	time_slow_stack.add_child(bar_time_slow)
 
 	btn_time_slow = TextureButton.new()
-	btn_time_slow.custom_minimum_size = Vector2(56, 56)
-	btn_time_slow.size = Vector2(56, 56)
+	btn_time_slow.custom_minimum_size = Vector2(48, 48)
+	btn_time_slow.size = Vector2(48, 48)
 	btn_time_slow.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_time_slow.ignore_texture_size = true
 	btn_time_slow.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -777,10 +768,10 @@ func _build_ui() -> void:
 		ts_fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn_time_slow.add_child(ts_fallback)
 	btn_time_slow.set_anchors_preset(Control.PRESET_CENTER)
-	btn_time_slow.offset_left = -28
-	btn_time_slow.offset_top = -28
-	btn_time_slow.offset_right = 28
-	btn_time_slow.offset_bottom = 28
+	btn_time_slow.offset_left = -24
+	btn_time_slow.offset_top = -24
+	btn_time_slow.offset_right = 24
+	btn_time_slow.offset_bottom = 24
 	time_slow_stack.add_child(btn_time_slow)
 
 	well_slots_panel = Panel.new()
@@ -1169,6 +1160,7 @@ func _build_board_side_overlays() -> void:
 	var right_overlay = VBoxContainer.new()
 	right_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_overlay.custom_minimum_size = Vector2(56, 0)
+	right_overlay.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_overlay.add_theme_constant_override("separation", 10)
 	board_panel.add_child(right_overlay)
 	board_overlay_right = right_overlay
@@ -1243,7 +1235,9 @@ func _reposition_board_side_overlays() -> void:
 	var right_size = right_base_size * overlay_scale
 	var desired_x = grid_right + max(12.0, (right_pad - right_size.x) * 0.5)
 	var clamp_x = min(desired_x, host_right - right_size.x - 12.0)
-	board_overlay_right.position = Vector2(clamp_x, floor((host_h - right_size.y) * 0.5))
+	var overlay_h = max(right_size.y, host_h - 24.0)
+	board_overlay_right.size = Vector2(right_size.x, overlay_h)
+	board_overlay_right.position = Vector2(clamp_x, 12.0)
 
 
 func _build_board_grid() -> void:
