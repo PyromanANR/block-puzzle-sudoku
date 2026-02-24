@@ -76,6 +76,7 @@ var lbl_speed: Label
 var lbl_level: Label
 var lbl_time: Label
 var lbl_rescue: Label
+var lbl_skill_hint: Label
 var next_box: Panel
 
 var btn_settings: TextureButton
