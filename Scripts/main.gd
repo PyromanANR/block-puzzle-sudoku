@@ -175,8 +175,6 @@ const PANIC_BLINK_SPEED = 7.0
 var reroll_uses_left: int = 1
 var freeze_uses_left: int = 1
 
-var skill_hint_until_ms = 0
-
 
 func _skin_manager():
 	return get_node_or_null("/root/SkinManager")
