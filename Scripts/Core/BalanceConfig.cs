@@ -43,8 +43,9 @@ public class BalanceConfig
 
 
     // Endless speed curve / two peaks + tail
-    public float SpeedPeak1Minutes = 5.0f;
-    public float SpeedPeak2Minutes = 10.0f;
+    public float SpeedPeak1Minutes = 3.0f;
+    public float SpeedPeak2Minutes = 6.0f;
+    public float SpeedPeak3Minutes = 10.0f;
     public float SpeedEaseExponent1 = 2.0f;
     public float SpeedEaseExponent2 = 2.0f;
     public float KneeMultEasy = 8.0f;
@@ -65,6 +66,12 @@ public class BalanceConfig
     public float DualDropChanceCapMedium = 0.15f;
     public float DualDropChanceCapHard = 0.20f;
     public float DualDropStaggerSec = 1.0f;
+    public float DualDropMinGapCells = 2.0f;
+    public float DualDropStaggerBaseSec = 1.0f;
+    public float DualDropStaggerExtraSec = 0.6f;
+    public float DualDropStaggerSpeedStartMul = 7.0f;
+    public float DualDropStaggerSpeedEndMul = 14.0f;
+    public float DualDropStaggerMaxSec = 1.8f;
 
     // Auto-slow panic rescue
     public float AutoSlowThresholdBoard = 0.85f;
@@ -81,6 +88,23 @@ public class BalanceConfig
 
     // Micro-freeze feedback
     public float MicroFreezeSec = 0.10f;
+
+    // Time-slow FX / cooldown
+    public float TimeSlowReadyOverlayDurationSec = 0.8f;
+    public string TimeSlowReadySfxPath = "res://Assets/Audio/time_slow.wav";
+    public float TimeSlowCooldownSec = 60.0f;
+    public float TimeSlowEffectDurationSec = 2.0f;
+    public float TimeSlowEffectTimeScale = 0.55f;
+
+    // WELL neon pulse
+    public float WellNeonPulseSpeed = 2.5f;
+    public float WellNeonMinAlpha = 0.40f;
+    public float WellNeonMaxAlpha = 1.0f;
+
+    // Panic HUD animation
+    public float PanicPulseSpeed = 2.0f;
+    public float PanicBlinkSpeed = 7.0f;
+    public float PanicBlinkThreshold = 0.85f;
 
     // Scoring / leveling
     public int PointsPerLevel = 360;
