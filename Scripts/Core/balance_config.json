@@ -30,7 +30,7 @@
   "MaxRerollsPerRound": 0,
   "CancelDragPenalty": 0.02,
   "SimulationMaxMoves": 320,
-  "SpeedKneeMinutes": 6.0,
+  "SpeedKneeMinutes": 6.5,
   "WellDragSlowMin": 0.9,
   "WellDragSlowMax": 0.6,
   "FastNextChanceStart": 0.03,
@@ -51,8 +51,9 @@
   "KneeMultEasy": 8.0,
   "KneeMultMedium": 9.0,
   "KneeMultHard": 10.0,
-  "PostKneeTailStrength": 0.035,
+  "PostKneeTailStrength": 0.08,
   "AutoSlowDurationSec": 1.0,
   "RescueStabilityDurationSec": 5.0,
-  "MicroFreezeSec": 0.1
+  "MicroFreezeSec": 0.1,
+  "SpeedEaseExponent": 2.0
 }

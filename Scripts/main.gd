@@ -133,6 +133,8 @@ var well_header_pulse_left = 0.0
 var time_scale_reason = "Normal"
 var sfx_players = {}
 var missing_sfx_warned = {}
+var next_preview_kind = ""
+var next_actual_kind = ""
 
 const NORMAL_RESPAWN_DELAY_MS = 260
 const FAST_RESPAWN_DELAY_MS = 80
@@ -372,11 +374,8 @@ func _update_debug_overlay() -> void:
 	var knee_target = float(core.call("GetKneeTargetMultiplier"))
 	var tail_mul = float(core.call("GetPostKneeTailMultiplier"))
 	var fast_next_chance = float(core.call("GetFastNextChanceCurrent"))
-	var speed_mult = 0.0
-	if level > 0:
-		var level_growth = pow(float(core.call("GetLevelSpeedGrowth")), float(level - 1))
-		speed_mult = float(core.call("GetDisplayedFallSpeed")) / max(0.001, float(core.call("GetBaseFallSpeed")) * level_growth)
-	lbl_debug.text = "DBG\nmin: %.2f  speedMul: %.2f\nknee target: %.2f  tail: %.3f\nwell fill: %.2f  time_scale: %.2f (%s)\nfast-next: %.1f%%  triggers: %d\nrescue triggers: %d  auto-slow: %d" % [elapsed, speed_mult, knee_target, tail_mul, _well_fill_ratio(), Engine.time_scale, time_scale_reason, fast_next_chance * 100.0, fast_next_trigger_count, rescue_trigger_count, auto_slow_trigger_count]
+	var speed_mult = float(core.call("GetDisplayedFallSpeed")) / max(0.001, float(core.call("GetBaseFallSpeed")))
+	lbl_debug.text = "DBG\nmin: %.2f  speedMul: %.2f\nknee target: %.2f  tail: %.3f\nwell fill: %.2f  time_scale: %.2f (%s)\nfast-next: %.1f%%  triggers: %d\nnext preview: %s\nnext actual: %s\nrescue triggers: %d  auto-slow: %d" % [elapsed, speed_mult, knee_target, tail_mul, _well_fill_ratio(), Engine.time_scale, time_scale_reason, fast_next_chance * 100.0, fast_next_trigger_count, next_preview_kind, next_actual_kind, rescue_trigger_count, auto_slow_trigger_count]
 
 
 # ============================================================
@@ -826,7 +825,11 @@ func _refresh_board_visual() -> void:
 # Next preview
 # ============================================================
 func _update_previews() -> void:
-	_draw_preview(next_box, core.call("PeekNextPieceForBoard", board))
+	var next_piece = core.call("PeekNextPieceForBoard", board)
+	next_preview_kind = ""
+	if next_piece != null:
+		next_preview_kind = String(next_piece.get("Kind"))
+	_draw_preview(next_box, next_piece)
 
 
 func _draw_preview(target: Panel, piece) -> void:
@@ -838,7 +841,8 @@ func _draw_preview(target: Panel, piece) -> void:
 		return
 
 	var target_size = Vector2(max(target.size.x, target.custom_minimum_size.x), max(target.size.y, target.custom_minimum_size.y))
-	var preview_size = target_size - Vector2(20, 20)
+	var target_rect = Rect2(Vector2.ZERO, target_size)
+	var preview_size = target_rect.size - Vector2(20, 20)
 	if preview_size.x <= 0.0 or preview_size.y <= 0.0:
 		return
 
@@ -861,7 +865,7 @@ func _draw_preview(target: Panel, piece) -> void:
 
 	var pv = Control.new()
 	pv.size = preview_size
-	pv.position = (target_size - preview_size) * 0.5
+	pv.position = (target_rect.size - preview_size) * 0.5
 	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var col = _color_for_kind(String(piece.get("Kind")))
@@ -894,7 +898,16 @@ func _fitted_cell_size(piece, desired_cell: int, frame: Vector2, fit_ratio: floa
 
 
 func _spawn_falling_piece() -> void:
+	var preview_piece = core.call("PeekNextPieceForBoard", board)
+	var preview_kind = ""
+	if preview_piece != null:
+		preview_kind = String(preview_piece.get("Kind"))
 	fall_piece = core.call("PopNextPieceForBoard", board)
+	next_actual_kind = ""
+	if fall_piece != null:
+		next_actual_kind = String(fall_piece.get("Kind"))
+	if preview_kind != "" and next_actual_kind != "" and preview_kind != next_actual_kind:
+		push_error("[NEXT-DESYNC] preview=%s actual=%s" % [preview_kind, next_actual_kind])
 	fall_y = 10.0
 	pending_spawn_piece = false
 	next_box.queue_redraw()

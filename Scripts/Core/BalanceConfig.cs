@@ -43,11 +43,12 @@ public class BalanceConfig
 
 
     // Endless speed curve / knee
-    public float SpeedKneeMinutes = 6.0f;
+    public float SpeedKneeMinutes = 6.5f;
+    public float SpeedEaseExponent = 2.0f;
     public float KneeMultEasy = 8.0f;
     public float KneeMultMedium = 9.0f;
     public float KneeMultHard = 10.0f;
-    public float PostKneeTailStrength = 0.035f;
+    public float PostKneeTailStrength = 0.08f;
 
     // WELL drag slow-motion
     public float WellDragSlowMin = 0.90f;
