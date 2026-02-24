@@ -187,10 +187,22 @@ const PANIC_HIGH_THRESHOLD = 0.85
 const PANIC_MID_THRESHOLD = 0.60
 const PANIC_PULSE_SPEED = 2.0
 const PANIC_BLINK_SPEED = 7.0
+const TIME_SLOW_ATLAS_PATH = "res://Assets/UI/time_slow/atlas_time_slow.tres"
+const TIME_SLOW_GLASS_OVERLAY_PATH = "res://Assets/UI/time_slow/tex_glass_overlay.tres"
+const TIME_SLOW_SAND_FILL_PATH = "res://Assets/UI/time_slow/tex_sand_fill.tres"
+const TIME_SLOW_FRAME_PATH = "res://Assets/UI/time_slow/tex_frame.tres"
+const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.shader"
+const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.shader"
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
 var freeze_uses_left: int = 1
+var time_slow_atlas: Resource = null
+var time_slow_glass_overlay: Resource = null
+var time_slow_sand_fill: Resource = null
+var time_slow_frame_tex: Resource = null
+var time_slow_sand_shader: Shader = null
+var time_slow_glass_shader: Shader = null
 
 
 func _skin_manager():
@@ -669,7 +681,7 @@ func _build_ui() -> void:
 	var top_row = HBoxContainer.new()
 	top_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_row.size_flags_stretch_ratio = 1.5
+	top_row.size_flags_stretch_ratio = 1.22
 	main_v.add_child(top_row)
 
 	board_panel = Panel.new()
@@ -685,7 +697,7 @@ func _build_ui() -> void:
 	well_panel.custom_minimum_size = Vector2(0, 420)
 	well_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	well_panel.size_flags_stretch_ratio = 1.0
+	well_panel.size_flags_stretch_ratio = 1.03
 	well_panel.add_theme_stylebox_override("panel", _style_bottom_panel())
 	well_panel.clip_contents = false
 	main_v.add_child(well_panel)
@@ -745,34 +757,8 @@ func _build_ui() -> void:
 	time_slow_bg.bg_color = Color(0.10, 0.12, 0.14, 0.25)
 	bar_time_slow.add_theme_stylebox_override("background", time_slow_bg)
 	time_slow_stack.add_child(bar_time_slow)
+	_setup_time_slow_future_assets()
 
-	btn_time_slow = TextureButton.new()
-	btn_time_slow.custom_minimum_size = Vector2(48, 48)
-	btn_time_slow.size = Vector2(48, 48)
-	btn_time_slow.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	btn_time_slow.ignore_texture_size = true
-	btn_time_slow.mouse_filter = Control.MOUSE_FILTER_STOP
-	var time_slow_tex = _load_ui_icon("timeslow")
-	if time_slow_tex != null:
-		btn_time_slow.texture_normal = time_slow_tex
-		btn_time_slow.texture_hover = time_slow_tex
-		btn_time_slow.texture_pressed = time_slow_tex
-		btn_time_slow.texture_disabled = time_slow_tex
-	else:
-		var ts_fallback = Label.new()
-		ts_fallback.text = "TS"
-		ts_fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		ts_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		ts_fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		ts_fallback.add_theme_font_size_override("font_size", 20)
-		ts_fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		btn_time_slow.add_child(ts_fallback)
-	btn_time_slow.set_anchors_preset(Control.PRESET_CENTER)
-	btn_time_slow.offset_left = -24
-	btn_time_slow.offset_top = -24
-	btn_time_slow.offset_right = 24
-	btn_time_slow.offset_bottom = 24
-	time_slow_stack.add_child(btn_time_slow)
 
 	well_slots_panel = Panel.new()
 	well_slots_panel.name = "well_panel"
@@ -1035,6 +1021,33 @@ func _load_texture_or_null(path: String) -> Texture2D:
 	return null
 
 
+
+
+func _safe_load_resource(path: String) -> Resource:
+	if path == "":
+		return null
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path)
+
+
+func _setup_time_slow_future_assets() -> void:
+	time_slow_atlas = _safe_load_resource(TIME_SLOW_ATLAS_PATH)
+	time_slow_glass_overlay = _safe_load_resource(TIME_SLOW_GLASS_OVERLAY_PATH)
+	time_slow_sand_fill = _safe_load_resource(TIME_SLOW_SAND_FILL_PATH)
+	time_slow_frame_tex = _safe_load_resource(TIME_SLOW_FRAME_PATH)
+	var sand_shader_res = _safe_load_resource(TIME_SLOW_SAND_SHADER_PATH)
+	if sand_shader_res is Shader:
+		time_slow_sand_shader = sand_shader_res as Shader
+	else:
+		time_slow_sand_shader = null
+	var glass_shader_res = _safe_load_resource(TIME_SLOW_GLASS_SHADER_PATH)
+	if glass_shader_res is Shader:
+		time_slow_glass_shader = glass_shader_res as Shader
+	else:
+		time_slow_glass_shader = null
+	# TODO: Replace ProgressBar with TextureProgressBar (supports vertical fill) when atlas assets are available.
+	# TODO: Apply ShaderMaterial on the glass overlay when shader assets exist.
 func _build_skill_icon_button(icon_key: String) -> TextureButton:
 	var b = TextureButton.new()
 	b.custom_minimum_size = Vector2(64, 64)
@@ -1157,20 +1170,17 @@ func _clear_color_grid() -> void:
 
 func _build_board_side_overlays() -> void:
 
-	var right_overlay = VBoxContainer.new()
+	var right_overlay = PanelContainer.new()
 	right_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_overlay.custom_minimum_size = Vector2(56, 0)
+	right_overlay.custom_minimum_size = Vector2(76, 0)
 	right_overlay.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_overlay.add_theme_constant_override("separation", 10)
+	var panel_style = StyleBoxFlat.new()
+	panel_style.set_border_width_all(2)
+	panel_style.border_color = Color(0.15, 0.15, 0.15, 0.9)
+	panel_style.bg_color = Color(0, 0, 0, 0)
+	right_overlay.add_theme_stylebox_override("panel", panel_style)
 	board_panel.add_child(right_overlay)
 	board_overlay_right = right_overlay
-
-	var skills_tag = Label.new()
-	skills_tag.text = "Skills"
-	skills_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	skills_tag.add_theme_font_size_override("font_size", 14)
-	skills_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_overlay.add_child(skills_tag)
 
 	var skill_even_area = VBoxContainer.new()
 	skill_even_area.name = "skill_even_area"
@@ -1182,37 +1192,87 @@ func _build_board_side_overlays() -> void:
 	var skill_spacer_top = Control.new()
 	skill_spacer_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_spacer_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_spacer_top.size_flags_stretch_ratio = 1.0
 	skill_even_area.add_child(skill_spacer_top)
 
+	var slot1 = PanelContainer.new()
+	slot1.custom_minimum_size = Vector2(64, 64)
+	slot1.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var slot_style_1 = StyleBoxFlat.new()
+	slot_style_1.bg_color = Color(0.0, 0.0, 0.0, 0.18)
+	slot_style_1.border_color = Color(0.12, 0.12, 0.12, 0.95)
+	slot_style_1.set_border_width_all(2)
+	slot1.add_theme_stylebox_override("panel", slot_style_1)
+	skill_even_area.add_child(slot1)
+
 	btn_skill_freeze = _build_skill_icon_button("freeze")
+	btn_skill_freeze.custom_minimum_size = Vector2(56, 56)
+	btn_skill_freeze.size = Vector2(56, 56)
+	btn_skill_freeze.ignore_texture_size = true
+	btn_skill_freeze.set_anchors_preset(Control.PRESET_CENTER)
+	btn_skill_freeze.offset_left = -28
+	btn_skill_freeze.offset_top = -28
+	btn_skill_freeze.offset_right = 28
+	btn_skill_freeze.offset_bottom = 28
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
-	skill_even_area.add_child(btn_skill_freeze)
+	slot1.add_child(btn_skill_freeze)
 
 	var skill_spacer_mid_a = Control.new()
 	skill_spacer_mid_a.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_spacer_mid_a.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_spacer_mid_a.size_flags_stretch_ratio = 1.0
 	skill_even_area.add_child(skill_spacer_mid_a)
 
+	var slot2 = PanelContainer.new()
+	slot2.custom_minimum_size = Vector2(64, 64)
+	slot2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var slot_style_2 = StyleBoxFlat.new()
+	slot_style_2.bg_color = Color(0.0, 0.0, 0.0, 0.18)
+	slot_style_2.border_color = Color(0.12, 0.12, 0.12, 0.95)
+	slot_style_2.set_border_width_all(2)
+	slot2.add_theme_stylebox_override("panel", slot_style_2)
+	skill_even_area.add_child(slot2)
+
 	btn_skill_clear = _build_skill_icon_button("clear")
+	btn_skill_clear.custom_minimum_size = Vector2(56, 56)
+	btn_skill_clear.size = Vector2(56, 56)
+	btn_skill_clear.ignore_texture_size = true
+	btn_skill_clear.set_anchors_preset(Control.PRESET_CENTER)
+	btn_skill_clear.offset_left = -28
+	btn_skill_clear.offset_top = -28
+	btn_skill_clear.offset_right = 28
+	btn_skill_clear.offset_bottom = 28
 	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
-	skill_even_area.add_child(btn_skill_clear)
+	slot2.add_child(btn_skill_clear)
 
 	var skill_spacer_mid_b = Control.new()
 	skill_spacer_mid_b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_spacer_mid_b.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_spacer_mid_b.size_flags_stretch_ratio = 1.0
 	skill_even_area.add_child(skill_spacer_mid_b)
 
+	var slot3 = PanelContainer.new()
+	slot3.custom_minimum_size = Vector2(64, 64)
+	slot3.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var slot_style_3 = StyleBoxFlat.new()
+	slot_style_3.bg_color = Color(0.0, 0.0, 0.0, 0.18)
+	slot_style_3.border_color = Color(0.12, 0.12, 0.12, 0.95)
+	slot_style_3.set_border_width_all(2)
+	slot3.add_theme_stylebox_override("panel", slot_style_3)
+	skill_even_area.add_child(slot3)
+
 	btn_skill_invuln = _build_skill_icon_button("safe_well")
+	btn_skill_invuln.custom_minimum_size = Vector2(56, 56)
+	btn_skill_invuln.size = Vector2(56, 56)
+	btn_skill_invuln.ignore_texture_size = true
+	btn_skill_invuln.set_anchors_preset(Control.PRESET_CENTER)
+	btn_skill_invuln.offset_left = -28
+	btn_skill_invuln.offset_top = -28
+	btn_skill_invuln.offset_right = 28
+	btn_skill_invuln.offset_bottom = 28
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
-	skill_even_area.add_child(btn_skill_invuln)
+	slot3.add_child(btn_skill_invuln)
 
 	var skill_spacer_bottom = Control.new()
 	skill_spacer_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_spacer_bottom.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_spacer_bottom.size_flags_stretch_ratio = 1.0
 	skill_even_area.add_child(skill_spacer_bottom)
 	_reposition_board_side_overlays()
 
