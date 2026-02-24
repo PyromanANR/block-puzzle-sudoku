@@ -75,7 +75,6 @@ var lbl_score: Label
 var lbl_speed: Label
 var lbl_level: Label
 var lbl_time: Label
-var lbl_panic: Label
 var lbl_rescue: Label
 var lbl_skill_hint: Label
 var next_box: Panel
@@ -85,6 +84,9 @@ var btn_exit: TextureButton
 var btn_skill_freeze: TextureButton
 var btn_skill_clear: TextureButton
 var btn_skill_invuln: TextureButton
+var panic_indicator_root: CenterContainer
+var panic_indicator_visual: Control
+var panic_icon_tween: Tween
 var exit_dialog: AcceptDialog
 
 # Game Over overlay
@@ -93,6 +95,7 @@ var overlay_text: Label
 var is_game_over: bool = false
 var fx_layer: CanvasLayer
 var time_slow_overlay: ColorRect
+var well_slots_base_rotation = 0.0
 var pending_invalid_piece = null
 var pending_invalid_from_pile_index: int = -1
 var pending_invalid_root: Control
@@ -131,7 +134,7 @@ const SLOT_GAP := 6
 const HEADER_BUTTON_SIZE := 76.0
 const EXIT_BUTTON_SIZE := 84.0
 const HEADER_BUTTON_MARGIN := 20.0
-const SKILL_ICON_SIZE := 48.0
+const SKILL_ICON_SIZE := 56.0
 const SKILL_ICON_FREEZE_PATH := "res://Assets/UI/icons/skill_freeze.png"
 const SKILL_ICON_CLEAR_PATH := "res://Assets/UI/icons/skill_clear_board.png"
 const SKILL_ICON_SAFE_WELL_PATH := "res://Assets/UI/icons/skill_safe_well.png"
@@ -318,6 +321,14 @@ func _start_round() -> void:
 	if toast_panel != null:
 		toast_panel.visible = false
 	_clear_pending_invalid_piece()
+	if panic_icon_tween != null and panic_icon_tween.is_valid():
+		panic_icon_tween.kill()
+	panic_icon_tween = null
+	if panic_indicator_root != null:
+		panic_indicator_root.visible = false
+	if well_slots_panel != null:
+		well_slots_panel.modulate = Color(1, 1, 1, 1)
+		well_slots_panel.rotation_degrees = well_slots_base_rotation
 
 
 func _trigger_game_over() -> void:
@@ -503,32 +514,10 @@ func _trigger_auto_slow_if_needed() -> void:
 
 
 func _update_status_hud() -> void:
-	if lbl_panic == null or lbl_rescue == null:
+	if lbl_rescue == null:
 		return
 	var now = Time.get_ticks_msec()
-	var t = float(now) / 1000.0
-	var panic_value = _well_fill_ratio()
-	var panic_pulse_speed = float(core.call("GetPanicPulseSpeed"))
-	var panic_blink_speed = clamp(float(core.call("GetPanicBlinkSpeed")), 2.0, 3.0)
-	if panic_value < 0.30:
-		lbl_panic.modulate = Color(0.94, 0.94, 0.94, 0.99)
-	elif panic_value < 0.70:
-		var p_mid = (panic_value - 0.30) / 0.40
-		var pulse_mid = 0.5 + 0.5 * sin(t * TAU * panic_pulse_speed * 0.55)
-		var alpha_mid = 0.94 + 0.06 * pulse_mid * p_mid
-		lbl_panic.modulate = Color(1.0, 0.94 - 0.08 * p_mid, 0.86 - 0.18 * p_mid, alpha_mid)
-	elif panic_value < 0.90:
-		var p_high = (panic_value - 0.70) / 0.20
-		var pulse_high = 0.5 + 0.5 * sin(t * TAU * panic_pulse_speed * (0.9 + 0.7 * p_high))
-		var alpha_high = 0.82 + 0.18 * pulse_high
-		lbl_panic.modulate = Color(1.0, 0.62 - 0.22 * p_high, 0.46 - 0.28 * p_high, alpha_high)
-	else:
-		var blink = 0.5 + 0.5 * sin(t * TAU * panic_blink_speed)
-		if blink > 0.5:
-			lbl_panic.modulate = Color(1.0, 0.08, 0.08, 1.0)
-		else:
-			lbl_panic.modulate = Color(1.0, 0.30, 0.20, 0.86)
-	lbl_panic.text = "PANIC %.0f%%" % (panic_value * 100.0)
+	var fill_ratio = _well_fill_ratio()
 	var cooldown_sec = float(core.call("GetTimeSlowCooldownSec"))
 	var remaining_ms = max(0, time_slow_cooldown_until_ms - now)
 	if remaining_ms <= 0:
@@ -540,6 +529,7 @@ func _update_status_hud() -> void:
 		lbl_rescue.text = "TIME SLOW CD %.1fs (%.0f%%)" % [remaining_sec, pct]
 		lbl_rescue.modulate = Color(0.80, 0.84, 0.88, 1.0)
 	_update_skill_icon_states()
+	_update_panic_warning_visual(fill_ratio)
 
 
 # Trigger condition: successful placement of a piece taken from WELL.
@@ -721,29 +711,19 @@ func _build_ui() -> void:
 	hud_row.add_theme_constant_override("separation", 12)
 	lower_status.add_child(hud_row)
 
-	var panic_block = HBoxContainer.new()
-	panic_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panic_block.size_flags_stretch_ratio = 1.2
-	panic_block.add_theme_constant_override("separation", 6)
-	hud_row.add_child(panic_block)
-	_add_icon_or_fallback(panic_block, "res://Assets/UI/icons/icon_panic.png", "!", 18)
-	lbl_panic = Label.new()
-	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	panic_block.add_child(lbl_panic)
-
 	var time_slow_block = HBoxContainer.new()
 	time_slow_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	time_slow_block.size_flags_stretch_ratio = 1.6
-	time_slow_block.add_theme_constant_override("separation", 6)
+	time_slow_block.size_flags_stretch_ratio = 1.8
+	time_slow_block.add_theme_constant_override("separation", 8)
 	hud_row.add_child(time_slow_block)
-	_add_icon_or_fallback(time_slow_block, "res://Assets/UI/icons/icon_timeslow.png", "⏳", 18)
+	_add_icon_or_fallback(time_slow_block, ICON_TIMESLOW_PNG_PATH, "TS", 22, 38)
 	lbl_rescue = Label.new()
-	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
 	time_slow_block.add_child(lbl_rescue)
 
 	var skills_tag_block = CenterContainer.new()
 	skills_tag_block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_tag_block.size_flags_stretch_ratio = 0.8
+	skills_tag_block.size_flags_stretch_ratio = 1.0
 	hud_row.add_child(skills_tag_block)
 	var skills_tag = Label.new()
 	skills_tag.text = "Skils"
@@ -752,7 +732,7 @@ func _build_ui() -> void:
 
 	var skills_group = VBoxContainer.new()
 	skills_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_group.size_flags_stretch_ratio = 1.4
+	skills_group.size_flags_stretch_ratio = 2.2
 	skills_group.add_theme_constant_override("separation", 4)
 	hud_row.add_child(skills_group)
 
@@ -805,6 +785,13 @@ func _build_ui() -> void:
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
+	panic_indicator_root = CenterContainer.new()
+	panic_indicator_root.custom_minimum_size = Vector2(56, 0)
+	panic_indicator_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	well_draw.add_child(panic_indicator_root)
+	panic_indicator_visual = _build_panic_indicator_visual()
+	panic_indicator_root.add_child(panic_indicator_visual)
+
 	drop_zone_draw = Control.new()
 	drop_zone_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	drop_zone_draw.offset_left = 10
@@ -820,6 +807,7 @@ func _build_ui() -> void:
 	well_slots_panel.size_flags_stretch_ratio = 4.8
 	well_slots_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(well_slots_panel)
+	well_slots_base_rotation = well_slots_panel.rotation_degrees
 
 	well_slots_draw = Control.new()
 	well_slots_draw.clip_contents = false
@@ -978,18 +966,18 @@ func _icon_placeholder_for_path(icon_path: String, fallback_text: String) -> Str
 			return fallback_text
 
 
-func _add_icon_or_fallback(parent: Control, icon_path: String, fallback_text: String, fallback_size: int) -> void:
+func _add_icon_or_fallback(parent: Control, icon_path: String, fallback_text: String, fallback_size: int, icon_size: int = 18) -> void:
 	var tex = _load_icon_texture_with_fallback(icon_path)
 	if tex != null:
 		var icon = TextureRect.new()
-		icon.custom_minimum_size = Vector2(18, 18)
+		icon.custom_minimum_size = Vector2(icon_size, icon_size)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.texture = tex
 		parent.add_child(icon)
 		return
 	var fallback = Label.new()
-	fallback.custom_minimum_size = Vector2(18, 18)
+	fallback.custom_minimum_size = Vector2(icon_size, icon_size)
 	fallback.text = _icon_placeholder_for_path(icon_path, fallback_text)
 	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1083,6 +1071,52 @@ func _load_texture_or_null(path: String) -> Texture2D:
 	if tex is Texture2D:
 		return tex as Texture2D
 	return null
+
+
+func _build_panic_indicator_visual() -> Control:
+	var tex = _load_icon_texture_with_fallback(ICON_PANIC_PNG_PATH)
+	if tex != null:
+		var icon = TextureRect.new()
+		icon.custom_minimum_size = Vector2(40, 40)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = tex
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return icon
+	var fallback = Label.new()
+	fallback.text = "!"
+	fallback.custom_minimum_size = Vector2(40, 40)
+	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fallback.add_theme_font_size_override("font_size", 28)
+	fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return fallback
+
+
+func _update_panic_warning_visual(fill_ratio: float) -> void:
+	if panic_indicator_root == null or panic_indicator_visual == null or well_slots_panel == null:
+		return
+	var now = Time.get_ticks_msec()
+	if fill_ratio >= 0.60:
+		panic_indicator_root.visible = true
+		if panic_icon_tween == null or not panic_icon_tween.is_valid():
+			panic_indicator_visual.scale = Vector2.ONE
+			panic_icon_tween = create_tween()
+			panic_icon_tween.set_loops()
+			panic_icon_tween.set_ignore_time_scale(true)
+			panic_icon_tween.tween_property(panic_indicator_visual, "scale", Vector2(1.18, 1.18), 0.36)
+			panic_icon_tween.tween_property(panic_indicator_visual, "scale", Vector2.ONE, 0.36)
+		var wave = 0.5 + 0.5 * sin(float(now) / 85.0)
+		well_slots_panel.modulate = Color(1.0, 0.86 + 0.14 * wave, 0.86 + 0.14 * wave, 1.0)
+		well_slots_panel.rotation_degrees = 0.8 * sin(float(now) / 55.0)
+	else:
+		if panic_icon_tween != null and panic_icon_tween.is_valid():
+			panic_icon_tween.kill()
+		panic_icon_tween = null
+		panic_indicator_visual.scale = Vector2.ONE
+		panic_indicator_root.visible = false
+		well_slots_panel.modulate = Color(1, 1, 1, 1)
+		well_slots_panel.rotation_degrees = well_slots_base_rotation
 
 
 func _build_skill_icon_button(fallback_text: String, icon_path: String) -> TextureButton:
@@ -1571,12 +1605,12 @@ func _redraw_well() -> void:
 
 	var slots_progress_wrap = CenterContainer.new()
 	slots_progress_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slots_progress_wrap.custom_minimum_size = Vector2(120, 28)
+	slots_progress_wrap.custom_minimum_size = Vector2(240, 28)
 	slots_header_row.add_child(slots_progress_wrap)
 
 	var slots_progress = ProgressBar.new()
 	slots_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slots_progress.custom_minimum_size = Vector2(120, 12)
+	slots_progress.custom_minimum_size = Vector2(240, 14)
 	slots_progress.max_value = 1.0
 	slots_progress.value = fill_ratio
 	slots_progress.show_percentage = false
