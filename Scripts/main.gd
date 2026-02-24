@@ -77,10 +77,14 @@ var lbl_level: Label
 var lbl_time: Label
 var lbl_panic: Label
 var lbl_rescue: Label
+var lbl_skill_hint: Label
 var next_box: Panel
 
 var btn_settings: TextureButton
 var btn_exit: TextureButton
+var btn_skill_freeze: TextureButton
+var btn_skill_clear: TextureButton
+var btn_skill_invuln: TextureButton
 var exit_dialog: AcceptDialog
 
 # Game Over overlay
@@ -117,7 +121,10 @@ const PILE_PAD := 12
 const SLOT_H := 54
 const SLOT_GAP := 6
 const HEADER_BUTTON_SIZE := 76.0
+const EXIT_BUTTON_SIZE := 84.0
 const HEADER_BUTTON_MARGIN := 20.0
+
+var skill_hint_until_ms = 0
 
 var fall_piece = null
 var fall_y: float = 10.0
@@ -498,6 +505,9 @@ func _update_status_hud() -> void:
 		var pct = 100.0 * (1.0 - clamp(remaining_sec / max(0.001, cooldown_sec), 0.0, 1.0))
 		lbl_rescue.text = "TIME SLOW CD %.1fs (%.0f%%)" % [remaining_sec, pct]
 		lbl_rescue.modulate = Color(0.80, 0.84, 0.88, 1.0)
+	_update_skill_icon_states()
+	if lbl_skill_hint != null and lbl_skill_hint.visible and Time.get_ticks_msec() >= skill_hint_until_ms:
+		lbl_skill_hint.visible = false
 
 
 # Trigger condition: successful placement of a piece taken from WELL.
@@ -579,11 +589,11 @@ func _build_ui() -> void:
 
 	btn_exit = TextureButton.new()
 	btn_exit.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	btn_exit.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
+	btn_exit.custom_minimum_size = Vector2(EXIT_BUTTON_SIZE, EXIT_BUTTON_SIZE)
 	btn_exit.offset_left = HEADER_BUTTON_MARGIN
 	btn_exit.offset_top = HEADER_BUTTON_MARGIN
-	btn_exit.offset_right = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
-	btn_exit.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
+	btn_exit.offset_right = HEADER_BUTTON_MARGIN + EXIT_BUTTON_SIZE
+	btn_exit.offset_bottom = HEADER_BUTTON_MARGIN + EXIT_BUTTON_SIZE
 	btn_exit.tooltip_text = "Exit"
 	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_exit.ignore_texture_size = true
@@ -593,7 +603,6 @@ func _build_ui() -> void:
 	_wire_button_sfx(btn_exit)
 	btn_exit.z_index = 50
 	btn_exit.z_as_relative = false
-	root_frame.add_child(btn_exit)
 
 	btn_settings = TextureButton.new()
 	btn_settings.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -611,7 +620,6 @@ func _build_ui() -> void:
 	_wire_button_sfx(btn_settings)
 	btn_settings.z_index = 50
 	btn_settings.z_as_relative = false
-	root_frame.add_child(btn_settings)
 
 	var header_metrics = HBoxContainer.new()
 	header_metrics.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -631,7 +639,7 @@ func _build_ui() -> void:
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root_margin.mouse_filter = Control.MOUSE_FILTER_PASS
+	root_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_margin.add_theme_constant_override("margin_left", 24)
 	root_margin.add_theme_constant_override("margin_right", 24)
 	root_margin.add_theme_constant_override("margin_top", 118)
@@ -659,7 +667,7 @@ func _build_ui() -> void:
 	next_box = null
 
 	var lower_panel = Panel.new()
-	lower_panel.custom_minimum_size = Vector2(0, 92)
+	lower_panel.custom_minimum_size = Vector2(0, 96)
 	lower_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lower_panel.add_theme_stylebox_override("panel", _style_hud_panel())
 	main_v.add_child(lower_panel)
@@ -672,58 +680,66 @@ func _build_ui() -> void:
 	lower_margin.add_theme_constant_override("margin_bottom", 10)
 	lower_panel.add_child(lower_margin)
 
-	var lower_status = HBoxContainer.new()
+	var lower_status = VBoxContainer.new()
 	lower_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lower_status.add_theme_constant_override("separation", 24)
+	lower_status.add_theme_constant_override("separation", 6)
 	lower_margin.add_child(lower_status)
 
-	var status_col = VBoxContainer.new()
-	status_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	status_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	status_col.add_theme_constant_override("separation", 8)
-	lower_status.add_child(status_col)
+	var hud_row = HBoxContainer.new()
+	hud_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hud_row.add_theme_constant_override("separation", 14)
+	lower_status.add_child(hud_row)
 
-	var skills_col = VBoxContainer.new()
-	skills_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skills_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skills_col.add_theme_constant_override("separation", 6)
-	lower_status.add_child(skills_col)
-
-	var skills_title = Label.new()
-	skills_title.text = "Skills"
-	skills_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
-	skills_col.add_child(skills_title)
-
-	var skill_rows = HBoxContainer.new()
-	skill_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skill_rows.add_theme_constant_override("separation", 8)
-	skills_col.add_child(skill_rows)
-
-	var skill_reroll = _build_skill_card("Reroll", 5, 1)
-	skill_reroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skill_rows.add_child(skill_reroll)
-	var skill_freeze = _build_skill_card("Freeze", 10, 3)
-	skill_freeze.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skill_rows.add_child(skill_freeze)
-	var skill_clear = _build_skill_card("Clear", 20, 6)
-	skill_clear.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	skill_rows.add_child(skill_clear)
+	var panic_row = HBoxContainer.new()
+	panic_row.add_theme_constant_override("separation", 6)
+	hud_row.add_child(panic_row)
+	_add_icon_or_fallback(panic_row, "res://Assets/UI/icons/icon_panic.png", "!", 18)
+	lbl_panic = Label.new()
+	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+	panic_row.add_child(lbl_panic)
 
 	var time_slow_row = HBoxContainer.new()
 	time_slow_row.add_theme_constant_override("separation", 6)
-	status_col.add_child(time_slow_row)
+	hud_row.add_child(time_slow_row)
 	_add_icon_or_fallback(time_slow_row, "res://Assets/UI/icons/icon_timeslow.png", "⏳", 18)
 	lbl_rescue = Label.new()
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	time_slow_row.add_child(lbl_rescue)
 
-	var panic_row = HBoxContainer.new()
-	panic_row.add_theme_constant_override("separation", 6)
-	status_col.add_child(panic_row)
-	_add_icon_or_fallback(panic_row, "res://Assets/UI/icons/icon_panic.png", "!", 18)
-	lbl_panic = Label.new()
-	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	panic_row.add_child(lbl_panic)
+	var skills_tag = Label.new()
+	skills_tag.text = "Skils"
+	skills_tag.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	hud_row.add_child(skills_tag)
+
+	var skill_rows = HBoxContainer.new()
+	skill_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_rows.add_theme_constant_override("separation", 8)
+	hud_row.add_child(skill_rows)
+
+	btn_skill_freeze = _build_skill_icon_button("F")
+	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
+	skill_rows.add_child(btn_skill_freeze)
+	btn_skill_clear = _build_skill_icon_button("C")
+	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
+	skill_rows.add_child(btn_skill_clear)
+	btn_skill_invuln = _build_skill_icon_button("W")
+	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
+	skill_rows.add_child(btn_skill_invuln)
+
+	var skill_labels = HBoxContainer.new()
+	skill_labels.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skill_labels.add_theme_constant_override("separation", 8)
+	lower_status.add_child(skill_labels)
+
+	skill_labels.add_child(_build_skill_icon_label("Freeze"))
+	skill_labels.add_child(_build_skill_icon_label("Clear Board"))
+	skill_labels.add_child(_build_skill_icon_label("Safe Well"))
+
+	lbl_skill_hint = Label.new()
+	lbl_skill_hint.visible = false
+	lbl_skill_hint.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
+	lbl_skill_hint.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.82, 0.82, 0.82)))
+	lower_status.add_child(lbl_skill_hint)
 
 	well_panel = Panel.new()
 	well_panel.custom_minimum_size = Vector2(0, 420)
@@ -766,7 +782,7 @@ func _build_ui() -> void:
 	well_draw.add_child(well_slots_panel)
 
 	well_slots_draw = Control.new()
-	well_slots_draw.clip_contents = true
+	well_slots_draw.clip_contents = false
 	well_slots_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	well_slots_draw.offset_left = 10
 	well_slots_draw.offset_right = -10
@@ -813,6 +829,9 @@ func _build_ui() -> void:
 	overlay_text.visible = false
 	overlay_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(overlay_text)
+
+	root_frame.add_child(btn_exit)
+	root_frame.add_child(btn_settings)
 
 	exit_dialog = AcceptDialog.new()
 	exit_dialog.title = "Exit"
@@ -940,6 +959,49 @@ func _build_skill_card(label_text: String, req_level: int, progress_level: int) 
 		col.add_child(lock)
 
 	return panel
+
+
+func _build_skill_icon_button(fallback_text: String) -> TextureButton:
+	var b = TextureButton.new()
+	b.custom_minimum_size = Vector2(42, 42)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	b.ignore_texture_size = true
+	b.mouse_filter = Control.MOUSE_FILTER_STOP
+	_apply_header_button_icon(b, "", fallback_text, 20)
+	return b
+
+
+func _build_skill_icon_label(text_value: String) -> Label:
+	var l = Label.new()
+	l.text = text_value
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
+	return l
+
+
+func _on_skill_icon_pressed(btn: TextureButton, required_level: int, locked_msg: String) -> void:
+	if level < required_level:
+		if lbl_skill_hint != null:
+			lbl_skill_hint.text = locked_msg
+			lbl_skill_hint.visible = true
+			skill_hint_until_ms = Time.get_ticks_msec() + 1200
+		return
+	_play_sfx("ui_click")
+	if lbl_skill_hint != null:
+		lbl_skill_hint.visible = false
+
+
+func _update_skill_icon_states() -> void:
+	if btn_skill_freeze == null or btn_skill_clear == null or btn_skill_invuln == null:
+		return
+	btn_skill_freeze.modulate = Color(1, 1, 1, 1.0 if level >= 5 else 0.45)
+	btn_skill_freeze.tooltip_text = "Freeze" if level >= 5 else "Reach level 5"
+	btn_skill_clear.modulate = Color(1, 1, 1, 1.0 if level >= 10 else 0.45)
+	btn_skill_clear.tooltip_text = "Clear Board" if level >= 10 else "Reach level 10"
+	btn_skill_invuln.modulate = Color(1, 1, 1, 1.0 if level >= 20 else 0.45)
+	btn_skill_invuln.tooltip_text = "Safe Well" if level >= 20 else "Reach level 20"
 
 
 func _show_game_over_overlay() -> void:
@@ -1336,7 +1398,7 @@ func _redraw_well() -> void:
 
 	var slots_progress_bg = ColorRect.new()
 	slots_progress_bg.color = Color(1, 1, 1, 0.12)
-	slots_progress_bg.position = Vector2(8, 34)
+	slots_progress_bg.position = Vector2(8, 38)
 	slots_progress_bg.size = Vector2(max(0.0, slots_w - 16.0), 10)
 	slots_progress_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_progress_bg)
