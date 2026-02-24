@@ -1248,7 +1248,7 @@ func _redraw_well() -> void:
 			slot.add_child(preview)
 			if is_active and pile_index == neon_index:
 				var neon_phase = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * NEON_PULSE_SPEED)
-				var neon_alpha = lerp(NEON_MIN_ALPHA, NEON_MAX_ALPHA, neon_phase)
+				neon_alpha = lerp(NEON_MIN_ALPHA, NEON_MAX_ALPHA, neon_phase)
 				var neon_frame = Panel.new()
 				neon_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 				neon_frame.offset_left = 2
