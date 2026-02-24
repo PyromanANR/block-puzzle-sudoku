@@ -557,35 +557,41 @@ func _build_ui() -> void:
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	root_frame.add_child(title_label)
 
+	var header_row = HBoxContainer.new()
+	header_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	header_row.offset_left = HEADER_BUTTON_MARGIN
+	header_row.offset_right = -HEADER_BUTTON_MARGIN
+	header_row.offset_top = HEADER_BUTTON_MARGIN
+	header_row.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
+	header_row.add_theme_constant_override("separation", 8)
+	header_row.z_index = 40
+	root_frame.add_child(header_row)
+
 	btn_exit = TextureButton.new()
 	btn_exit.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
-	btn_exit.position = Vector2(HEADER_BUTTON_MARGIN, HEADER_BUTTON_MARGIN)
 	btn_exit.tooltip_text = "Exit"
-	btn_exit.expand = true
 	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_exit.ignore_texture_size = true
-	_apply_header_button_icon(btn_exit, "res://Assets/UI/icon_close.png", "X", 34)
+	_apply_header_button_icon(btn_exit, "res://Assets/UI/icons/icon_close.png", "X", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
-	btn_exit.z_index = 30
-	root_frame.add_child(btn_exit)
+	btn_exit.z_index = 50
+	header_row.add_child(btn_exit)
+
+	var header_spacer = Control.new()
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_row.add_child(header_spacer)
 
 	btn_settings = TextureButton.new()
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
 	btn_settings.tooltip_text = "Settings"
-	btn_settings.position = Vector2(size.x - HEADER_BUTTON_SIZE - HEADER_BUTTON_MARGIN, HEADER_BUTTON_MARGIN)
-	btn_settings.anchor_left = 1.0
-	btn_settings.anchor_right = 1.0
-	btn_settings.offset_left = -HEADER_BUTTON_SIZE - HEADER_BUTTON_MARGIN
-	btn_settings.offset_right = -HEADER_BUTTON_MARGIN
-	btn_settings.expand = true
 	btn_settings.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_settings.ignore_texture_size = true
-	_apply_header_button_icon(btn_settings, "res://Assets/UI/icon_settings.png", "⚙", 40)
+	_apply_header_button_icon(btn_settings, "res://Assets/UI/icons/icon_settings.png", "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
-	btn_settings.z_index = 30
-	root_frame.add_child(btn_settings)
+	btn_settings.z_index = 50
+	header_row.add_child(btn_settings)
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -641,46 +647,53 @@ func _build_ui() -> void:
 	hv.add_theme_constant_override("separation", 10)
 	hv_margin.add_child(hv)
 
-	lbl_score = _hud_line("Score", "0"); hv.add_child(lbl_score)
-	lbl_speed = _hud_line("Speed", "1.00"); hv.add_child(lbl_speed)
-	lbl_level = _hud_line("Level", "1"); hv.add_child(lbl_level)
-	lbl_time  = _hud_line("Time", "00:00"); hv.add_child(lbl_time)
+	var metrics_row = HBoxContainer.new()
+	metrics_row.add_theme_constant_override("separation", 8)
+	hv.add_child(metrics_row)
+	lbl_score = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_score.png", "S", "Score", "0")
+	lbl_speed = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_speed.png", "⚡", "Speed", "1.00")
+	lbl_time = _hud_metric_row(metrics_row, "res://Assets/UI/icons/icon_time.png", "⏱", "Time", "00:00")
+	lbl_level = _hud_line("Level", "1")
+	lbl_level.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	hv.add_child(lbl_level)
+	next_box = null
 
-	var next_title = Label.new()
-	next_title.text = "NEXT"
-	next_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
-	next_title.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.12, 0.12, 0.12)))
-	hv.add_child(next_title)
+	var hud_spacer = Control.new()
+	hud_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hv.add_child(hud_spacer)
 
-	next_box = Panel.new()
-	next_box.custom_minimum_size = Vector2(0, 180)
-	next_box.add_theme_stylebox_override("panel", _style_preview_box())
-	hv.add_child(next_box)
+	var lower_status = VBoxContainer.new()
+	lower_status.add_theme_constant_override("separation", 8)
+	hv.add_child(lower_status)
 
-	lbl_panic = Label.new()
-	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
-	hv.add_child(lbl_panic)
-
+	var time_slow_row = HBoxContainer.new()
+	time_slow_row.add_theme_constant_override("separation", 6)
+	lower_status.add_child(time_slow_row)
+	_add_icon_or_fallback(time_slow_row, "res://Assets/UI/icons/icon_timeslow.png", "⏳", 18)
 	lbl_rescue = Label.new()
 	lbl_rescue.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	hv.add_child(lbl_rescue)
+	time_slow_row.add_child(lbl_rescue)
+
+	var panic_row = HBoxContainer.new()
+	panic_row.add_theme_constant_override("separation", 6)
+	lower_status.add_child(panic_row)
+	_add_icon_or_fallback(panic_row, "res://Assets/UI/icons/icon_panic.png", "!", 18)
+	lbl_panic = Label.new()
+	lbl_panic.add_theme_font_size_override("font_size", _skin_font_size("normal", 22))
+	panic_row.add_child(lbl_panic)
 
 	var skills_title = Label.new()
 	skills_title.text = "Skills"
 	skills_title.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
-	hv.add_child(skills_title)
-	hv.add_child(_build_skill_card("Reroll", 5, 1))
-	hv.add_child(_build_skill_card("Freeze", 10, 3))
-	hv.add_child(_build_skill_card("Clear", 20, 6))
-
-	var spacer = Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hv.add_child(spacer)
+	lower_status.add_child(skills_title)
+	lower_status.add_child(_build_skill_card("Reroll", 5, 1))
+	lower_status.add_child(_build_skill_card("Freeze", 10, 3))
+	lower_status.add_child(_build_skill_card("Clear", 20, 6))
 
 	well_panel = Panel.new()
-	well_panel.custom_minimum_size = Vector2(0, 760)
+	well_panel.custom_minimum_size = Vector2(0, 420)
 	well_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	well_panel.size_flags_vertical = Control.SIZE_FILL
+	well_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	well_panel.add_theme_stylebox_override("panel", _style_bottom_panel())
 	well_panel.clip_contents = true
 	main_v.add_child(well_panel)
@@ -697,7 +710,7 @@ func _build_ui() -> void:
 	drop_zone_panel = Panel.new()
 	drop_zone_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drop_zone_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	drop_zone_panel.size_flags_stretch_ratio = 6.0
+	drop_zone_panel.size_flags_stretch_ratio = 5.2
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
@@ -713,7 +726,7 @@ func _build_ui() -> void:
 	well_slots_panel = Panel.new()
 	well_slots_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	well_slots_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	well_slots_panel.size_flags_stretch_ratio = 4.0
+	well_slots_panel.size_flags_stretch_ratio = 4.8
 	well_slots_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(well_slots_panel)
 
@@ -781,6 +794,39 @@ func _hud_line(k: String, v: String) -> Label:
 	l.add_theme_font_size_override("font_size", _skin_font_size("normal", 24))
 	l.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	return l
+
+
+func _hud_metric_row(parent: Control, icon_path: String, fallback: String, prefix: String, value: String) -> Label:
+	var wrap = HBoxContainer.new()
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.add_theme_constant_override("separation", 6)
+	parent.add_child(wrap)
+	_add_icon_or_fallback(wrap, icon_path, fallback, 16)
+	var label = Label.new()
+	label.text = "%s: %s" % [prefix, value]
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
+	wrap.add_child(label)
+	return label
+
+
+func _add_icon_or_fallback(parent: Control, icon_path: String, fallback_text: String, fallback_size: int) -> void:
+	if ResourceLoader.exists(icon_path):
+		var icon = TextureRect.new()
+		icon.custom_minimum_size = Vector2(18, 18)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = load(icon_path)
+		parent.add_child(icon)
+		return
+	var fallback = Label.new()
+	fallback.custom_minimum_size = Vector2(18, 18)
+	fallback.text = fallback_text
+	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fallback.add_theme_font_size_override("font_size", fallback_size)
+	parent.add_child(fallback)
 
 
 func _apply_header_button_icon(btn: TextureButton, icon_path: String, fallback_text: String, fallback_size: int) -> void:
@@ -1010,6 +1056,8 @@ func _refresh_board_visual() -> void:
 # Next preview
 # ============================================================
 func _update_previews() -> void:
+	if next_box == null:
+		return
 	var next_piece = core.call("PeekNextPieceForBoard", board)
 	_draw_preview(next_box, next_piece)
 
@@ -1091,7 +1139,8 @@ func _spawn_falling_piece() -> void:
 		dual_drop_waiting_for_gap = true
 		dual_drop_anchor_y = fall_y
 		dual_drop_cycle_pending = false
-	next_box.queue_redraw()
+	if next_box != null:
+		next_box.queue_redraw()
 	_update_previews()
 
 func _dual_drop_can_spawn(now_ms: int) -> bool:
@@ -1129,7 +1178,8 @@ func _spawn_second_falling_piece() -> void:
 	pending_dual_spawn_ms = 0
 	pending_dual_fallback_ms = 0
 	dual_drop_waiting_for_gap = false
-	next_box.queue_redraw()
+	if next_box != null:
+		next_box.queue_redraw()
 	_update_previews()
 
 
