@@ -1271,10 +1271,11 @@ func _reposition_board_side_overlays() -> void:
 	if grid_control != null:
 		grid_rect = Rect2(grid_control.position, grid_control.size)
 	var grid_right = grid_rect.position.x + grid_rect.size.x
-	var right_pad = max(0.0, host_right - grid_right)
-	var holder_w = min(76.0, right_pad)
-	var desired_x = grid_right + max(12.0, (right_pad - holder_w) * 0.5)
-	var clamp_x = min(desired_x, host_right - holder_w - 12.0)
+	var holder_w = 76.0
+	var bg_right_margin = 10.0
+	var x_right = host_right - holder_w - bg_right_margin
+	var min_x = grid_right + 8.0
+	var clamp_x = max(min_x, x_right)
 	board_overlay_right.scale = Vector2.ONE
 	board_overlay_right.position = Vector2(clamp_x, grid_rect.position.y)
 	board_overlay_right.size = Vector2(holder_w, grid_rect.size.y)
@@ -2199,23 +2200,23 @@ func _style_skills_panel() -> StyleBox:
 
 
 func _style_skills_slot() -> StyleBox:
-	var base_style = root_frame.get_theme_stylebox("panel") if root_frame != null else null
-	if base_style == null:
-		base_style = board_panel.get_theme_stylebox("panel") if board_panel != null else null
+	var base_style = board_panel.get_theme_stylebox("panel") if board_panel != null else null
 	if base_style is StyleBoxFlat:
 		var slot_style = (base_style as StyleBoxFlat).duplicate() as StyleBoxFlat
+		var base_color = slot_style.bg_color
 		slot_style.set_border_width_all(2)
-		slot_style.border_color = Color(slot_style.bg_color.r * 0.75, slot_style.bg_color.g * 0.75, slot_style.bg_color.b * 0.75, 0.95)
-		slot_style.bg_color = Color(slot_style.bg_color.r * 0.85, slot_style.bg_color.g * 0.85, slot_style.bg_color.b * 0.85, 0.20)
+		slot_style.border_color = Color(base_color.r * 0.75, base_color.g * 0.75, base_color.b * 0.75, 0.95)
+		slot_style.bg_color = Color(base_color.r * 0.85, base_color.g * 0.85, base_color.b * 0.85, 0.20)
+		slot_style.shadow_color = Color(0.0, 0.0, 0.0, 0.22)
+		slot_style.shadow_size = 3
 		return slot_style
 	var fallback = StyleBoxFlat.new()
-	var representative = well_slots_panel.get_theme_stylebox("panel") if well_slots_panel != null else null
-	var base_color = _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42))
-	if representative is StyleBoxFlat:
-		base_color = (representative as StyleBoxFlat).bg_color
+	var base_color = _skin_color("board_bg", Color(0.20, 0.22, 0.20))
 	fallback.bg_color = Color(base_color.r * 0.85, base_color.g * 0.85, base_color.b * 0.85, 0.20)
 	fallback.set_border_width_all(2)
 	fallback.border_color = Color(base_color.r * 0.75, base_color.g * 0.75, base_color.b * 0.75, 0.95)
+	fallback.shadow_color = Color(0.0, 0.0, 0.0, 0.22)
+	fallback.shadow_size = 3
 	return fallback
 
 
