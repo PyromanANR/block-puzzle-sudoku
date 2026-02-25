@@ -665,7 +665,7 @@ func _build_ui() -> void:
 	left_stats.add_theme_constant_override("separation", 4)
 	header_row.add_child(left_stats)
 
-	var center_section = CenterContainer.new()
+	var center_section = Control.new()
 	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center_section.custom_minimum_size = Vector2(260, 0)
@@ -688,6 +688,8 @@ func _build_ui() -> void:
 	title_label.add_theme_font_size_override("font_size", fs)
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	title_label.clip_text = false
 	center_section.add_child(title_label)
 
 	var right_stats = VBoxContainer.new()
@@ -793,7 +795,7 @@ func _build_ui() -> void:
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var time_slow_frame = StyleBoxFlat.new()
 	time_slow_frame.set_border_width_all(2)
-	time_slow_frame.border_color = Color(0.15, 0.15, 0.15, 0.9)
+	time_slow_frame.border_color = Color(0.12, 0.12, 0.12, 0.7)
 	time_slow_frame.bg_color = Color(0, 0, 0, 0)
 	time_slow_mid.add_theme_stylebox_override("panel", time_slow_frame)
 	time_slow_mid.clip_contents = true
