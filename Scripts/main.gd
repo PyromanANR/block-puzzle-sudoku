@@ -608,68 +608,76 @@ func _build_ui() -> void:
 	root_frame.add_theme_stylebox_override("panel", _style_cartridge_frame())
 	add_child(root_frame)
 
-	title_label = Label.new()
-	title_label.text = "TETRIS SUDOKU"
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title_label.clip_text = true
-	title_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	title_label.offset_top = 8
-	title_label.offset_left = 20
-	title_label.offset_right = -20
-	title_label.offset_bottom = 72
-	title_label.add_theme_font_size_override("font_size", _skin_font_size("title", 48))
-	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
-	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root_frame.add_child(title_label)
+	var header_row = HBoxContainer.new()
+	header_row.name = "header_row"
+	header_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	header_row.offset_left = 20
+	header_row.offset_right = -20
+	header_row.offset_top = 14
+	header_row.offset_bottom = 108
+	header_row.add_theme_constant_override("separation", 16)
+	header_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_frame.add_child(header_row)
+
+	var left_section = HBoxContainer.new()
+	left_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_section.add_theme_constant_override("separation", 12)
+	header_row.add_child(left_section)
 
 	btn_exit = TextureButton.new()
-	btn_exit.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	btn_exit.custom_minimum_size = Vector2(EXIT_BUTTON_SIZE, EXIT_BUTTON_SIZE)
-	btn_exit.offset_left = HEADER_BUTTON_MARGIN
-	btn_exit.offset_top = HEADER_BUTTON_MARGIN
-	btn_exit.offset_right = HEADER_BUTTON_MARGIN + EXIT_BUTTON_SIZE
-	btn_exit.offset_bottom = HEADER_BUTTON_MARGIN + EXIT_BUTTON_SIZE
 	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_exit.ignore_texture_size = true
 	btn_exit.mouse_filter = Control.MOUSE_FILTER_STOP
 	_apply_header_button_icon(btn_exit, "res://Assets/UI/icons/icon_close.png", "X", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
-	btn_exit.z_index = 50
-	btn_exit.z_as_relative = false
+	left_section.add_child(btn_exit)
+
+	var left_stats = HBoxContainer.new()
+	left_stats.add_theme_constant_override("separation", 14)
+	left_section.add_child(left_stats)
+	left_section.alignment = BoxContainer.ALIGNMENT_BEGIN
+
+	var center_section = CenterContainer.new()
+	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_row.add_child(center_section)
+
+	title_label = Label.new()
+	title_label.text = "TETRIS SUDOKU"
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_label.clip_text = true
+	title_label.add_theme_font_size_override("font_size", _skin_font_size("title", 48))
+	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
+	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center_section.add_child(title_label)
+
+	var right_section = HBoxContainer.new()
+	right_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_section.add_theme_constant_override("separation", 12)
+	right_section.alignment = BoxContainer.ALIGNMENT_END
+	header_row.add_child(right_section)
+
+	var right_stats = HBoxContainer.new()
+	right_stats.add_theme_constant_override("separation", 14)
+	right_section.add_child(right_stats)
 
 	btn_settings = TextureButton.new()
-	btn_settings.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
-	btn_settings.offset_left = -(HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE)
-	btn_settings.offset_top = HEADER_BUTTON_MARGIN
-	btn_settings.offset_right = -HEADER_BUTTON_MARGIN
-	btn_settings.offset_bottom = HEADER_BUTTON_MARGIN + HEADER_BUTTON_SIZE
 	btn_settings.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_settings.ignore_texture_size = true
 	btn_settings.mouse_filter = Control.MOUSE_FILTER_STOP
 	_apply_header_button_icon(btn_settings, "res://Assets/UI/icons/icon_settings.png", "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
-	btn_settings.z_index = 50
-	btn_settings.z_as_relative = false
+	right_section.add_child(btn_settings)
 
-	var header_metrics = HBoxContainer.new()
-	header_metrics.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header_metrics.offset_left = 120
-	header_metrics.offset_right = -120
-	header_metrics.offset_top = 74
-	header_metrics.offset_bottom = 112
-	header_metrics.alignment = BoxContainer.ALIGNMENT_CENTER
-	header_metrics.add_theme_constant_override("separation", 16)
-	header_metrics.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root_frame.add_child(header_metrics)
-
-	lbl_score = _hud_metric_row(header_metrics, "score", "Score", "0")
-	lbl_speed = _hud_metric_row(header_metrics, "speed", "Speed", "1.00")
-	lbl_time = _hud_metric_row(header_metrics, "time", "Time", "00:00")
-	lbl_level = _hud_metric_row(header_metrics, "level", "Level", "1")
+	lbl_score = _hud_metric_row(left_stats, "score", "Score", "0")
+	lbl_speed = _hud_metric_row(left_stats, "speed", "Speed", "1.00")
+	lbl_level = _hud_metric_row(right_stats, "level", "Level", "1")
+	lbl_time = _hud_metric_row(right_stats, "time", "Time", "00:00")
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -735,6 +743,7 @@ func _build_ui() -> void:
 	time_slow_mid.custom_minimum_size = Vector2(36, 0)
 	time_slow_mid.size_flags_horizontal = Control.SIZE_FILL
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	time_slow_mid.z_index = 0
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var time_slow_frame = StyleBoxFlat.new()
 	time_slow_frame.set_border_width_all(2)
@@ -744,11 +753,17 @@ func _build_ui() -> void:
 	time_slow_mid.clip_contents = true
 	well_draw.add_child(time_slow_mid)
 
+	var time_slow_frame_panel = PanelContainer.new()
+	time_slow_frame_panel.name = "time_slow_frame_panel"
+	time_slow_frame_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_frame_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_mid.add_child(time_slow_frame_panel)
+
 	var time_slow_stack = Control.new()
 	time_slow_stack.name = "time_slow_stack"
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_mid.add_child(time_slow_stack)
+	time_slow_frame_panel.add_child(time_slow_stack)
 
 	time_slow_sand_rect = TextureRect.new()
 	time_slow_sand_rect.name = "sand_rect"
@@ -893,9 +908,6 @@ func _build_ui() -> void:
 	overlay_text.visible = false
 	overlay_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(overlay_text)
-
-	root_frame.add_child(btn_exit)
-	root_frame.add_child(btn_settings)
 
 	exit_dialog = AcceptDialog.new()
 	exit_dialog.title = "Exit"
@@ -1265,6 +1277,7 @@ func _build_board_side_overlays() -> void:
 	var skills_holder = Control.new()
 	skills_holder.name = "skills_holder"
 	skills_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skills_holder.modulate = Color(1, 1, 1, 1)
 	skills_holder.custom_minimum_size = Vector2(76, 0)
 	skills_holder.size_flags_vertical = Control.SIZE_FILL
 	board_panel.add_child(skills_holder)
@@ -1286,6 +1299,7 @@ func _build_board_side_overlays() -> void:
 	var slot1 = PanelContainer.new()
 	slot1.custom_minimum_size = Vector2(64, 64)
 	slot1.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot1.modulate = Color(1, 1, 1, 1)
 	slot1.add_theme_stylebox_override("panel", _style_skills_slot_outer(outer_bg_color))
 	skill_even_area.add_child(slot1)
 	var inner_cutout1 = _build_skill_slot_cutout(slot1, outer_bg_color)
@@ -1311,6 +1325,7 @@ func _build_board_side_overlays() -> void:
 	var slot2 = PanelContainer.new()
 	slot2.custom_minimum_size = Vector2(64, 64)
 	slot2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot2.modulate = Color(1, 1, 1, 1)
 	slot2.add_theme_stylebox_override("panel", _style_skills_slot_outer(outer_bg_color))
 	skill_even_area.add_child(slot2)
 	var inner_cutout2 = _build_skill_slot_cutout(slot2, outer_bg_color)
@@ -1336,6 +1351,7 @@ func _build_board_side_overlays() -> void:
 	var slot3 = PanelContainer.new()
 	slot3.custom_minimum_size = Vector2(64, 64)
 	slot3.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot3.modulate = Color(1, 1, 1, 1)
 	slot3.add_theme_stylebox_override("panel", _style_skills_slot_outer(outer_bg_color))
 	skill_even_area.add_child(slot3)
 	var inner_cutout3 = _build_skill_slot_cutout(slot3, outer_bg_color)
@@ -2306,9 +2322,11 @@ func _skills_outer_bg_color() -> Color:
 	while p != null and p is Control:
 		var sb = (p as Control).get_theme_stylebox("panel")
 		if sb is StyleBoxFlat:
-			return (sb as StyleBoxFlat).bg_color
+			var c = (sb as StyleBoxFlat).bg_color
+			if c.a > 0.0 and c.r >= c.g and c.g >= c.b:
+				return c
 		p = (p as Control).get_parent()
-	return _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42))
+	return _skin_color("hud_bg", _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42)))
 
 
 func _style_skills_slot_outer(outer_bg_color: Color) -> StyleBox:
@@ -2347,7 +2365,10 @@ func _build_skill_slot_cutout(slot: PanelContainer, outer_bg_color: Color) -> Pa
 	top_highlight.offset_right = -2
 	top_highlight.offset_top = 2
 	top_highlight.offset_bottom = 6
-	top_highlight.color = Color(min(outer_bg_color.r * 1.15, 1.0), min(outer_bg_color.g * 1.15, 1.0), min(outer_bg_color.b * 1.15, 1.0), 0.30)
+	var hi_r = outer_bg_color.r + (1.0 - outer_bg_color.r) * 0.18
+	var hi_g = outer_bg_color.g + (1.0 - outer_bg_color.g) * 0.18
+	var hi_b = outer_bg_color.b + (1.0 - outer_bg_color.b) * 0.18
+	top_highlight.color = Color(hi_r, hi_g, hi_b, 0.28)
 	top_highlight.z_index = 1
 	inner_cutout.add_child(top_highlight)
 
