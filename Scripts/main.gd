@@ -278,13 +278,11 @@ func _notification(what: int) -> void:
 func _sync_time_slow_column_width() -> void:
 	if time_slow_mid == null:
 		return
-	var ratio = 256.0 / 768.0
+	var ratio = (256.0 / 768.0) * 0.5
 	var h = float(time_slow_mid.size.y)
 	if h <= 0.0:
 		return
-	var w = ceil(h * ratio * 0.5)
-	w = clamp(w, 18.0, 44.0)
-	time_slow_mid.custom_minimum_size.x = w
+	time_slow_mid.custom_minimum_size.x = ceil(h * ratio)
 	var p = time_slow_mid.get_parent()
 	if p is Container:
 		(p as Container).queue_sort()
@@ -647,6 +645,7 @@ func _build_ui() -> void:
 	var left_button_section = HBoxContainer.new()
 	left_button_section.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left_button_section.alignment = BoxContainer.ALIGNMENT_BEGIN
+	left_button_section.add_theme_constant_override("separation", 10)
 	header_row.add_child(left_button_section)
 
 	btn_exit = TextureButton.new()
@@ -659,8 +658,13 @@ func _build_ui() -> void:
 	_wire_button_sfx(btn_exit)
 	left_button_section.add_child(btn_exit)
 
+	var gapL = Control.new()
+	gapL.custom_minimum_size = Vector2(10, 0)
+	gapL.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(gapL)
+
 	var left_stats = VBoxContainer.new()
-	left_stats.size_flags_horizontal = Control.SIZE_FILL
+	left_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	left_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_stats.alignment = BoxContainer.ALIGNMENT_CENTER
 	left_stats.add_theme_constant_override("separation", 4)
@@ -669,7 +673,7 @@ func _build_ui() -> void:
 	var center_section = CenterContainer.new()
 	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	center_section.custom_minimum_size = Vector2(120, 0)
+	center_section.custom_minimum_size = Vector2(260, 0)
 	center_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center_section.clip_contents = false
 	header_row.add_child(center_section)
@@ -681,11 +685,11 @@ func _build_ui() -> void:
 	title_label.visible = true
 	title_label.z_index = 50
 	title_label.self_modulate = Color(1, 1, 1, 1)
-	title_label.custom_minimum_size = Vector2(220, 0)
+	title_label.custom_minimum_size = Vector2(0, 0)
 	title_label.clip_text = true
-	var fs = int(_skin_font_size("title", 48))
+	var fs = int(_skin_font_size("title", 44))
 	if fs <= 0:
-		fs = 48
+		fs = 44
 	title_label.add_theme_font_size_override("font_size", fs)
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -693,15 +697,21 @@ func _build_ui() -> void:
 	print("Title fs=", fs, " text=", title_label.text, " size=", title_label.size)
 
 	var right_stats = VBoxContainer.new()
-	right_stats.size_flags_horizontal = Control.SIZE_FILL
+	right_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	right_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_stats.alignment = BoxContainer.ALIGNMENT_CENTER
 	right_stats.add_theme_constant_override("separation", 4)
 	header_row.add_child(right_stats)
 
+	var gapR = Control.new()
+	gapR.custom_minimum_size = Vector2(10, 0)
+	gapR.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(gapR)
+
 	var right_button_section = HBoxContainer.new()
 	right_button_section.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right_button_section.alignment = BoxContainer.ALIGNMENT_END
+	right_button_section.add_theme_constant_override("separation", 10)
 	header_row.add_child(right_button_section)
 
 	btn_settings = TextureButton.new()
@@ -806,7 +816,7 @@ func _build_ui() -> void:
 	time_slow_aspect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_aspect.size_flags_horizontal = Control.SIZE_FILL
 	time_slow_aspect.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	time_slow_aspect.ratio = 1.0 / 3.0
+	time_slow_aspect.ratio = 1.0 / 6.0
 	time_slow_aspect.stretch_mode = AspectRatioContainer.STRETCH_FIT
 	time_slow_aspect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_frame_panel.add_child(time_slow_aspect)
