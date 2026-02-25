@@ -1,0 +1,7 @@
+[gd_resource type="AtlasTexture" load_steps=2 format=3 uid="uid://d7nh28d13qnh"]
+
+[ext_resource type="Texture2D" uid="uid://bmv0eaws2u6qv" path="res://Assets/UI/time_slow/time_slow_atlas.png" id="1_w2wa6"]
+
+[resource]
+atlas = ExtResource("1_w2wa6")
+region = Rect2(979, 79, 222, 902)
