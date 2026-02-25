@@ -17,6 +17,7 @@ const FROST_SHADER_PATH = "res://Assets/Shaders/Skills/frost_edge.gdshader"
 const VIGNETTE_SHADER_PATH = "res://Assets/Shaders/Skills/vignette.gdshader"
 const FLASH_SHADER_PATH = "res://Assets/Shaders/Skills/flash.gdshader"
 const LIGHTNING_SHADER_PATH = "res://Assets/Shaders/Skills/lightning.gdshader"
+const TIME_SLOW_RIPPLE_SHADER_PATH = "res://Assets/Shaders/Skills/time_slow_ripple.gdshader"
 
 var host_control: Control = null
 var board_control: Control = null
@@ -29,6 +30,7 @@ var overlay_root: Control = null
 
 var rng = RandomNumberGenerator.new()
 var sfx_players: Dictionary = {}
+var play_main_sfx: Callable = Callable()
 
 var freeze_start_ms = -1
 var freeze_end_ms = -1
@@ -58,6 +60,11 @@ var safe_well_open_start_ms = -1
 var safe_well_open_end_ms = -1
 var safe_well_doors_started = false
 
+var time_slow_ripple_start_ms = -1
+var time_slow_ripple_end_ms = -1
+var time_slow_ripple_rect: ColorRect = null
+var time_slow_ripple_mat: ShaderMaterial = null
+
 
 func setup(host: Control, board: Control, drop_zone: Control, well: Control = null, frame: Control = null) -> void:
 	host_control = host
@@ -66,6 +73,10 @@ func setup(host: Control, board: Control, drop_zone: Control, well: Control = nu
 	well_control = well
 	frame_control = frame
 	_ensure_overlay_layer()
+
+
+func setup_sfx_callback(callback: Callable) -> void:
+	play_main_sfx = callback
 
 
 func on_freeze_cast(duration_ms: int) -> void:
@@ -107,6 +118,20 @@ func on_safe_well_cast(duration_ms: int) -> void:
 	set_process(true)
 
 
+func on_time_slow_cast() -> void:
+	_ensure_overlay_layer()
+	_play_time_slow_sfx()
+	var now = Time.get_ticks_msec()
+	time_slow_ripple_start_ms = now
+	time_slow_ripple_end_ms = now + 1000
+	if not _ensure_time_slow_ripple_node():
+		time_slow_ripple_start_ms = -1
+		time_slow_ripple_end_ms = -1
+		return
+	time_slow_ripple_rect.visible = true
+	set_process(true)
+
+
 func _ready() -> void:
 	rng.randomize()
 	set_process(false)
@@ -120,6 +145,8 @@ func _process(_delta: float) -> void:
 	if _update_clear_board(now):
 		active = true
 	if _update_safe_well(now):
+		active = true
+	if _update_time_slow_ripple(now):
 		active = true
 	if not active:
 		set_process(false)
@@ -163,6 +190,14 @@ func _play_optional_sfx(key: String, path: String) -> void:
 	var player = _ensure_audio_player(key, path)
 	if player != null and player.stream != null:
 		player.play()
+
+
+func _play_time_slow_sfx() -> void:
+	if play_main_sfx.is_valid():
+		play_main_sfx.call("time_slow")
+		return
+	if OS.is_debug_build():
+		push_warning("SkillVFXController: time_slow SFX callback is not configured.")
 
 
 func _shader_from_path(path: String) -> Shader:
@@ -277,6 +312,33 @@ func _ensure_clear_flash_node() -> void:
 		clear_flash_rect.offset_right = 0
 		clear_flash_rect.offset_bottom = 0
 	clear_flash_rect.visible = false
+
+
+func _ensure_time_slow_ripple_node() -> bool:
+	if overlay_root == null:
+		return false
+	if time_slow_ripple_rect != null and is_instance_valid(time_slow_ripple_rect):
+		return true
+	var ripple_shader = _shader_from_path(TIME_SLOW_RIPPLE_SHADER_PATH)
+	if ripple_shader == null:
+		return false
+	time_slow_ripple_rect = ColorRect.new()
+	time_slow_ripple_rect.color = Color(0.0, 0.0, 0.0, 0.0)
+	time_slow_ripple_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_ripple_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_ripple_rect.offset_left = 0
+	time_slow_ripple_rect.offset_top = 0
+	time_slow_ripple_rect.offset_right = 0
+	time_slow_ripple_rect.offset_bottom = 0
+	time_slow_ripple_mat = ShaderMaterial.new()
+	time_slow_ripple_mat.shader = ripple_shader
+	time_slow_ripple_mat.set_shader_parameter("u_progress", 0.0)
+	time_slow_ripple_mat.set_shader_parameter("u_strength", 0.0)
+	time_slow_ripple_mat.set_shader_parameter("u_center", Vector2(0.5, 0.5))
+	time_slow_ripple_rect.material = time_slow_ripple_mat
+	time_slow_ripple_rect.visible = false
+	overlay_root.add_child(time_slow_ripple_rect)
+	return true
 
 
 func _well_rect() -> Rect2:
@@ -533,6 +595,29 @@ func _update_safe_well(now: int) -> bool:
 			safe_well_lock.visible = false
 		active = false
 	return active
+
+
+func _update_time_slow_ripple(now: int) -> bool:
+	if time_slow_ripple_start_ms < 0 or time_slow_ripple_end_ms <= time_slow_ripple_start_ms:
+		return false
+	if time_slow_ripple_rect == null or not is_instance_valid(time_slow_ripple_rect):
+		time_slow_ripple_start_ms = -1
+		time_slow_ripple_end_ms = -1
+		return false
+	if now > time_slow_ripple_end_ms:
+		time_slow_ripple_start_ms = -1
+		time_slow_ripple_end_ms = -1
+		time_slow_ripple_rect.visible = false
+		return false
+	var t = float(now - time_slow_ripple_start_ms) / 1000.0
+	var progress = clamp(t, 0.0, 1.0)
+	var strength = (1.0 - progress) * 0.65
+	time_slow_ripple_rect.visible = true
+	if time_slow_ripple_mat != null:
+		time_slow_ripple_mat.set_shader_parameter("u_progress", progress)
+		time_slow_ripple_mat.set_shader_parameter("u_strength", strength)
+		time_slow_ripple_mat.set_shader_parameter("u_center", Vector2(0.5, 0.5))
+	return true
 
 
 func _hide_safe_well_doors_lock() -> void:
