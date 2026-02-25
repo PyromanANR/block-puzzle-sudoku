@@ -1324,23 +1324,40 @@ func _build_board_side_overlays() -> void:
 	skills_holder.name = "skills_holder"
 	skills_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skills_holder.modulate = Color(1, 1, 1, 1)
-	skills_holder.custom_minimum_size = Vector2(76, 0)
+	skills_holder.custom_minimum_size = Vector2(92, 0)
 	skills_holder.size_flags_vertical = Control.SIZE_FILL
 	board_panel.add_child(skills_holder)
 	board_overlay_right = skills_holder
+
+	var rail_root = Control.new()
+	rail_root.name = "skills_rail_root"
+	rail_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rail_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skills_holder.add_child(rail_root)
+
+	var rail_bg = ColorRect.new()
+	rail_bg.name = "skills_rail_bg"
+	rail_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rail_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rail_bg.color = Color(outer_bg_color.r, outer_bg_color.g, outer_bg_color.b, 0.22)
+	rail_root.add_child(rail_bg)
+
+	var rail_margin = MarginContainer.new()
+	rail_margin.name = "skills_rail_margin"
+	rail_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rail_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rail_margin.add_theme_constant_override("margin_left", 10)
+	rail_margin.add_theme_constant_override("margin_right", 10)
+	rail_margin.add_theme_constant_override("margin_top", 12)
+	rail_margin.add_theme_constant_override("margin_bottom", 12)
+	rail_root.add_child(rail_margin)
 
 	var skill_even_area = VBoxContainer.new()
 	skill_even_area.name = "skill_even_area"
 	skill_even_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_even_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_even_area.add_theme_constant_override("separation", 0)
-	skills_holder.add_child(skill_even_area)
-	skill_even_area.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var skill_spacer_top = Control.new()
-	skill_spacer_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skill_spacer_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_even_area.add_child(skill_spacer_top)
+	skill_even_area.add_theme_constant_override("separation", 14)
+	rail_margin.add_child(skill_even_area)
 
 	var slot1 = PanelContainer.new()
 	slot1.custom_minimum_size = Vector2(64, 64)
@@ -1354,19 +1371,17 @@ func _build_board_side_overlays() -> void:
 	btn_skill_freeze.custom_minimum_size = Vector2(56, 56)
 	btn_skill_freeze.size = Vector2(56, 56)
 	btn_skill_freeze.ignore_texture_size = true
-	btn_skill_freeze.set_anchors_preset(Control.PRESET_CENTER)
-	btn_skill_freeze.offset_left = -28
-	btn_skill_freeze.offset_top = -28
-	btn_skill_freeze.offset_right = 28
-	btn_skill_freeze.offset_bottom = 28
+	btn_skill_freeze.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_skill_freeze.z_index = 2
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
-	inner_cutout1.add_child(btn_skill_freeze)
-
-	var skill_spacer_mid_a = Control.new()
-	skill_spacer_mid_a.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skill_spacer_mid_a.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_even_area.add_child(skill_spacer_mid_a)
+	var hit_freeze = CenterContainer.new()
+	hit_freeze.name = "hit_freeze"
+	hit_freeze.custom_minimum_size = Vector2(64, 64)
+	hit_freeze.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	hit_freeze.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hit_freeze.mouse_filter = Control.MOUSE_FILTER_STOP
+	inner_cutout1.add_child(hit_freeze)
+	hit_freeze.add_child(btn_skill_freeze)
 
 	var slot2 = PanelContainer.new()
 	slot2.custom_minimum_size = Vector2(64, 64)
@@ -1380,19 +1395,17 @@ func _build_board_side_overlays() -> void:
 	btn_skill_clear.custom_minimum_size = Vector2(56, 56)
 	btn_skill_clear.size = Vector2(56, 56)
 	btn_skill_clear.ignore_texture_size = true
-	btn_skill_clear.set_anchors_preset(Control.PRESET_CENTER)
-	btn_skill_clear.offset_left = -28
-	btn_skill_clear.offset_top = -28
-	btn_skill_clear.offset_right = 28
-	btn_skill_clear.offset_bottom = 28
+	btn_skill_clear.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_skill_clear.z_index = 2
 	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
-	inner_cutout2.add_child(btn_skill_clear)
-
-	var skill_spacer_mid_b = Control.new()
-	skill_spacer_mid_b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skill_spacer_mid_b.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_even_area.add_child(skill_spacer_mid_b)
+	var hit_clear = CenterContainer.new()
+	hit_clear.name = "hit_clear"
+	hit_clear.custom_minimum_size = Vector2(64, 64)
+	hit_clear.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	hit_clear.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hit_clear.mouse_filter = Control.MOUSE_FILTER_STOP
+	inner_cutout2.add_child(hit_clear)
+	hit_clear.add_child(btn_skill_clear)
 
 	var slot3 = PanelContainer.new()
 	slot3.custom_minimum_size = Vector2(64, 64)
@@ -1406,19 +1419,17 @@ func _build_board_side_overlays() -> void:
 	btn_skill_invuln.custom_minimum_size = Vector2(56, 56)
 	btn_skill_invuln.size = Vector2(56, 56)
 	btn_skill_invuln.ignore_texture_size = true
-	btn_skill_invuln.set_anchors_preset(Control.PRESET_CENTER)
-	btn_skill_invuln.offset_left = -28
-	btn_skill_invuln.offset_top = -28
-	btn_skill_invuln.offset_right = 28
-	btn_skill_invuln.offset_bottom = 28
+	btn_skill_invuln.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_skill_invuln.z_index = 2
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
-	inner_cutout3.add_child(btn_skill_invuln)
-
-	var skill_spacer_bottom = Control.new()
-	skill_spacer_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skill_spacer_bottom.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skill_even_area.add_child(skill_spacer_bottom)
+	var hit_invuln = CenterContainer.new()
+	hit_invuln.name = "hit_invuln"
+	hit_invuln.custom_minimum_size = Vector2(64, 64)
+	hit_invuln.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	hit_invuln.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hit_invuln.mouse_filter = Control.MOUSE_FILTER_STOP
+	inner_cutout3.add_child(hit_invuln)
+	hit_invuln.add_child(btn_skill_invuln)
 	_reposition_board_side_overlays()
 
 
