@@ -806,11 +806,21 @@ func _build_ui() -> void:
 	time_slow_frame_panel.clip_contents = true
 	time_slow_mid.add_child(time_slow_frame_panel)
 
+	var time_slow_aspect = AspectRatioContainer.new()
+	time_slow_aspect.name = "time_slow_aspect"
+	time_slow_aspect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_aspect.size_flags_horizontal = Control.SIZE_FILL
+	time_slow_aspect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	time_slow_aspect.ratio = 1.0 / 6.0
+	time_slow_aspect.stretch_mode = AspectRatioContainer.STRETCH_FIT
+	time_slow_aspect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_frame_panel.add_child(time_slow_aspect)
+
 	var time_slow_stack = Control.new()
 	time_slow_stack.name = "time_slow_stack"
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_frame_panel.add_child(time_slow_stack)
+	time_slow_aspect.add_child(time_slow_stack)
 
 	time_slow_sand_rect = TextureRect.new()
 	time_slow_sand_rect.name = "sand_rect"
