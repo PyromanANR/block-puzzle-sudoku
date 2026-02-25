@@ -20,7 +20,6 @@ func _ready() -> void:
 	call_deferred("startup_cloud_sync")
 
 
-
 func defaults() -> Dictionary:
 	return {
 		"save_version": SAVE_VERSION,
@@ -106,7 +105,6 @@ func save(push_cloud: bool = true) -> void:
 	f.close()
 	if push_cloud:
 		cloud_push_best_effort()
-
 
 
 func _merge_into(dst: Dictionary, src: Dictionary) -> void:

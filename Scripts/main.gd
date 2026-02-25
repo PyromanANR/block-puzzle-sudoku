@@ -169,6 +169,12 @@ var time_slow_overlay_input_release_ms = 0
 var time_slow_effect_until_ms = 0
 var well_first_entry_slow_until_ms = 0
 var well_first_entry_slow_used = false
+var freeze_effect_until_ms = 0
+var freeze_effect_multiplier = 1.0
+var safe_well_effect_until_ms = 0
+var used_freeze_this_round = false
+var used_clear_board_this_round = false
+var used_safe_well_this_round = false
 var sfx_players = {}
 var missing_sfx_warned = {}
 var last_dual_drop_min = -1.0
@@ -190,6 +196,10 @@ const PANIC_HIGH_THRESHOLD = 0.85
 const PANIC_MID_THRESHOLD = 0.60
 const PANIC_PULSE_SPEED = 2.0
 const PANIC_BLINK_SPEED = 7.0
+const FREEZE_DURATION_MS = 5000
+const FREEZE_MULTIPLIER = 0.10
+const SAFE_WELL_DURATION_MS = 7000
+const CLEAR_BOARD_POINTS_PER_CELL = 1
 const TIME_SLOW_ATLAS_PATH = "res://Assets/UI/time_slow/atlas_time_slow.tres"
 const TIME_SLOW_GLASS_OVERLAY_PATH = "res://Assets/UI/time_slow/tex_glass_overlay.tres"
 const TIME_SLOW_SAND_FILL_PATH = "res://Assets/UI/time_slow/tex_sand_fill.tres"
@@ -332,6 +342,12 @@ func _start_round() -> void:
 	time_slow_effect_until_ms = 0
 	well_first_entry_slow_until_ms = 0
 	well_first_entry_slow_used = false
+	freeze_effect_until_ms = 0
+	freeze_effect_multiplier = 1.0
+	safe_well_effect_until_ms = 0
+	used_freeze_this_round = false
+	used_clear_board_this_round = false
+	used_safe_well_this_round = false
 	Engine.time_scale = 1.0
 	core.call("ResetRuntimeClock")
 
@@ -490,6 +506,11 @@ func _update_time_scale_runtime() -> void:
 		if ts_scale < final_scale:
 			final_scale = ts_scale
 			reason = "TimeSlow"
+	if is_freeze_active():
+		var freeze_scale = freeze_effect_multiplier
+		if freeze_scale < final_scale:
+			final_scale = freeze_scale
+			reason = "FreezeSkill"
 	if invalid_drop_slow_until_ms > now:
 		var invalid_slow_scale = float(core.call("GetInvalidDropFailTimeScale"))
 		if invalid_slow_scale < final_scale:
@@ -1239,23 +1260,119 @@ func _on_skill_icon_pressed(btn: TextureButton, unlock_key: String, locked_msg: 
 		show_toast(locked_msg, 1.9)
 		return
 	if btn == btn_skill_freeze:
-		show_toast("Freeze: 90% slow for 5s (1/round)", 1.9)
+		try_use_freeze()
 	elif btn == btn_skill_clear:
-		show_toast("Clear Board: clears grid + grants score (1/round)", 1.9)
+		try_use_clear_board()
 	elif btn == btn_skill_invuln:
-		show_toast("Safe Well: blocks vanish at edge for 7s", 1.9)
+		try_use_safe_well()
+
+
+func is_freeze_active() -> bool:
+	return Time.get_ticks_msec() < freeze_effect_until_ms
+
+
+func is_safe_well_active() -> bool:
+	return Time.get_ticks_msec() < safe_well_effect_until_ms
+
+
+func apply_freeze(duration_ms: int, multiplier: float) -> void:
+	freeze_effect_multiplier = clamp(multiplier, 0.05, 1.0)
+	freeze_effect_until_ms = Time.get_ticks_msec() + max(0, duration_ms)
+
+
+func apply_safe_well(duration_ms: int) -> void:
+	safe_well_effect_until_ms = Time.get_ticks_msec() + max(0, duration_ms)
+
+
+func try_use_freeze() -> bool:
+	if not Save.is_unlock_enabled("freeze_unlocked"):
+		show_toast("Reach player level 5", 1.9)
+		return false
+	if used_freeze_this_round:
+		show_toast("Freeze already used this round", 1.9)
+		return false
+	apply_freeze(FREEZE_DURATION_MS, FREEZE_MULTIPLIER)
+	used_freeze_this_round = true
+	_update_skill_icon_states()
+	show_toast("Freeze active for 5s", 1.6)
 	_play_sfx("ui_click")
+	return true
+
+
+func count_filled_cells_on_board() -> int:
+	var count = 0
+	for y in range(BOARD_SIZE):
+		for x in range(BOARD_SIZE):
+			if int(board.call("GetCell", x, y)) != 0:
+				count += 1
+	return count
+
+
+func _clear_board_bulk() -> int:
+	var filled_cells = count_filled_cells_on_board()
+	if filled_cells <= 0:
+		return 0
+	board.call("Reset")
+	_clear_color_grid()
+	clear_flash_left = 0.0
+	clear_flash_cells.clear()
+	return filled_cells
+
+
+func try_use_clear_board() -> bool:
+	if not Save.is_unlock_enabled("clear_board_unlocked"):
+		show_toast("Reach player level 10", 1.9)
+		return false
+	if used_clear_board_this_round:
+		show_toast("Clear Board already used this round", 1.9)
+		return false
+	var filled_cells = _clear_board_bulk()
+	used_clear_board_this_round = true
+	if filled_cells > 0:
+		score += filled_cells * CLEAR_BOARD_POINTS_PER_CELL
+		show_toast("Board cleared: +%d" % (filled_cells * CLEAR_BOARD_POINTS_PER_CELL), 1.7)
+		_play_sfx("clear")
+	else:
+		show_toast("Board already empty", 1.5)
+	_play_sfx("ui_click")
+	_refresh_board_visual()
+	_update_hud()
+	_update_skill_icon_states()
+	return true
+
+
+func try_use_safe_well() -> bool:
+	if not Save.is_unlock_enabled("safe_well_unlocked"):
+		show_toast("Reach player level 20", 1.9)
+		return false
+	if used_safe_well_this_round:
+		show_toast("Safe Well already used this round", 1.9)
+		return false
+	pile.clear()
+	apply_safe_well(SAFE_WELL_DURATION_MS)
+	used_safe_well_this_round = true
+	show_toast("Safe Well active for 7s", 1.6)
+	_play_sfx("ui_click")
+	_redraw_well()
+	_update_skill_icon_states()
+	return true
 
 
 func _update_skill_icon_states() -> void:
 	if btn_skill_freeze == null or btn_skill_clear == null or btn_skill_invuln == null:
 		return
-	var a_freeze = 1.0 if Save.is_unlock_enabled("freeze_unlocked") else 0.45
-	var a_clear = 1.0 if Save.is_unlock_enabled("clear_board_unlocked") else 0.45
-	var a_well = 1.0 if Save.is_unlock_enabled("safe_well_unlocked") else 0.45
+	var freeze_locked = not Save.is_unlock_enabled("freeze_unlocked") or used_freeze_this_round
+	var clear_locked = not Save.is_unlock_enabled("clear_board_unlocked") or used_clear_board_this_round
+	var well_locked = not Save.is_unlock_enabled("safe_well_unlocked") or used_safe_well_this_round
+	var a_freeze = 0.45 if freeze_locked else 1.0
+	var a_clear = 0.45 if clear_locked else 1.0
+	var a_well = 0.45 if well_locked else 1.0
 	btn_skill_freeze.modulate = Color(1, 1, 1, a_freeze)
 	btn_skill_clear.modulate = Color(1, 1, 1, a_clear)
 	btn_skill_invuln.modulate = Color(1, 1, 1, a_well)
+	btn_skill_freeze.disabled = freeze_locked
+	btn_skill_clear.disabled = clear_locked
+	btn_skill_invuln.disabled = well_locked
 	if btn_skill_freeze.get_child_count() > 0 and btn_skill_freeze.get_child(0) is Label:
 		btn_skill_freeze.get_child(0).modulate = Color(1, 1, 1, a_freeze)
 	if btn_skill_clear.get_child_count() > 0 and btn_skill_clear.get_child(0) is Label:
@@ -2031,6 +2148,11 @@ func _commit_piece_to_well(piece) -> void:
 		fall_piece = null
 	elif piece == fall_piece_2:
 		fall_piece_2 = null
+	if is_safe_well_active():
+		piece.queue_free()
+		if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
+			_schedule_next_falling_piece()
+		return
 	_assert_piece_state_invariant(piece)
 	var stored = piece.duplicate(true)
 	_ensure_piece_state(stored)
