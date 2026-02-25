@@ -278,7 +278,7 @@ func _notification(what: int) -> void:
 func _sync_time_slow_column_width() -> void:
 	if time_slow_mid == null:
 		return
-	const TIME_SLOW_GAP_W = 24.0
+	const TIME_SLOW_GAP_W = 55.0
 	time_slow_mid.custom_minimum_size.x = TIME_SLOW_GAP_W
 	var p = time_slow_mid.get_parent()
 	if p is Container:
@@ -806,21 +806,12 @@ func _build_ui() -> void:
 	time_slow_frame_panel.clip_contents = true
 	time_slow_mid.add_child(time_slow_frame_panel)
 
-	var time_slow_aspect = AspectRatioContainer.new()
-	time_slow_aspect.name = "time_slow_aspect"
-	time_slow_aspect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	time_slow_aspect.size_flags_horizontal = Control.SIZE_FILL
-	time_slow_aspect.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	time_slow_aspect.ratio = 1.0 / 6.0
-	time_slow_aspect.stretch_mode = AspectRatioContainer.STRETCH_FIT
-	time_slow_aspect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_frame_panel.add_child(time_slow_aspect)
 
 	var time_slow_stack = Control.new()
 	time_slow_stack.name = "time_slow_stack"
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_aspect.add_child(time_slow_stack)
+	time_slow_frame_panel.add_child(time_slow_stack)
 
 	time_slow_sand_rect = TextureRect.new()
 	time_slow_sand_rect.name = "sand_rect"
@@ -1407,6 +1398,10 @@ func _reposition_board_side_overlays() -> void:
 	const BEZEL_PAD = 14.0
 	var bezel_top = grid_rect.position.y - BEZEL_PAD
 	var bezel_h = grid_rect.size.y + (BEZEL_PAD * 2.0)
+	var extra_top := 11.0
+	var extra_bottom := 8.0
+	bezel_top -= extra_top
+	bezel_h += extra_top + extra_bottom
 	bezel_top = clamp(bezel_top, 0.0, max(0.0, board_panel.size.y - bezel_h))
 	const GAP_FROM_GRID = 12.0
 	var left_x = (grid_rect.position.x + grid_rect.size.x) + GAP_FROM_GRID
