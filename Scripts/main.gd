@@ -206,6 +206,7 @@ var time_slow_sand_shader: Shader = null
 var time_slow_glass_shader: Shader = null
 var time_slow_sand_rect: TextureRect = null
 var time_slow_glass_rect: TextureRect = null
+var time_slow_frame_rect: TextureRect = null
 var time_slow_sand_mat: ShaderMaterial = null
 var time_slow_glass_mat: ShaderMaterial = null
 
@@ -740,6 +741,7 @@ func _build_ui() -> void:
 	time_slow_frame.border_color = Color(0.15, 0.15, 0.15, 0.9)
 	time_slow_frame.bg_color = Color(0, 0, 0, 0)
 	time_slow_mid.add_theme_stylebox_override("panel", time_slow_frame)
+	time_slow_mid.clip_contents = true
 	well_draw.add_child(time_slow_mid)
 
 	var time_slow_stack = Control.new()
@@ -751,6 +753,10 @@ func _build_ui() -> void:
 	time_slow_sand_rect = TextureRect.new()
 	time_slow_sand_rect.name = "sand_rect"
 	time_slow_sand_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_sand_rect.offset_left = 10
+	time_slow_sand_rect.offset_top = 12
+	time_slow_sand_rect.offset_right = -10
+	time_slow_sand_rect.offset_bottom = -12
 	time_slow_sand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_sand_rect.visible = false
 	time_slow_stack.add_child(time_slow_sand_rect)
@@ -758,10 +764,23 @@ func _build_ui() -> void:
 	time_slow_glass_rect = TextureRect.new()
 	time_slow_glass_rect.name = "glass_rect"
 	time_slow_glass_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_glass_rect.offset_left = 10
+	time_slow_glass_rect.offset_top = 12
+	time_slow_glass_rect.offset_right = -10
+	time_slow_glass_rect.offset_bottom = -12
 	time_slow_glass_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_glass_rect.z_index = 2
+	time_slow_glass_rect.z_index = 1
 	time_slow_glass_rect.visible = false
 	time_slow_stack.add_child(time_slow_glass_rect)
+
+	time_slow_frame_rect = TextureRect.new()
+	time_slow_frame_rect.name = "frame_rect"
+	time_slow_frame_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_frame_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_frame_rect.z_index = 2
+	time_slow_frame_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	time_slow_frame_rect.visible = false
+	time_slow_stack.add_child(time_slow_frame_rect)
 
 	bar_time_slow = ProgressBar.new()
 	bar_time_slow.custom_minimum_size = Vector2(14, 0)
@@ -1070,10 +1089,11 @@ func _setup_time_slow_future_assets() -> void:
 		time_slow_glass_shader = null
 	time_slow_sand_mat = null
 	time_slow_glass_mat = null
-	if time_slow_sand_rect == null or time_slow_glass_rect == null or bar_time_slow == null:
+	if time_slow_sand_rect == null or time_slow_glass_rect == null or time_slow_frame_rect == null or bar_time_slow == null:
 		return
 	time_slow_sand_rect.visible = false
 	time_slow_glass_rect.visible = false
+	time_slow_frame_rect.visible = false
 	bar_time_slow.visible = true
 	if time_slow_sand_shader == null or time_slow_glass_shader == null:
 		return
@@ -1082,30 +1102,40 @@ func _setup_time_slow_future_assets() -> void:
 		return
 	if not (time_slow_sand_fill is AtlasTexture):
 		return
-	if not (time_slow_glass_overlay is Texture2D):
+	if not (time_slow_glass_overlay is AtlasTexture):
+		return
+	if not (time_slow_frame_tex is AtlasTexture):
 		return
 	var atlas_png = atlas_png_res as Texture2D
 	var sand_atlas = time_slow_sand_fill as AtlasTexture
+	var glass_atlas = time_slow_glass_overlay as AtlasTexture
+	var frame_atlas = time_slow_frame_tex as AtlasTexture
 	var atlas_size = atlas_png.get_size()
 	if atlas_size.x <= 0.0 or atlas_size.y <= 0.0:
 		return
 	var r = sand_atlas.region
 	var uv_off = Vector2(r.position.x / atlas_size.x, r.position.y / atlas_size.y)
 	var uv_sz = Vector2(r.size.x / atlas_size.x, r.size.y / atlas_size.y)
+	var g = glass_atlas.region
+	var glass_off = Vector2(g.position.x / atlas_size.x, g.position.y / atlas_size.y)
+	var glass_sz = Vector2(g.size.x / atlas_size.x, g.size.y / atlas_size.y)
 	time_slow_sand_mat = ShaderMaterial.new()
 	time_slow_sand_mat.shader = time_slow_sand_shader
 	time_slow_sand_mat.set_shader_parameter("u_atlas_tex", atlas_png)
 	time_slow_sand_mat.set_shader_parameter("u_region_uv", Vector4(uv_off.x, uv_off.y, uv_sz.x, uv_sz.y))
 	time_slow_sand_mat.set_shader_parameter("u_fill", 0.0)
 	time_slow_sand_rect.material = time_slow_sand_mat
-	time_slow_sand_rect.texture = atlas_png
+	time_slow_sand_rect.texture = null
 	time_slow_sand_rect.visible = true
 	time_slow_glass_mat = ShaderMaterial.new()
 	time_slow_glass_mat.shader = time_slow_glass_shader
-	time_slow_glass_mat.set_shader_parameter("u_glass_tex", time_slow_glass_overlay)
+	time_slow_glass_mat.set_shader_parameter("u_atlas_tex", atlas_png)
+	time_slow_glass_mat.set_shader_parameter("u_region_uv", Vector4(glass_off.x, glass_off.y, glass_sz.x, glass_sz.y))
 	time_slow_glass_rect.material = time_slow_glass_mat
-	time_slow_glass_rect.texture = time_slow_glass_overlay as Texture2D
+	time_slow_glass_rect.texture = null
 	time_slow_glass_rect.visible = true
+	time_slow_frame_rect.texture = frame_atlas
+	time_slow_frame_rect.visible = true
 	bar_time_slow.visible = false
 
 
