@@ -1,6 +1,7 @@
 extends Control
 
 const BoardGridOverlay = preload("res://Scripts/BoardGridOverlay.gd")
+const SkillVFXControllerScript = preload("res://Scripts/VFX/SkillVFXController.gd")
 const MAIN_MENU_SCENE = "res://Scenes/MainMenu.tscn"
 const MAIN_SCENE = "res://Scenes/Main.tscn"
 
@@ -180,6 +181,7 @@ var missing_sfx_warned = {}
 var last_dual_drop_min = -1.0
 var speed_curve_warning_shown = false
 var time_slow_ui_ready = false
+var skill_vfx_controller: SkillVFXController = null
 
 const UI_ICON_MAP = {
 	"score": {"tres": "res://Assets/UI/icons/icon_score.tres", "png": "res://Assets/UI/icons/icon_score.png", "placeholder": "S"},
@@ -278,6 +280,7 @@ func _ready() -> void:
 	# HUD is built from this single path during startup; no secondary HUD builder runs after this.
 	await get_tree().process_frame
 	_build_board_grid()
+	_setup_skill_vfx_controller()
 
 	_start_round()
 	set_process(true)
@@ -428,6 +431,14 @@ func _audio_setup() -> void:
 	var ts_path = String(core.call("GetTimeSlowReadySfxPath"))
 	if ts_path != "":
 		_ensure_sfx("time_slow", ts_path, -8.0)
+
+
+func _setup_skill_vfx_controller() -> void:
+	if skill_vfx_controller != null and is_instance_valid(skill_vfx_controller):
+		return
+	skill_vfx_controller = SkillVFXControllerScript.new()
+	add_child(skill_vfx_controller)
+	skill_vfx_controller.setup(self, board_panel, drop_zone_panel)
 
 
 func _ensure_sfx(key, path, volume_db) -> void:
@@ -1255,9 +1266,8 @@ func _build_skill_icon_button(icon_key: String) -> TextureButton:
 		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(fallback)
 	return b
-func _on_skill_icon_pressed(btn: TextureButton, unlock_key: String, locked_msg: String) -> void:
+func _on_skill_icon_pressed(btn: TextureButton, unlock_key: String, _locked_msg: String) -> void:
 	if not Save.is_unlock_enabled(unlock_key):
-		show_toast(locked_msg, 1.9)
 		return
 	if btn == btn_skill_freeze:
 		try_use_freeze()
@@ -1292,6 +1302,8 @@ func try_use_freeze() -> bool:
 		show_toast("Freeze already used this round", 1.9)
 		return false
 	apply_freeze(FREEZE_DURATION_MS, FREEZE_MULTIPLIER)
+	if skill_vfx_controller != null:
+		skill_vfx_controller.on_freeze_cast(FREEZE_DURATION_MS)
 	used_freeze_this_round = true
 	_update_skill_icon_states()
 	show_toast("Freeze active for 5s", 1.6)
@@ -1327,6 +1339,8 @@ func try_use_clear_board() -> bool:
 		show_toast("Clear Board already used this round", 1.9)
 		return false
 	var filled_cells = _clear_board_bulk()
+	if skill_vfx_controller != null:
+		skill_vfx_controller.on_clear_board_cast()
 	used_clear_board_this_round = true
 	if filled_cells > 0:
 		score += filled_cells * CLEAR_BOARD_POINTS_PER_CELL
@@ -1350,6 +1364,8 @@ func try_use_safe_well() -> bool:
 		return false
 	pile.clear()
 	apply_safe_well(SAFE_WELL_DURATION_MS)
+	if skill_vfx_controller != null:
+		skill_vfx_controller.on_safe_well_cast(SAFE_WELL_DURATION_MS)
 	used_safe_well_this_round = true
 	show_toast("Safe Well active for 7s", 1.6)
 	_play_sfx("ui_click")
@@ -1357,6 +1373,33 @@ func try_use_safe_well() -> bool:
 	_update_skill_icon_states()
 	return true
 
+
+
+func _required_level_for_unlock(unlock_key: String) -> int:
+	if unlock_key == "freeze_unlocked":
+		return 5
+	if unlock_key == "clear_board_unlocked":
+		return 10
+	if unlock_key == "safe_well_unlocked":
+		return 20
+	return 0
+
+
+func _skill_locked_tooltip(required_level: int) -> String:
+	var current_level = Save.get_player_level()
+	return "Reach Level %d (current %d)" % [required_level, current_level]
+
+
+func _set_skill_button_state(button: TextureButton, unlock_key: String, used_this_round: bool, default_tooltip: String) -> void:
+	if button == null:
+		return
+	var unlock_ready = Save.is_unlock_enabled(unlock_key)
+	var locked = (not unlock_ready) or used_this_round
+	button.disabled = locked
+	if not unlock_ready:
+		button.tooltip_text = _skill_locked_tooltip(_required_level_for_unlock(unlock_key))
+	else:
+		button.tooltip_text = default_tooltip
 
 func _update_skill_icon_states() -> void:
 	if btn_skill_freeze == null or btn_skill_clear == null or btn_skill_invuln == null:
@@ -1370,9 +1413,9 @@ func _update_skill_icon_states() -> void:
 	btn_skill_freeze.modulate = Color(1, 1, 1, a_freeze)
 	btn_skill_clear.modulate = Color(1, 1, 1, a_clear)
 	btn_skill_invuln.modulate = Color(1, 1, 1, a_well)
-	btn_skill_freeze.disabled = freeze_locked
-	btn_skill_clear.disabled = clear_locked
-	btn_skill_invuln.disabled = well_locked
+	_set_skill_button_state(btn_skill_freeze, "freeze_unlocked", used_freeze_this_round, "Freeze time flow for 5 seconds")
+	_set_skill_button_state(btn_skill_clear, "clear_board_unlocked", used_clear_board_this_round, "Clear all filled board cells")
+	_set_skill_button_state(btn_skill_invuln, "safe_well_unlocked", used_safe_well_this_round, "Safe Well for 7 seconds")
 	if btn_skill_freeze.get_child_count() > 0 and btn_skill_freeze.get_child(0) is Label:
 		btn_skill_freeze.get_child(0).modulate = Color(1, 1, 1, a_freeze)
 	if btn_skill_clear.get_child_count() > 0 and btn_skill_clear.get_child(0) is Label:
@@ -1491,18 +1534,21 @@ func _build_board_side_overlays() -> void:
 	top_sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_freeze = _build_skill_icon_button("freeze")
+	btn_skill_freeze.tooltip_text = "Freeze time flow for 5 seconds"
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, "freeze_unlocked", "Reach player level 5"))
 	skills_v.add_child(btn_skill_freeze)
 	var mid1 = skills_v.add_spacer(false)
 	mid1.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_clear = _build_skill_icon_button("clear")
+	btn_skill_clear.tooltip_text = "Clear all filled board cells"
 	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, "clear_board_unlocked", "Reach player level 10"))
 	skills_v.add_child(btn_skill_clear)
 	var mid2 = skills_v.add_spacer(false)
 	mid2.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_invuln = _build_skill_icon_button("safe_well")
+	btn_skill_invuln.tooltip_text = "Safe Well for 7 seconds"
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, "safe_well_unlocked", "Reach player level 20"))
 	skills_v.add_child(btn_skill_invuln)
 	var bot_sp = skills_v.add_spacer(false)
