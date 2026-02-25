@@ -207,6 +207,7 @@ var time_slow_glass_shader: Shader = null
 var time_slow_sand_rect: TextureRect = null
 var time_slow_glass_rect: TextureRect = null
 var time_slow_frame_rect: TextureRect = null
+var time_slow_mid: PanelContainer = null
 var time_slow_sand_mat: ShaderMaterial = null
 var time_slow_glass_mat: ShaderMaterial = null
 
@@ -267,6 +268,22 @@ func _ready() -> void:
 
 	_start_round()
 	set_process(true)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		call_deferred("_sync_time_slow_column_width")
+
+
+func _sync_time_slow_column_width() -> void:
+	if time_slow_mid == null:
+		return
+	var ratio = 256.0 / 768.0
+	var h = float(time_slow_mid.size.y)
+	if h <= 0.0:
+		return
+	time_slow_mid.custom_minimum_size.x = ceil(h * ratio)
+	time_slow_mid.minimum_size_changed()
 
 
 func _apply_balance_well_settings() -> void:
@@ -335,6 +352,7 @@ func _start_round() -> void:
 		toast_panel.visible = false
 	_clear_pending_invalid_piece()
 	time_slow_ui_ready = false
+	call_deferred("_sync_time_slow_column_width")
 
 
 func _trigger_game_over() -> void:
@@ -636,7 +654,9 @@ func _build_ui() -> void:
 	left_button_section.add_child(btn_exit)
 
 	var left_stats = VBoxContainer.new()
-	left_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	left_stats.size_flags_horizontal = Control.SIZE_FILL
+	left_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_stats.alignment = BoxContainer.ALIGNMENT_CENTER
 	left_stats.add_theme_constant_override("separation", 4)
 	header_row.add_child(left_stats)
 
@@ -649,6 +669,7 @@ func _build_ui() -> void:
 	title_label.text = "TETRIS SUDOKU"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_label.visible = true
 	title_label.clip_text = true
 	title_label.add_theme_font_size_override("font_size", _skin_font_size("title", 48))
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
@@ -656,7 +677,9 @@ func _build_ui() -> void:
 	center_section.add_child(title_label)
 
 	var right_stats = VBoxContainer.new()
-	right_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	right_stats.size_flags_horizontal = Control.SIZE_FILL
+	right_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_stats.alignment = BoxContainer.ALIGNMENT_CENTER
 	right_stats.add_theme_constant_override("separation", 4)
 	header_row.add_child(right_stats)
 
@@ -739,11 +762,11 @@ func _build_ui() -> void:
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
-	var time_slow_mid = PanelContainer.new()
+	time_slow_mid = PanelContainer.new()
 	time_slow_mid.name = "time_slow_mid"
 	time_slow_mid.custom_minimum_size = Vector2(36, 0)
 	time_slow_mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	time_slow_mid.size_flags_stretch_ratio = 0.25
+	time_slow_mid.size_flags_stretch_ratio = 0.40
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_mid.z_index = 0
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -832,6 +855,7 @@ func _build_ui() -> void:
 	bar_time_slow.add_theme_stylebox_override("background", time_slow_bg)
 	time_slow_stack.add_child(bar_time_slow)
 	_setup_time_slow_future_assets()
+	call_deferred("_sync_time_slow_column_width")
 
 
 	well_slots_panel = Panel.new()
