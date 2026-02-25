@@ -620,10 +620,10 @@ func _build_ui() -> void:
 	header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(header_row)
 
-	var left_section = HBoxContainer.new()
-	left_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_section.add_theme_constant_override("separation", 12)
-	header_row.add_child(left_section)
+	var left_button_section = HBoxContainer.new()
+	left_button_section.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left_button_section.alignment = BoxContainer.ALIGNMENT_BEGIN
+	header_row.add_child(left_button_section)
 
 	btn_exit = TextureButton.new()
 	btn_exit.custom_minimum_size = Vector2(EXIT_BUTTON_SIZE, EXIT_BUTTON_SIZE)
@@ -633,15 +633,16 @@ func _build_ui() -> void:
 	_apply_header_button_icon(btn_exit, "res://Assets/UI/icons/icon_close.png", "X", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
-	left_section.add_child(btn_exit)
+	left_button_section.add_child(btn_exit)
 
-	var left_stats = HBoxContainer.new()
-	left_stats.add_theme_constant_override("separation", 14)
-	left_section.add_child(left_stats)
-	left_section.alignment = BoxContainer.ALIGNMENT_BEGIN
+	var left_stats = VBoxContainer.new()
+	left_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	left_stats.add_theme_constant_override("separation", 4)
+	header_row.add_child(left_stats)
 
 	var center_section = CenterContainer.new()
 	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_section.custom_minimum_size = Vector2(120, 0)
 	header_row.add_child(center_section)
 
 	title_label = Label.new()
@@ -654,15 +655,15 @@ func _build_ui() -> void:
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center_section.add_child(title_label)
 
-	var right_section = HBoxContainer.new()
-	right_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_section.add_theme_constant_override("separation", 12)
-	right_section.alignment = BoxContainer.ALIGNMENT_END
-	header_row.add_child(right_section)
+	var right_stats = VBoxContainer.new()
+	right_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	right_stats.add_theme_constant_override("separation", 4)
+	header_row.add_child(right_stats)
 
-	var right_stats = HBoxContainer.new()
-	right_stats.add_theme_constant_override("separation", 14)
-	right_section.add_child(right_stats)
+	var right_button_section = HBoxContainer.new()
+	right_button_section.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_button_section.alignment = BoxContainer.ALIGNMENT_END
+	header_row.add_child(right_button_section)
 
 	btn_settings = TextureButton.new()
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
@@ -672,7 +673,7 @@ func _build_ui() -> void:
 	_apply_header_button_icon(btn_settings, "res://Assets/UI/icons/icon_settings.png", "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
-	right_section.add_child(btn_settings)
+	right_button_section.add_child(btn_settings)
 
 	lbl_score = _hud_metric_row(left_stats, "score", "Score", "0")
 	lbl_speed = _hud_metric_row(left_stats, "speed", "Speed", "1.00")
@@ -757,13 +758,22 @@ func _build_ui() -> void:
 	time_slow_frame_panel.name = "time_slow_frame_panel"
 	time_slow_frame_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_frame_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_frame_panel.clip_contents = true
 	time_slow_mid.add_child(time_slow_frame_panel)
+
+	var time_slow_aspect = AspectRatioContainer.new()
+	time_slow_aspect.name = "time_slow_aspect"
+	time_slow_aspect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_aspect.ratio = 1.0 / 3.0
+	time_slow_aspect.stretch_mode = AspectRatioContainer.STRETCH_FIT
+	time_slow_aspect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_frame_panel.add_child(time_slow_aspect)
 
 	var time_slow_stack = Control.new()
 	time_slow_stack.name = "time_slow_stack"
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_frame_panel.add_child(time_slow_stack)
+	time_slow_aspect.add_child(time_slow_stack)
 
 	time_slow_sand_rect = TextureRect.new()
 	time_slow_sand_rect.name = "sand_rect"
@@ -773,6 +783,8 @@ func _build_ui() -> void:
 	time_slow_sand_rect.offset_right = -10
 	time_slow_sand_rect.offset_bottom = -12
 	time_slow_sand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_sand_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	time_slow_sand_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_sand_rect.visible = false
 	time_slow_stack.add_child(time_slow_sand_rect)
 
@@ -785,6 +797,8 @@ func _build_ui() -> void:
 	time_slow_glass_rect.offset_bottom = -12
 	time_slow_glass_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_glass_rect.z_index = 1
+	time_slow_glass_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	time_slow_glass_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_glass_rect.visible = false
 	time_slow_stack.add_child(time_slow_glass_rect)
 
@@ -793,6 +807,7 @@ func _build_ui() -> void:
 	time_slow_frame_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_frame_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_frame_rect.z_index = 2
+	time_slow_frame_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	time_slow_frame_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_frame_rect.visible = false
 	time_slow_stack.add_child(time_slow_frame_rect)
@@ -934,12 +949,20 @@ func _hud_metric_row(parent: Control, metric_key: String, prefix: String, value:
 	parent.add_child(wrap)
 	if metric_key == "score" or metric_key == "speed" or metric_key == "time":
 		_add_icon_or_fallback(wrap, metric_key, 16, 28)
-	var label = Label.new()
-	label.text = "%s: %s" % [prefix, value]
-	label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
-	wrap.add_child(label)
-	return label
+	var text_col = VBoxContainer.new()
+	text_col.add_theme_constant_override("separation", 0)
+	wrap.add_child(text_col)
+	var caption = Label.new()
+	caption.text = prefix
+	caption.add_theme_font_size_override("font_size", _skin_font_size("small", 14))
+	caption.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.24, 0.24, 0.24)))
+	text_col.add_child(caption)
+	var value_label = Label.new()
+	value_label.text = value
+	value_label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	value_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
+	text_col.add_child(value_label)
+	return value_label
 
 
 func _load_ui_icon(key: String) -> Texture2D:
@@ -2318,14 +2341,12 @@ func _style_skills_slot() -> StyleBox:
 
 
 func _skills_outer_bg_color() -> Color:
-	var p = board_panel.get_parent() if board_panel != null else null
-	while p != null and p is Control:
-		var sb = (p as Control).get_theme_stylebox("panel")
-		if sb is StyleBoxFlat:
-			var c = (sb as StyleBoxFlat).bg_color
-			if c.a > 0.0 and c.r >= c.g and c.g >= c.b:
-				return c
-		p = (p as Control).get_parent()
+	if root_frame != null:
+		var root_sb = root_frame.get_theme_stylebox("panel")
+		if root_sb is StyleBoxFlat:
+			var root_color = (root_sb as StyleBoxFlat).bg_color
+			if root_color.a > 0.0:
+				return root_color
 	return _skin_color("hud_bg", _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42)))
 
 
