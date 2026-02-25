@@ -191,8 +191,9 @@ const TIME_SLOW_ATLAS_PATH = "res://Assets/UI/time_slow/atlas_time_slow.tres"
 const TIME_SLOW_GLASS_OVERLAY_PATH = "res://Assets/UI/time_slow/tex_glass_overlay.tres"
 const TIME_SLOW_SAND_FILL_PATH = "res://Assets/UI/time_slow/tex_sand_fill.tres"
 const TIME_SLOW_FRAME_PATH = "res://Assets/UI/time_slow/tex_frame.tres"
-const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.shader"
-const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.shader"
+const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.gdshader"
+const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.gdshader"
+const TIME_SLOW_ATLAS_PNG_PATH = "res://Assets/UI/time_slow/time_slow_atlas.png"
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -203,6 +204,11 @@ var time_slow_sand_fill: Resource = null
 var time_slow_frame_tex: Resource = null
 var time_slow_sand_shader: Shader = null
 var time_slow_glass_shader: Shader = null
+var time_slow_sand_rect: TextureRect = null
+var time_slow_glass_rect: TextureRect = null
+var time_slow_frame_rect: TextureRect = null
+var time_slow_sand_mat: ShaderMaterial = null
+var time_slow_glass_mat: ShaderMaterial = null
 
 
 func _skin_manager():
@@ -524,6 +530,8 @@ func _update_status_hud() -> void:
 		time_slow_ui_ready = true
 	var progress01 = clamp(1.0 - (cooldown_remaining / max(0.001, cooldown_sec)), 0.0, 1.0)
 	bar_time_slow.value = progress01 * 100.0
+	if time_slow_sand_mat != null:
+		time_slow_sand_mat.set_shader_parameter("u_fill", progress01)
 	if btn_time_slow != null:
 		if time_slow_ui_ready and remaining_ms <= 0:
 			var t = float(Time.get_ticks_msec()) / 1000.0
@@ -733,6 +741,7 @@ func _build_ui() -> void:
 	time_slow_frame.border_color = Color(0.15, 0.15, 0.15, 0.9)
 	time_slow_frame.bg_color = Color(0, 0, 0, 0)
 	time_slow_mid.add_theme_stylebox_override("panel", time_slow_frame)
+	time_slow_mid.clip_contents = true
 	well_draw.add_child(time_slow_mid)
 
 	var time_slow_stack = Control.new()
@@ -740,6 +749,38 @@ func _build_ui() -> void:
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_mid.add_child(time_slow_stack)
+
+	time_slow_sand_rect = TextureRect.new()
+	time_slow_sand_rect.name = "sand_rect"
+	time_slow_sand_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_sand_rect.offset_left = 10
+	time_slow_sand_rect.offset_top = 12
+	time_slow_sand_rect.offset_right = -10
+	time_slow_sand_rect.offset_bottom = -12
+	time_slow_sand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_sand_rect.visible = false
+	time_slow_stack.add_child(time_slow_sand_rect)
+
+	time_slow_glass_rect = TextureRect.new()
+	time_slow_glass_rect.name = "glass_rect"
+	time_slow_glass_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_glass_rect.offset_left = 10
+	time_slow_glass_rect.offset_top = 12
+	time_slow_glass_rect.offset_right = -10
+	time_slow_glass_rect.offset_bottom = -12
+	time_slow_glass_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_glass_rect.z_index = 1
+	time_slow_glass_rect.visible = false
+	time_slow_stack.add_child(time_slow_glass_rect)
+
+	time_slow_frame_rect = TextureRect.new()
+	time_slow_frame_rect.name = "frame_rect"
+	time_slow_frame_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_frame_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_frame_rect.z_index = 2
+	time_slow_frame_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	time_slow_frame_rect.visible = false
+	time_slow_stack.add_child(time_slow_frame_rect)
 
 	bar_time_slow = ProgressBar.new()
 	bar_time_slow.custom_minimum_size = Vector2(14, 0)
@@ -1046,8 +1087,58 @@ func _setup_time_slow_future_assets() -> void:
 		time_slow_glass_shader = glass_shader_res as Shader
 	else:
 		time_slow_glass_shader = null
-	# TODO: Replace ProgressBar with TextureProgressBar (supports vertical fill) when atlas assets are available.
-	# TODO: Apply ShaderMaterial on the glass overlay when shader assets exist.
+	time_slow_sand_mat = null
+	time_slow_glass_mat = null
+	if time_slow_sand_rect == null or time_slow_glass_rect == null or time_slow_frame_rect == null or bar_time_slow == null:
+		return
+	time_slow_sand_rect.visible = false
+	time_slow_glass_rect.visible = false
+	time_slow_frame_rect.visible = false
+	bar_time_slow.visible = true
+	if time_slow_sand_shader == null or time_slow_glass_shader == null:
+		return
+	var atlas_png_res = _safe_load_resource(TIME_SLOW_ATLAS_PNG_PATH)
+	if not (atlas_png_res is Texture2D):
+		return
+	if not (time_slow_sand_fill is AtlasTexture):
+		return
+	if not (time_slow_glass_overlay is AtlasTexture):
+		return
+	if not (time_slow_frame_tex is AtlasTexture):
+		return
+	var atlas_png = atlas_png_res as Texture2D
+	var sand_atlas = time_slow_sand_fill as AtlasTexture
+	var glass_atlas = time_slow_glass_overlay as AtlasTexture
+	var frame_atlas = time_slow_frame_tex as AtlasTexture
+	var atlas_size = atlas_png.get_size()
+	if atlas_size.x <= 0.0 or atlas_size.y <= 0.0:
+		return
+	var r = sand_atlas.region
+	var uv_off = Vector2(r.position.x / atlas_size.x, r.position.y / atlas_size.y)
+	var uv_sz = Vector2(r.size.x / atlas_size.x, r.size.y / atlas_size.y)
+	var g = glass_atlas.region
+	var glass_off = Vector2(g.position.x / atlas_size.x, g.position.y / atlas_size.y)
+	var glass_sz = Vector2(g.size.x / atlas_size.x, g.size.y / atlas_size.y)
+	time_slow_sand_mat = ShaderMaterial.new()
+	time_slow_sand_mat.shader = time_slow_sand_shader
+	time_slow_sand_mat.set_shader_parameter("u_atlas_tex", atlas_png)
+	time_slow_sand_mat.set_shader_parameter("u_region_uv", Vector4(uv_off.x, uv_off.y, uv_sz.x, uv_sz.y))
+	time_slow_sand_mat.set_shader_parameter("u_fill", 0.0)
+	time_slow_sand_rect.material = time_slow_sand_mat
+	time_slow_sand_rect.texture = null
+	time_slow_sand_rect.visible = true
+	time_slow_glass_mat = ShaderMaterial.new()
+	time_slow_glass_mat.shader = time_slow_glass_shader
+	time_slow_glass_mat.set_shader_parameter("u_atlas_tex", atlas_png)
+	time_slow_glass_mat.set_shader_parameter("u_region_uv", Vector4(glass_off.x, glass_off.y, glass_sz.x, glass_sz.y))
+	time_slow_glass_rect.material = time_slow_glass_mat
+	time_slow_glass_rect.texture = null
+	time_slow_glass_rect.visible = true
+	time_slow_frame_rect.texture = frame_atlas
+	time_slow_frame_rect.visible = true
+	bar_time_slow.visible = false
+
+
 func _build_skill_icon_button(icon_key: String) -> TextureButton:
 	var b = TextureButton.new()
 	b.custom_minimum_size = Vector2(64, 64)
@@ -1169,6 +1260,7 @@ func _clear_color_grid() -> void:
 
 
 func _build_board_side_overlays() -> void:
+	var outer_bg_color = _skills_outer_bg_color()
 
 	var skills_holder = Control.new()
 	skills_holder.name = "skills_holder"
@@ -1194,8 +1286,9 @@ func _build_board_side_overlays() -> void:
 	var slot1 = PanelContainer.new()
 	slot1.custom_minimum_size = Vector2(64, 64)
 	slot1.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot1.add_theme_stylebox_override("panel", _style_skills_slot())
+	slot1.add_theme_stylebox_override("panel", _style_skills_slot_outer(outer_bg_color))
 	skill_even_area.add_child(slot1)
+	var inner_cutout1 = _build_skill_slot_cutout(slot1, outer_bg_color)
 
 	btn_skill_freeze = _build_skill_icon_button("freeze")
 	btn_skill_freeze.custom_minimum_size = Vector2(56, 56)
@@ -1206,8 +1299,9 @@ func _build_board_side_overlays() -> void:
 	btn_skill_freeze.offset_top = -28
 	btn_skill_freeze.offset_right = 28
 	btn_skill_freeze.offset_bottom = 28
+	btn_skill_freeze.z_index = 2
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
-	slot1.add_child(btn_skill_freeze)
+	inner_cutout1.add_child(btn_skill_freeze)
 
 	var skill_spacer_mid_a = Control.new()
 	skill_spacer_mid_a.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1217,8 +1311,9 @@ func _build_board_side_overlays() -> void:
 	var slot2 = PanelContainer.new()
 	slot2.custom_minimum_size = Vector2(64, 64)
 	slot2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot2.add_theme_stylebox_override("panel", _style_skills_slot())
+	slot2.add_theme_stylebox_override("panel", _style_skills_slot_outer(outer_bg_color))
 	skill_even_area.add_child(slot2)
+	var inner_cutout2 = _build_skill_slot_cutout(slot2, outer_bg_color)
 
 	btn_skill_clear = _build_skill_icon_button("clear")
 	btn_skill_clear.custom_minimum_size = Vector2(56, 56)
@@ -1229,8 +1324,9 @@ func _build_board_side_overlays() -> void:
 	btn_skill_clear.offset_top = -28
 	btn_skill_clear.offset_right = 28
 	btn_skill_clear.offset_bottom = 28
+	btn_skill_clear.z_index = 2
 	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
-	slot2.add_child(btn_skill_clear)
+	inner_cutout2.add_child(btn_skill_clear)
 
 	var skill_spacer_mid_b = Control.new()
 	skill_spacer_mid_b.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1240,8 +1336,9 @@ func _build_board_side_overlays() -> void:
 	var slot3 = PanelContainer.new()
 	slot3.custom_minimum_size = Vector2(64, 64)
 	slot3.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot3.add_theme_stylebox_override("panel", _style_skills_slot())
+	slot3.add_theme_stylebox_override("panel", _style_skills_slot_outer(outer_bg_color))
 	skill_even_area.add_child(slot3)
+	var inner_cutout3 = _build_skill_slot_cutout(slot3, outer_bg_color)
 
 	btn_skill_invuln = _build_skill_icon_button("safe_well")
 	btn_skill_invuln.custom_minimum_size = Vector2(56, 56)
@@ -1252,8 +1349,9 @@ func _build_board_side_overlays() -> void:
 	btn_skill_invuln.offset_top = -28
 	btn_skill_invuln.offset_right = 28
 	btn_skill_invuln.offset_bottom = 28
+	btn_skill_invuln.z_index = 2
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
-	slot3.add_child(btn_skill_invuln)
+	inner_cutout3.add_child(btn_skill_invuln)
 
 	var skill_spacer_bottom = Control.new()
 	skill_spacer_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2200,24 +2298,75 @@ func _style_skills_panel() -> StyleBox:
 
 
 func _style_skills_slot() -> StyleBox:
-	var base_style = board_panel.get_theme_stylebox("panel") if board_panel != null else null
-	if base_style is StyleBoxFlat:
-		var slot_style = (base_style as StyleBoxFlat).duplicate() as StyleBoxFlat
-		var base_color = slot_style.bg_color
-		slot_style.set_border_width_all(2)
-		slot_style.border_color = Color(base_color.r * 0.75, base_color.g * 0.75, base_color.b * 0.75, 0.95)
-		slot_style.bg_color = Color(base_color.r * 0.85, base_color.g * 0.85, base_color.b * 0.85, 0.20)
-		slot_style.shadow_color = Color(0.0, 0.0, 0.0, 0.22)
-		slot_style.shadow_size = 3
-		return slot_style
-	var fallback = StyleBoxFlat.new()
-	var base_color = _skin_color("board_bg", Color(0.20, 0.22, 0.20))
-	fallback.bg_color = Color(base_color.r * 0.85, base_color.g * 0.85, base_color.b * 0.85, 0.20)
-	fallback.set_border_width_all(2)
-	fallback.border_color = Color(base_color.r * 0.75, base_color.g * 0.75, base_color.b * 0.75, 0.95)
-	fallback.shadow_color = Color(0.0, 0.0, 0.0, 0.22)
-	fallback.shadow_size = 3
-	return fallback
+	return _style_skills_slot_outer(_skills_outer_bg_color())
+
+
+func _skills_outer_bg_color() -> Color:
+	var p = board_panel.get_parent() if board_panel != null else null
+	while p != null and p is Control:
+		var sb = (p as Control).get_theme_stylebox("panel")
+		if sb is StyleBoxFlat:
+			return (sb as StyleBoxFlat).bg_color
+		p = (p as Control).get_parent()
+	return _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42))
+
+
+func _style_skills_slot_outer(outer_bg_color: Color) -> StyleBox:
+	var sb_outer = StyleBoxFlat.new()
+	sb_outer.set_border_width_all(2)
+	sb_outer.bg_color = Color(outer_bg_color.r, outer_bg_color.g, outer_bg_color.b, 0.20)
+	sb_outer.border_color = Color(outer_bg_color.r * 0.65, outer_bg_color.g * 0.65, outer_bg_color.b * 0.65, outer_bg_color.a)
+	sb_outer.shadow_size = 0
+	return sb_outer
+
+
+func _build_skill_slot_cutout(slot: PanelContainer, outer_bg_color: Color) -> PanelContainer:
+	var inner_cutout = PanelContainer.new()
+	inner_cutout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner_cutout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inner_cutout.offset_left = 6
+	inner_cutout.offset_top = 6
+	inner_cutout.offset_right = -6
+	inner_cutout.offset_bottom = -6
+	var sb_inset = StyleBoxFlat.new()
+	sb_inset.set_border_width_all(2)
+	sb_inset.bg_color = Color(outer_bg_color.r * 0.70, outer_bg_color.g * 0.70, outer_bg_color.b * 0.70, 0.35)
+	sb_inset.border_color = Color(outer_bg_color.r * 0.50, outer_bg_color.g * 0.50, outer_bg_color.b * 0.50, outer_bg_color.a)
+	sb_inset.shadow_size = 8
+	sb_inset.shadow_offset = Vector2(0, 2)
+	sb_inset.shadow_color = Color(0, 0, 0, 0.45)
+	inner_cutout.add_theme_stylebox_override("panel", sb_inset)
+
+	var top_highlight = ColorRect.new()
+	top_highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_highlight.anchor_left = 0
+	top_highlight.anchor_right = 1
+	top_highlight.anchor_top = 0
+	top_highlight.anchor_bottom = 0
+	top_highlight.offset_left = 2
+	top_highlight.offset_right = -2
+	top_highlight.offset_top = 2
+	top_highlight.offset_bottom = 6
+	top_highlight.color = Color(min(outer_bg_color.r * 1.15, 1.0), min(outer_bg_color.g * 1.15, 1.0), min(outer_bg_color.b * 1.15, 1.0), 0.30)
+	top_highlight.z_index = 1
+	inner_cutout.add_child(top_highlight)
+
+	var bottom_shade = ColorRect.new()
+	bottom_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bottom_shade.anchor_left = 0
+	bottom_shade.anchor_right = 1
+	bottom_shade.anchor_top = 1
+	bottom_shade.anchor_bottom = 1
+	bottom_shade.offset_left = 2
+	bottom_shade.offset_right = -2
+	bottom_shade.offset_top = -6
+	bottom_shade.offset_bottom = -2
+	bottom_shade.color = Color(0, 0, 0, 0.26)
+	bottom_shade.z_index = 1
+	inner_cutout.add_child(bottom_shade)
+
+	slot.add_child(inner_cutout)
+	return inner_cutout
 
 
 func _style_cartridge_frame() -> StyleBoxFlat:
