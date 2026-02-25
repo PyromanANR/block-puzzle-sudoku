@@ -1,4 +1,12 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
-Assets/Audio
+Assets/Audio/*
+!Assets/Audio/Skills/
+!Assets/Audio/Skills/.gitkeep
+!Assets/Audio/Skills/Freeze/
+!Assets/Audio/Skills/Freeze/.gitkeep
+!Assets/Audio/Skills/ClearBoard/
+!Assets/Audio/Skills/ClearBoard/.gitkeep
+!Assets/Audio/Skills/SafeWell/
+!Assets/Audio/Skills/SafeWell/.gitkeep
