@@ -1411,6 +1411,10 @@ func _reposition_board_side_overlays() -> void:
 	const BEZEL_PAD = 14.0
 	var bezel_top = grid_rect.position.y - BEZEL_PAD
 	var bezel_h = grid_rect.size.y + (BEZEL_PAD * 2.0)
+	var extra_top := 11
+	var extra_bottom := 8
+	bezel_top -= extra_top
+	bezel_h += extra_top + extra_bottom
 	bezel_top = clamp(bezel_top, 0.0, max(0.0, board_panel.size.y - bezel_h))
 	const GAP_FROM_GRID = 12.0
 	var left_x = (grid_rect.position.x + grid_rect.size.x) + GAP_FROM_GRID
