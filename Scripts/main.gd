@@ -1942,65 +1942,76 @@ func _finish_drag() -> void:
 func _ensure_piece_state(piece) -> void:
 	if piece == null:
 		return
-	if not piece.has("piece_id"):
-		piece["piece_id"] = next_piece_state_id
+	if not piece.has_meta("piece_id"):
+		piece.set_meta("piece_id", next_piece_state_id)
 		next_piece_state_id += 1
-	if not piece.has("is_in_hand"):
-		piece["is_in_hand"] = false
-	if not piece.has("is_in_grace"):
-		piece["is_in_grace"] = false
-	if not piece.has("is_committed"):
-		piece["is_committed"] = false
-	if not piece.has("grace_timer"):
-		piece["grace_timer"] = null
+	if not piece.has_meta("is_in_hand"):
+		piece.set_meta("is_in_hand", false)
+	if not piece.has_meta("is_in_grace"):
+		piece.set_meta("is_in_grace", false)
+	if not piece.has_meta("is_committed"):
+		piece.set_meta("is_committed", false)
+	if not piece.has_meta("grace_timer"):
+		piece.set_meta("grace_timer", null)
+	_assert_piece_state_invariant(piece)
 
 
 func _piece_is_committed(piece) -> bool:
 	if piece == null:
 		return false
 	_ensure_piece_state(piece)
-	return bool(piece["is_committed"])
+	return bool(piece.get_meta("is_committed", false))
 
 
 func _piece_is_in_hand(piece) -> bool:
 	if piece == null:
 		return false
 	_ensure_piece_state(piece)
-	return bool(piece["is_in_hand"])
+	return bool(piece.get_meta("is_in_hand", false))
 
 
 func _piece_is_in_grace(piece) -> bool:
 	if piece == null:
 		return false
 	_ensure_piece_state(piece)
-	return bool(piece["is_in_grace"])
+	return bool(piece.get_meta("is_in_grace", false))
+
+
+func _assert_piece_state_invariant(piece) -> void:
+	if piece == null:
+		return
+	var committed = bool(piece.get_meta("is_committed", false))
+	var in_hand = bool(piece.get_meta("is_in_hand", false))
+	if committed and in_hand:
+		push_error("Piece state invariant failed: committed and in_hand for piece_id=%d" % int(piece.get_meta("piece_id", -1)))
 
 
 func _set_piece_in_hand_state(piece, in_hand: bool) -> void:
 	if piece == null:
 		return
 	_ensure_piece_state(piece)
-	piece["is_in_hand"] = in_hand
+	piece.set_meta("is_in_hand", in_hand)
 	if in_hand:
-		piece["is_in_grace"] = false
+		piece.set_meta("is_in_grace", false)
+	_assert_piece_state_invariant(piece)
 
 
 func _commit_piece_to_well(piece) -> void:
 	if piece == null:
 		return
 	_ensure_piece_state(piece)
-	if bool(piece["is_committed"]):
+	if bool(piece.get_meta("is_committed", false)):
 		return
-	piece["is_committed"] = true
-	piece["is_in_grace"] = false
-	piece["is_in_hand"] = false
-	var piece_id = int(piece["piece_id"])
+	piece.set_meta("is_committed", true)
+	piece.set_meta("is_in_grace", false)
+	piece.set_meta("is_in_hand", false)
+	var piece_id = int(piece.get_meta("piece_id", -1))
 	grace_piece_by_id.erase(piece_id)
-	var grace_timer = piece["grace_timer"]
+	var grace_timer = piece.get_meta("grace_timer", null)
 	if grace_timer != null and is_instance_valid(grace_timer):
 		grace_timer.stop()
 		grace_timer.call_deferred("queue_free")
-	piece["grace_timer"] = null
+	piece.set_meta("grace_timer", null)
 	if pending_invalid_piece == piece:
 		_clear_pending_invalid_piece()
 	if selected_piece == piece:
@@ -2009,6 +2020,7 @@ func _commit_piece_to_well(piece) -> void:
 		fall_piece = null
 	elif piece == fall_piece_2:
 		fall_piece_2 = null
+	_assert_piece_state_invariant(piece)
 	pile.append(piece)
 	_play_sfx("well_enter")
 	_try_trigger_first_well_entry_slow()
@@ -2029,21 +2041,22 @@ func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2)
 	if piece == null:
 		return
 	_ensure_piece_state(piece)
-	piece["is_in_hand"] = false
-	piece["is_in_grace"] = true
+	piece.set_meta("is_in_hand", false)
+	piece.set_meta("is_in_grace", true)
+	_assert_piece_state_invariant(piece)
 	pending_invalid_piece = piece
 	pending_invalid_from_pile_index = source_index
 	pending_invalid_until_ms = Time.get_ticks_msec() + int(float(core.call("GetInvalidDropGraceSec")) * 1000.0)
-	grace_piece_by_id[int(piece["piece_id"])] = piece
+	grace_piece_by_id[int(piece.get_meta("piece_id", -1))] = piece
 	if pending_invalid_timer != null and is_instance_valid(pending_invalid_timer):
 		pending_invalid_timer.stop()
 		pending_invalid_timer.queue_free()
 	pending_invalid_timer = Timer.new()
 	pending_invalid_timer.one_shot = true
 	pending_invalid_timer.wait_time = max(0.01, float(core.call("GetInvalidDropGraceSec")))
-	pending_invalid_timer.timeout.connect(_on_pending_invalid_timeout.bind(int(piece["piece_id"])))
+	pending_invalid_timer.timeout.connect(_on_pending_invalid_timeout.bind(int(piece.get_meta("piece_id", -1))))
 	add_child(pending_invalid_timer)
-	piece["grace_timer"] = pending_invalid_timer
+	piece.set_meta("grace_timer", pending_invalid_timer)
 	pending_invalid_timer.start()
 	var frame = Vector2(max(48.0, float(cell_size) * 2.0), max(48.0, float(cell_size) * 2.0))
 	pending_invalid_root = Control.new()
@@ -2062,9 +2075,9 @@ func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2)
 func _clear_pending_invalid_piece() -> void:
 	if pending_invalid_piece != null:
 		_ensure_piece_state(pending_invalid_piece)
-		pending_invalid_piece["is_in_grace"] = false
-		pending_invalid_piece["grace_timer"] = null
-		grace_piece_by_id.erase(int(pending_invalid_piece["piece_id"]))
+		pending_invalid_piece.set_meta("is_in_grace", false)
+		pending_invalid_piece.set_meta("grace_timer", null)
+		grace_piece_by_id.erase(int(pending_invalid_piece.get_meta("piece_id", -1)))
 	if pending_invalid_timer != null and is_instance_valid(pending_invalid_timer):
 		pending_invalid_timer.stop()
 		pending_invalid_timer.call_deferred("queue_free")
@@ -2085,9 +2098,10 @@ func _on_pending_invalid_input(event: InputEvent) -> void:
 			_clear_pending_invalid_piece()
 			return
 		_ensure_piece_state(pending_invalid_piece)
-		pending_invalid_piece["is_in_grace"] = false
-		pending_invalid_piece["is_in_hand"] = true
-		pending_invalid_piece["grace_timer"] = null
+		pending_invalid_piece.set_meta("is_in_grace", false)
+		pending_invalid_piece.set_meta("is_in_hand", true)
+		pending_invalid_piece.set_meta("grace_timer", null)
+		_assert_piece_state_invariant(pending_invalid_piece)
 		selected_piece = pending_invalid_piece
 		selected_from_pile_index = pending_invalid_from_pile_index
 		_clear_pending_invalid_piece()
@@ -2102,7 +2116,7 @@ func _update_pending_invalid_grace() -> void:
 		return
 	if Time.get_ticks_msec() < pending_invalid_until_ms:
 		return
-	_on_pending_invalid_timeout(int(pending_invalid_piece["piece_id"]))
+	_on_pending_invalid_timeout(int(pending_invalid_piece.get_meta("piece_id", -1)))
 
 
 func _on_pending_invalid_timeout(piece_id: int) -> void:
@@ -2160,18 +2174,18 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	var placed_from_well = selected_from_pile_index >= 0 and selected_from_pile_index < pile.size()
 	if placed_from_well:
 		_ensure_piece_state(piece)
-		piece["is_committed"] = true
-		piece["is_in_hand"] = false
-		piece["is_in_grace"] = false
+		piece.set_meta("is_committed", true)
+		piece.set_meta("is_in_hand", false)
+		piece.set_meta("is_in_grace", false)
 		pile.remove_at(selected_from_pile_index)
 		if pile.size() == 0:
 			well_first_entry_slow_used = false
 		_force_cancel_drag("CommittedToBoard", true)
 	else:
 		_ensure_piece_state(piece)
-		piece["is_committed"] = true
-		piece["is_in_hand"] = false
-		piece["is_in_grace"] = false
+		piece.set_meta("is_committed", true)
+		piece.set_meta("is_in_hand", false)
+		piece.set_meta("is_in_grace", false)
 		# Falling piece is consumed only after successful placement.
 		if selected_piece == fall_piece:
 			fall_piece = null
