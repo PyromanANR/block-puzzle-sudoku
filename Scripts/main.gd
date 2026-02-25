@@ -694,6 +694,7 @@ func _build_ui() -> void:
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center_section.add_child(title_label)
+	print("Title fs=", fs, " text=", title_label.text, " size=", title_label.size)
 
 	var right_stats = VBoxContainer.new()
 	right_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
