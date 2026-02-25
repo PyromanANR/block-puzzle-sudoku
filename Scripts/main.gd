@@ -191,8 +191,9 @@ const TIME_SLOW_ATLAS_PATH = "res://Assets/UI/time_slow/atlas_time_slow.tres"
 const TIME_SLOW_GLASS_OVERLAY_PATH = "res://Assets/UI/time_slow/tex_glass_overlay.tres"
 const TIME_SLOW_SAND_FILL_PATH = "res://Assets/UI/time_slow/tex_sand_fill.tres"
 const TIME_SLOW_FRAME_PATH = "res://Assets/UI/time_slow/tex_frame.tres"
-const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.shader"
-const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.shader"
+const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.gdshader"
+const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.gdshader"
+const TIME_SLOW_ATLAS_PNG_PATH = "res://Assets/UI/time_slow/time_slow_atlas.png"
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -203,6 +204,10 @@ var time_slow_sand_fill: Resource = null
 var time_slow_frame_tex: Resource = null
 var time_slow_sand_shader: Shader = null
 var time_slow_glass_shader: Shader = null
+var time_slow_sand_rect: TextureRect = null
+var time_slow_glass_rect: TextureRect = null
+var time_slow_sand_mat: ShaderMaterial = null
+var time_slow_glass_mat: ShaderMaterial = null
 
 
 func _skin_manager():
@@ -524,6 +529,8 @@ func _update_status_hud() -> void:
 		time_slow_ui_ready = true
 	var progress01 = clamp(1.0 - (cooldown_remaining / max(0.001, cooldown_sec)), 0.0, 1.0)
 	bar_time_slow.value = progress01 * 100.0
+	if time_slow_sand_mat != null:
+		time_slow_sand_mat.set_shader_parameter("u_fill", progress01)
 	if btn_time_slow != null:
 		if time_slow_ui_ready and remaining_ms <= 0:
 			var t = float(Time.get_ticks_msec()) / 1000.0
@@ -740,6 +747,21 @@ func _build_ui() -> void:
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_mid.add_child(time_slow_stack)
+
+	time_slow_sand_rect = TextureRect.new()
+	time_slow_sand_rect.name = "sand_rect"
+	time_slow_sand_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_sand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_sand_rect.visible = false
+	time_slow_stack.add_child(time_slow_sand_rect)
+
+	time_slow_glass_rect = TextureRect.new()
+	time_slow_glass_rect.name = "glass_rect"
+	time_slow_glass_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_glass_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_glass_rect.z_index = 2
+	time_slow_glass_rect.visible = false
+	time_slow_stack.add_child(time_slow_glass_rect)
 
 	bar_time_slow = ProgressBar.new()
 	bar_time_slow.custom_minimum_size = Vector2(14, 0)
@@ -1046,8 +1068,47 @@ func _setup_time_slow_future_assets() -> void:
 		time_slow_glass_shader = glass_shader_res as Shader
 	else:
 		time_slow_glass_shader = null
-	# TODO: Replace ProgressBar with TextureProgressBar (supports vertical fill) when atlas assets are available.
-	# TODO: Apply ShaderMaterial on the glass overlay when shader assets exist.
+	time_slow_sand_mat = null
+	time_slow_glass_mat = null
+	if time_slow_sand_rect == null or time_slow_glass_rect == null or bar_time_slow == null:
+		return
+	time_slow_sand_rect.visible = false
+	time_slow_glass_rect.visible = false
+	bar_time_slow.visible = true
+	if time_slow_sand_shader == null or time_slow_glass_shader == null:
+		return
+	var atlas_png_res = _safe_load_resource(TIME_SLOW_ATLAS_PNG_PATH)
+	if not (atlas_png_res is Texture2D):
+		return
+	if not (time_slow_sand_fill is AtlasTexture):
+		return
+	if not (time_slow_glass_overlay is Texture2D):
+		return
+	var atlas_png = atlas_png_res as Texture2D
+	var sand_atlas = time_slow_sand_fill as AtlasTexture
+	var atlas_size = atlas_png.get_size()
+	if atlas_size.x <= 0.0 or atlas_size.y <= 0.0:
+		return
+	var r = sand_atlas.region
+	var uv_off = Vector2(r.position.x / atlas_size.x, r.position.y / atlas_size.y)
+	var uv_sz = Vector2(r.size.x / atlas_size.x, r.size.y / atlas_size.y)
+	time_slow_sand_mat = ShaderMaterial.new()
+	time_slow_sand_mat.shader = time_slow_sand_shader
+	time_slow_sand_mat.set_shader_parameter("u_atlas_tex", atlas_png)
+	time_slow_sand_mat.set_shader_parameter("u_region_uv", Vector4(uv_off.x, uv_off.y, uv_sz.x, uv_sz.y))
+	time_slow_sand_mat.set_shader_parameter("u_fill", 0.0)
+	time_slow_sand_rect.material = time_slow_sand_mat
+	time_slow_sand_rect.texture = atlas_png
+	time_slow_sand_rect.visible = true
+	time_slow_glass_mat = ShaderMaterial.new()
+	time_slow_glass_mat.shader = time_slow_glass_shader
+	time_slow_glass_mat.set_shader_parameter("u_glass_tex", time_slow_glass_overlay)
+	time_slow_glass_rect.material = time_slow_glass_mat
+	time_slow_glass_rect.texture = time_slow_glass_overlay as Texture2D
+	time_slow_glass_rect.visible = true
+	bar_time_slow.visible = false
+
+
 func _build_skill_icon_button(icon_key: String) -> TextureButton:
 	var b = TextureButton.new()
 	b.custom_minimum_size = Vector2(64, 64)
