@@ -21,6 +21,7 @@ const LIGHTNING_SHADER_PATH = "res://Assets/Shaders/Skills/lightning.gdshader"
 var host_control: Control = null
 var board_control: Control = null
 var drop_zone_control: Control = null
+var well_control: Control = null
 
 var overlay_layer: CanvasLayer = null
 var overlay_root: Control = null
@@ -55,10 +56,11 @@ var safe_well_open_start_ms = -1
 var safe_well_open_end_ms = -1
 
 
-func setup(host: Control, board: Control, drop_zone: Control) -> void:
+func setup(host: Control, board: Control, drop_zone: Control, well: Control = null) -> void:
 	host_control = host
 	board_control = board
 	drop_zone_control = drop_zone
+	well_control = well
 	_ensure_overlay_layer()
 
 
@@ -203,7 +205,7 @@ func _ensure_freeze_nodes() -> void:
 			freeze_frost_rect = fallback
 		overlay_root.add_child(freeze_frost_rect)
 		var frost_shader = _shader_from_path(FROST_SHADER_PATH)
-		if frost_shader != null:
+		if frost_shader != null and freeze_frost_rect is TextureRect and freeze_frost_rect.texture != null:
 			freeze_frost_mat = ShaderMaterial.new()
 			freeze_frost_mat.shader = frost_shader
 			freeze_frost_mat.set_shader_parameter("u_strength", 0.0)
@@ -230,7 +232,7 @@ func _ensure_clear_flash_node() -> void:
 		return
 	if clear_flash_rect == null or not is_instance_valid(clear_flash_rect):
 		clear_flash_rect = ColorRect.new()
-		clear_flash_rect.color = Color(1, 1, 1, 0.0)
+		clear_flash_rect.color = Color(1, 1, 1, 1)
 		clear_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		overlay_root.add_child(clear_flash_rect)
 		var flash_shader = _shader_from_path(FLASH_SHADER_PATH)
@@ -272,11 +274,15 @@ func _ensure_safe_well_nodes() -> void:
 			safe_well_lightning_mat.shader = lightning_shader
 			safe_well_lightning_mat.set_shader_parameter("u_strength", 0.0)
 			safe_well_lightning_mat.set_shader_parameter("u_time", 0.0)
+			safe_well_lightning_mat.set_shader_parameter("u_vertical", 1.0)
 			safe_well_lightning_rect.material = safe_well_lightning_mat
 	safe_well_lightning_rect.position = drop_rect.position
 	safe_well_lightning_rect.size = drop_rect.size
-	safe_well_lightning_rect.visible = true
-	_ensure_safe_well_doors(drop_rect)
+	safe_well_lightning_rect.visible = false
+	var door_rect = drop_rect
+	if well_control != null and is_instance_valid(well_control):
+		door_rect = _rect_for(well_control)
+	_ensure_safe_well_doors(door_rect)
 
 
 func _ensure_safe_well_doors(drop_rect: Rect2) -> void:
@@ -356,8 +362,7 @@ func _spawn_safe_well_sparks() -> void:
 		spark.add_point(Vector2(x0 + rng.randf_range(-8.0, 8.0), y0 + rng.randf_range(4.0, 14.0)))
 		spark.add_point(Vector2(x0 + rng.randf_range(-14.0, 14.0), y0 + rng.randf_range(8.0, 18.0)))
 		overlay_root.add_child(spark)
-		# Use SceneTreeTimer so this lifetime is not affected by Engine.time_scale.
-		var t := get_tree().create_timer(0.1, true, false, true) # 0.1s, ignore_time_scale=true
+		var t = get_tree().create_timer(0.1, true, false, true)
 		t.timeout.connect(func():
 			if is_instance_valid(spark):
 				spark.queue_free()
@@ -386,8 +391,7 @@ func _update_freeze(now: int) -> bool:
 			freeze_frost_mat.set_shader_parameter("u_strength", clamp(0.9 * alpha, 0.0, 1.0))
 	if freeze_vignette_rect != null and is_instance_valid(freeze_vignette_rect):
 		freeze_vignette_rect.visible = true
-		var v_strength = 0.2 * alpha
-		# Keep the rect fully enabled; shader controls darkness/strength.
+		var v_strength = clamp(0.2 * alpha, 0.0, 1.0)
 		if freeze_vignette_rect is ColorRect:
 			freeze_vignette_rect.color.a = 1.0
 		if freeze_vignette_mat != null:
@@ -408,9 +412,11 @@ func _update_clear_board(now: int) -> bool:
 			var strength = sin(t * PI)
 			if clear_flash_rect != null and is_instance_valid(clear_flash_rect):
 				clear_flash_rect.visible = true
-				clear_flash_rect.color.a = 0.32 * strength
 				if clear_flash_mat != null:
-					clear_flash_mat.set_shader_parameter("u_strength", 0.75 * strength)
+					clear_flash_mat.set_shader_parameter("u_strength", 0.32 * strength)
+					clear_flash_rect.color.a = 1.0
+				else:
+					clear_flash_rect.color.a = 0.32 * strength
 			flash_active = true
 	var shake_active = false
 	if shake_start_ms >= 0 and shake_end_ms > shake_start_ms:
@@ -435,12 +441,14 @@ func _update_safe_well(now: int) -> bool:
 	var total = float(safe_well_end_ms - safe_well_start_ms)
 	var t = clamp(float(now - safe_well_start_ms) / total, 0.0, 1.0)
 	if safe_well_lightning_rect != null and is_instance_valid(safe_well_lightning_rect):
+		safe_well_lightning_rect.visible = true
 		var pulse = abs(sin(t * PI * 5.0))
 		var alpha = lerp(0.08, 0.40, pulse) * (1.0 - t * 0.5)
 		safe_well_lightning_rect.modulate.a = alpha
 		if safe_well_lightning_mat != null:
 			safe_well_lightning_mat.set_shader_parameter("u_strength", clamp(alpha * 1.8, 0.0, 1.0))
 			safe_well_lightning_mat.set_shader_parameter("u_time", float(now) / 1000.0)
+			safe_well_lightning_mat.set_shader_parameter("u_vertical", 1.0)
 	_update_doors_timeline(now)
 	if now >= safe_well_open_end_ms:
 		safe_well_start_ms = -1
@@ -466,11 +474,14 @@ func _update_doors_timeline(now: int) -> void:
 	if safe_well_right_door == null or not is_instance_valid(safe_well_right_door):
 		return
 	var drop_rect = _rect_for(drop_zone_control)
+	var door_rect = drop_rect
+	if well_control != null and is_instance_valid(well_control):
+		door_rect = _rect_for(well_control)
 	var panel_w = safe_well_left_door.size.x
-	var left_open_x = drop_rect.position.x - panel_w
-	var right_open_x = drop_rect.position.x + drop_rect.size.x
-	var left_closed_x = drop_rect.position.x
-	var right_closed_x = drop_rect.position.x + drop_rect.size.x - panel_w
+	var left_open_x = door_rect.position.x - panel_w
+	var right_open_x = door_rect.position.x + door_rect.size.x
+	var left_closed_x = door_rect.position.x
+	var right_closed_x = door_rect.position.x + door_rect.size.x - panel_w
 	if now <= safe_well_close_end_ms:
 		var close_t = clamp(float(now - safe_well_start_ms) / float(max(1, safe_well_close_end_ms - safe_well_start_ms)), 0.0, 1.0)
 		safe_well_left_door.position.x = lerp(left_open_x, left_closed_x, close_t)
