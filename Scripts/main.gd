@@ -2014,7 +2014,11 @@ func _commit_piece_to_well(piece) -> void:
 	piece.set_meta("is_in_hand", false)
 	var piece_id = int(piece.get_meta("piece_id", -1))
 	grace_piece_by_id.erase(piece_id)
-	var grace_timer = piece.get_meta("grace_timer", null)
+	var grace_timer = null
+	if piece.has_meta("grace_timer"):
+		grace_timer = piece.get_meta("grace_timer")
+	else:
+		piece.set_meta("grace_timer", null)
 	if grace_timer != null and is_instance_valid(grace_timer):
 		grace_timer.stop()
 		grace_timer.call_deferred("queue_free")

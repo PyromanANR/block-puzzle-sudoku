@@ -281,10 +281,6 @@ func add_unique_day_if_needed(on_round_completed: bool = true) -> bool:
 
 	if unique_days.has(today):
 		return false
-	var today = get_today_date_string_local()
-	var unique_days = data.get("unique_days_played", [])
-	if typeof(unique_days) != TYPE_ARRAY:
-		unique_days = []
 
 	unique_days.append(today)
 	data["unique_days_played"] = unique_days
