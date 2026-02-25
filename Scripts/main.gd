@@ -207,6 +207,7 @@ var time_slow_glass_shader: Shader = null
 var time_slow_sand_rect: TextureRect = null
 var time_slow_glass_rect: TextureRect = null
 var time_slow_frame_rect: TextureRect = null
+var time_slow_mid: PanelContainer = null
 var time_slow_sand_mat: ShaderMaterial = null
 var time_slow_glass_mat: ShaderMaterial = null
 
@@ -267,6 +268,22 @@ func _ready() -> void:
 
 	_start_round()
 	set_process(true)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		call_deferred("_sync_time_slow_column_width")
+
+
+func _sync_time_slow_column_width() -> void:
+	if time_slow_mid == null:
+		return
+	var ratio = 256.0 / 768.0
+	var h = float(time_slow_mid.size.y)
+	if h <= 0.0:
+		return
+	time_slow_mid.custom_minimum_size.x = ceil(h * ratio)
+	time_slow_mid.minimum_size_changed()
 
 
 func _apply_balance_well_settings() -> void:
@@ -335,6 +352,7 @@ func _start_round() -> void:
 		toast_panel.visible = false
 	_clear_pending_invalid_piece()
 	time_slow_ui_ready = false
+	call_deferred("_sync_time_slow_column_width")
 
 
 func _trigger_game_over() -> void:
@@ -620,10 +638,10 @@ func _build_ui() -> void:
 	header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(header_row)
 
-	var left_section = HBoxContainer.new()
-	left_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_section.add_theme_constant_override("separation", 12)
-	header_row.add_child(left_section)
+	var left_button_section = HBoxContainer.new()
+	left_button_section.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left_button_section.alignment = BoxContainer.ALIGNMENT_BEGIN
+	header_row.add_child(left_button_section)
 
 	btn_exit = TextureButton.new()
 	btn_exit.custom_minimum_size = Vector2(EXIT_BUTTON_SIZE, EXIT_BUTTON_SIZE)
@@ -633,36 +651,42 @@ func _build_ui() -> void:
 	_apply_header_button_icon(btn_exit, "res://Assets/UI/icons/icon_close.png", "X", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
-	left_section.add_child(btn_exit)
+	left_button_section.add_child(btn_exit)
 
-	var left_stats = HBoxContainer.new()
-	left_stats.add_theme_constant_override("separation", 14)
-	left_section.add_child(left_stats)
-	left_section.alignment = BoxContainer.ALIGNMENT_BEGIN
+	var left_stats = VBoxContainer.new()
+	left_stats.size_flags_horizontal = Control.SIZE_FILL
+	left_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_stats.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_stats.add_theme_constant_override("separation", 4)
+	header_row.add_child(left_stats)
 
 	var center_section = CenterContainer.new()
 	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_section.custom_minimum_size = Vector2(120, 0)
 	header_row.add_child(center_section)
 
 	title_label = Label.new()
 	title_label.text = "TETRIS SUDOKU"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_label.visible = true
 	title_label.clip_text = true
 	title_label.add_theme_font_size_override("font_size", _skin_font_size("title", 48))
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center_section.add_child(title_label)
 
-	var right_section = HBoxContainer.new()
-	right_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_section.add_theme_constant_override("separation", 12)
-	right_section.alignment = BoxContainer.ALIGNMENT_END
-	header_row.add_child(right_section)
+	var right_stats = VBoxContainer.new()
+	right_stats.size_flags_horizontal = Control.SIZE_FILL
+	right_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_stats.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_stats.add_theme_constant_override("separation", 4)
+	header_row.add_child(right_stats)
 
-	var right_stats = HBoxContainer.new()
-	right_stats.add_theme_constant_override("separation", 14)
-	right_section.add_child(right_stats)
+	var right_button_section = HBoxContainer.new()
+	right_button_section.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_button_section.alignment = BoxContainer.ALIGNMENT_END
+	header_row.add_child(right_button_section)
 
 	btn_settings = TextureButton.new()
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
@@ -672,7 +696,7 @@ func _build_ui() -> void:
 	_apply_header_button_icon(btn_settings, "res://Assets/UI/icons/icon_settings.png", "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
-	right_section.add_child(btn_settings)
+	right_button_section.add_child(btn_settings)
 
 	lbl_score = _hud_metric_row(left_stats, "score", "Score", "0")
 	lbl_speed = _hud_metric_row(left_stats, "speed", "Speed", "1.00")
@@ -738,10 +762,11 @@ func _build_ui() -> void:
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
-	var time_slow_mid = PanelContainer.new()
+	time_slow_mid = PanelContainer.new()
 	time_slow_mid.name = "time_slow_mid"
 	time_slow_mid.custom_minimum_size = Vector2(36, 0)
-	time_slow_mid.size_flags_horizontal = Control.SIZE_FILL
+	time_slow_mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	time_slow_mid.size_flags_stretch_ratio = 0.40
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_mid.z_index = 0
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -757,34 +782,49 @@ func _build_ui() -> void:
 	time_slow_frame_panel.name = "time_slow_frame_panel"
 	time_slow_frame_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_frame_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_frame_panel.clip_contents = true
 	time_slow_mid.add_child(time_slow_frame_panel)
+
+	var time_slow_aspect = AspectRatioContainer.new()
+	time_slow_aspect.name = "time_slow_aspect"
+	time_slow_aspect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_aspect.size_flags_horizontal = Control.SIZE_FILL
+	time_slow_aspect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	time_slow_aspect.ratio = 1.0 / 3.0
+	time_slow_aspect.stretch_mode = AspectRatioContainer.STRETCH_FIT
+	time_slow_aspect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_frame_panel.add_child(time_slow_aspect)
 
 	var time_slow_stack = Control.new()
 	time_slow_stack.name = "time_slow_stack"
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_frame_panel.add_child(time_slow_stack)
+	time_slow_aspect.add_child(time_slow_stack)
 
 	time_slow_sand_rect = TextureRect.new()
 	time_slow_sand_rect.name = "sand_rect"
 	time_slow_sand_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	time_slow_sand_rect.offset_left = 10
-	time_slow_sand_rect.offset_top = 12
-	time_slow_sand_rect.offset_right = -10
-	time_slow_sand_rect.offset_bottom = -12
+	time_slow_sand_rect.offset_left = 0
+	time_slow_sand_rect.offset_top = 0
+	time_slow_sand_rect.offset_right = 0
+	time_slow_sand_rect.offset_bottom = 0
 	time_slow_sand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_sand_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	time_slow_sand_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_sand_rect.visible = false
 	time_slow_stack.add_child(time_slow_sand_rect)
 
 	time_slow_glass_rect = TextureRect.new()
 	time_slow_glass_rect.name = "glass_rect"
 	time_slow_glass_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	time_slow_glass_rect.offset_left = 10
-	time_slow_glass_rect.offset_top = 12
-	time_slow_glass_rect.offset_right = -10
-	time_slow_glass_rect.offset_bottom = -12
+	time_slow_glass_rect.offset_left = 0
+	time_slow_glass_rect.offset_top = 0
+	time_slow_glass_rect.offset_right = 0
+	time_slow_glass_rect.offset_bottom = 0
 	time_slow_glass_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_glass_rect.z_index = 1
+	time_slow_glass_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	time_slow_glass_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_glass_rect.visible = false
 	time_slow_stack.add_child(time_slow_glass_rect)
 
@@ -793,6 +833,7 @@ func _build_ui() -> void:
 	time_slow_frame_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_frame_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_frame_rect.z_index = 2
+	time_slow_frame_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	time_slow_frame_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_frame_rect.visible = false
 	time_slow_stack.add_child(time_slow_frame_rect)
@@ -814,6 +855,7 @@ func _build_ui() -> void:
 	bar_time_slow.add_theme_stylebox_override("background", time_slow_bg)
 	time_slow_stack.add_child(bar_time_slow)
 	_setup_time_slow_future_assets()
+	call_deferred("_sync_time_slow_column_width")
 
 
 	well_slots_panel = Panel.new()
@@ -934,12 +976,12 @@ func _hud_metric_row(parent: Control, metric_key: String, prefix: String, value:
 	parent.add_child(wrap)
 	if metric_key == "score" or metric_key == "speed" or metric_key == "time":
 		_add_icon_or_fallback(wrap, metric_key, 16, 28)
-	var label = Label.new()
-	label.text = "%s: %s" % [prefix, value]
-	label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
-	wrap.add_child(label)
-	return label
+	var value_label = Label.new()
+	value_label.text = "%s: %s" % [prefix, value]
+	value_label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	value_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
+	wrap.add_child(value_label)
+	return value_label
 
 
 func _load_ui_icon(key: String) -> Texture2D:
@@ -1137,14 +1179,14 @@ func _setup_time_slow_future_assets() -> void:
 	time_slow_sand_mat.set_shader_parameter("u_region_uv", Vector4(uv_off.x, uv_off.y, uv_sz.x, uv_sz.y))
 	time_slow_sand_mat.set_shader_parameter("u_fill", 0.0)
 	time_slow_sand_rect.material = time_slow_sand_mat
-	time_slow_sand_rect.texture = null
+	time_slow_sand_rect.texture = atlas_png
 	time_slow_sand_rect.visible = true
 	time_slow_glass_mat = ShaderMaterial.new()
 	time_slow_glass_mat.shader = time_slow_glass_shader
 	time_slow_glass_mat.set_shader_parameter("u_atlas_tex", atlas_png)
 	time_slow_glass_mat.set_shader_parameter("u_region_uv", Vector4(glass_off.x, glass_off.y, glass_sz.x, glass_sz.y))
 	time_slow_glass_rect.material = time_slow_glass_mat
-	time_slow_glass_rect.texture = null
+	time_slow_glass_rect.texture = atlas_png
 	time_slow_glass_rect.visible = true
 	time_slow_frame_rect.texture = frame_atlas
 	time_slow_frame_rect.visible = true
@@ -2318,14 +2360,12 @@ func _style_skills_slot() -> StyleBox:
 
 
 func _skills_outer_bg_color() -> Color:
-	var p = board_panel.get_parent() if board_panel != null else null
-	while p != null and p is Control:
-		var sb = (p as Control).get_theme_stylebox("panel")
-		if sb is StyleBoxFlat:
-			var c = (sb as StyleBoxFlat).bg_color
-			if c.a > 0.0 and c.r >= c.g and c.g >= c.b:
-				return c
-		p = (p as Control).get_parent()
+	if root_frame != null:
+		var root_sb = root_frame.get_theme_stylebox("panel")
+		if root_sb is StyleBoxFlat:
+			var root_color = (root_sb as StyleBoxFlat).bg_color
+			if root_color.a > 0.0:
+				return root_color
 	return _skin_color("hud_bg", _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42)))
 
 
