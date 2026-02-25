@@ -742,7 +742,8 @@ func _build_ui() -> void:
 	var time_slow_mid = PanelContainer.new()
 	time_slow_mid.name = "time_slow_mid"
 	time_slow_mid.custom_minimum_size = Vector2(36, 0)
-	time_slow_mid.size_flags_horizontal = Control.SIZE_FILL
+	time_slow_mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	time_slow_mid.size_flags_stretch_ratio = 0.25
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_mid.z_index = 0
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -764,6 +765,8 @@ func _build_ui() -> void:
 	var time_slow_aspect = AspectRatioContainer.new()
 	time_slow_aspect.name = "time_slow_aspect"
 	time_slow_aspect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_slow_aspect.size_flags_horizontal = Control.SIZE_FILL
+	time_slow_aspect.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_aspect.ratio = 1.0 / 3.0
 	time_slow_aspect.stretch_mode = AspectRatioContainer.STRETCH_FIT
 	time_slow_aspect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -778,10 +781,10 @@ func _build_ui() -> void:
 	time_slow_sand_rect = TextureRect.new()
 	time_slow_sand_rect.name = "sand_rect"
 	time_slow_sand_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	time_slow_sand_rect.offset_left = 10
-	time_slow_sand_rect.offset_top = 12
-	time_slow_sand_rect.offset_right = -10
-	time_slow_sand_rect.offset_bottom = -12
+	time_slow_sand_rect.offset_left = 0
+	time_slow_sand_rect.offset_top = 0
+	time_slow_sand_rect.offset_right = 0
+	time_slow_sand_rect.offset_bottom = 0
 	time_slow_sand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_sand_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	time_slow_sand_rect.stretch_mode = TextureRect.STRETCH_SCALE
@@ -791,10 +794,10 @@ func _build_ui() -> void:
 	time_slow_glass_rect = TextureRect.new()
 	time_slow_glass_rect.name = "glass_rect"
 	time_slow_glass_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	time_slow_glass_rect.offset_left = 10
-	time_slow_glass_rect.offset_top = 12
-	time_slow_glass_rect.offset_right = -10
-	time_slow_glass_rect.offset_bottom = -12
+	time_slow_glass_rect.offset_left = 0
+	time_slow_glass_rect.offset_top = 0
+	time_slow_glass_rect.offset_right = 0
+	time_slow_glass_rect.offset_bottom = 0
 	time_slow_glass_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_glass_rect.z_index = 1
 	time_slow_glass_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -949,19 +952,11 @@ func _hud_metric_row(parent: Control, metric_key: String, prefix: String, value:
 	parent.add_child(wrap)
 	if metric_key == "score" or metric_key == "speed" or metric_key == "time":
 		_add_icon_or_fallback(wrap, metric_key, 16, 28)
-	var text_col = VBoxContainer.new()
-	text_col.add_theme_constant_override("separation", 0)
-	wrap.add_child(text_col)
-	var caption = Label.new()
-	caption.text = prefix
-	caption.add_theme_font_size_override("font_size", _skin_font_size("small", 14))
-	caption.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.24, 0.24, 0.24)))
-	text_col.add_child(caption)
 	var value_label = Label.new()
-	value_label.text = value
+	value_label.text = "%s: %s" % [prefix, value]
 	value_label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	value_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
-	text_col.add_child(value_label)
+	wrap.add_child(value_label)
 	return value_label
 
 
@@ -1160,14 +1155,14 @@ func _setup_time_slow_future_assets() -> void:
 	time_slow_sand_mat.set_shader_parameter("u_region_uv", Vector4(uv_off.x, uv_off.y, uv_sz.x, uv_sz.y))
 	time_slow_sand_mat.set_shader_parameter("u_fill", 0.0)
 	time_slow_sand_rect.material = time_slow_sand_mat
-	time_slow_sand_rect.texture = null
+	time_slow_sand_rect.texture = atlas_png
 	time_slow_sand_rect.visible = true
 	time_slow_glass_mat = ShaderMaterial.new()
 	time_slow_glass_mat.shader = time_slow_glass_shader
 	time_slow_glass_mat.set_shader_parameter("u_atlas_tex", atlas_png)
 	time_slow_glass_mat.set_shader_parameter("u_region_uv", Vector4(glass_off.x, glass_off.y, glass_sz.x, glass_sz.y))
 	time_slow_glass_rect.material = time_slow_glass_mat
-	time_slow_glass_rect.texture = null
+	time_slow_glass_rect.texture = atlas_png
 	time_slow_glass_rect.visible = true
 	time_slow_frame_rect.texture = frame_atlas
 	time_slow_frame_rect.visible = true
