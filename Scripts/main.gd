@@ -2211,17 +2211,20 @@ func _style_skills_slot() -> StyleBox:
 
 
 func _skills_outer_bg_color() -> Color:
-	var base_style = board_panel.get_theme_stylebox("panel") if board_panel != null else null
-	if base_style is StyleBoxFlat:
-		return (base_style as StyleBoxFlat).bg_color
-	return _skin_color("board_bg", Color(0.20, 0.22, 0.20))
+	var p = board_panel.get_parent() if board_panel != null else null
+	while p != null and p is Control:
+		var sb = (p as Control).get_theme_stylebox("panel")
+		if sb is StyleBoxFlat:
+			return (sb as StyleBoxFlat).bg_color
+		p = (p as Control).get_parent()
+	return _skin_color("cartridge_bg", Color(0.93, 0.86, 0.42))
 
 
 func _style_skills_slot_outer(outer_bg_color: Color) -> StyleBox:
 	var sb_outer = StyleBoxFlat.new()
 	sb_outer.set_border_width_all(2)
-	sb_outer.bg_color = Color(outer_bg_color.r, outer_bg_color.g, outer_bg_color.b, 0.13)
-	sb_outer.border_color = Color(outer_bg_color.r * 0.78, outer_bg_color.g * 0.78, outer_bg_color.b * 0.78, outer_bg_color.a)
+	sb_outer.bg_color = Color(outer_bg_color.r, outer_bg_color.g, outer_bg_color.b, 0.20)
+	sb_outer.border_color = Color(outer_bg_color.r * 0.65, outer_bg_color.g * 0.65, outer_bg_color.b * 0.65, outer_bg_color.a)
 	sb_outer.shadow_size = 0
 	return sb_outer
 
@@ -2236,11 +2239,11 @@ func _build_skill_slot_cutout(slot: PanelContainer, outer_bg_color: Color) -> Pa
 	inner_cutout.offset_bottom = -6
 	var sb_inset = StyleBoxFlat.new()
 	sb_inset.set_border_width_all(2)
-	sb_inset.bg_color = Color(outer_bg_color.r * 0.70, outer_bg_color.g * 0.70, outer_bg_color.b * 0.70, 0.25)
-	sb_inset.border_color = Color(outer_bg_color.r * 0.55, outer_bg_color.g * 0.55, outer_bg_color.b * 0.55, outer_bg_color.a)
-	sb_inset.shadow_size = 6
+	sb_inset.bg_color = Color(outer_bg_color.r * 0.70, outer_bg_color.g * 0.70, outer_bg_color.b * 0.70, 0.35)
+	sb_inset.border_color = Color(outer_bg_color.r * 0.50, outer_bg_color.g * 0.50, outer_bg_color.b * 0.50, outer_bg_color.a)
+	sb_inset.shadow_size = 8
 	sb_inset.shadow_offset = Vector2(0, 2)
-	sb_inset.shadow_color = Color(0, 0, 0, 0.35)
+	sb_inset.shadow_color = Color(0, 0, 0, 0.45)
 	inner_cutout.add_theme_stylebox_override("panel", sb_inset)
 
 	var top_highlight = ColorRect.new()
@@ -2253,7 +2256,7 @@ func _build_skill_slot_cutout(slot: PanelContainer, outer_bg_color: Color) -> Pa
 	top_highlight.offset_right = -2
 	top_highlight.offset_top = 2
 	top_highlight.offset_bottom = 6
-	top_highlight.color = Color(min(outer_bg_color.r * 1.15, 1.0), min(outer_bg_color.g * 1.15, 1.0), min(outer_bg_color.b * 1.15, 1.0), 0.22)
+	top_highlight.color = Color(min(outer_bg_color.r * 1.15, 1.0), min(outer_bg_color.g * 1.15, 1.0), min(outer_bg_color.b * 1.15, 1.0), 0.30)
 	top_highlight.z_index = 1
 	inner_cutout.add_child(top_highlight)
 
@@ -2267,7 +2270,7 @@ func _build_skill_slot_cutout(slot: PanelContainer, outer_bg_color: Color) -> Pa
 	bottom_shade.offset_right = -2
 	bottom_shade.offset_top = -6
 	bottom_shade.offset_bottom = -2
-	bottom_shade.color = Color(0, 0, 0, 0.20)
+	bottom_shade.color = Color(0, 0, 0, 0.26)
 	bottom_shade.z_index = 1
 	inner_cutout.add_child(bottom_shade)
 
