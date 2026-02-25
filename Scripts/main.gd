@@ -383,8 +383,8 @@ func _trigger_game_over() -> void:
 	Engine.time_scale = 1.0
 	set_process(false)
 
-	# Save global progress (Stage 1)
-	Save.mark_played_today_if_needed()
+	# Save global progress (player profile)
+	Save.add_unique_day_if_needed(true)
 	Save.update_best(score, level)
 	Save.save()
 
@@ -1234,8 +1234,8 @@ func _build_skill_icon_button(icon_key: String) -> TextureButton:
 		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(fallback)
 	return b
-func _on_skill_icon_pressed(btn: TextureButton, required_level: int, locked_msg: String) -> void:
-	if level < required_level:
+func _on_skill_icon_pressed(btn: TextureButton, unlock_key: String, locked_msg: String) -> void:
+	if not Save.is_unlock_enabled(unlock_key):
 		show_toast(locked_msg, 1.9)
 		return
 	if btn == btn_skill_freeze:
@@ -1250,9 +1250,9 @@ func _on_skill_icon_pressed(btn: TextureButton, required_level: int, locked_msg:
 func _update_skill_icon_states() -> void:
 	if btn_skill_freeze == null or btn_skill_clear == null or btn_skill_invuln == null:
 		return
-	var a_freeze = 1.0 if level >= 5 else 0.45
-	var a_clear = 1.0 if level >= 10 else 0.45
-	var a_well = 1.0 if level >= 20 else 0.45
+	var a_freeze = 1.0 if Save.is_unlock_enabled("freeze_unlocked") else 0.45
+	var a_clear = 1.0 if Save.is_unlock_enabled("clear_board_unlocked") else 0.45
+	var a_well = 1.0 if Save.is_unlock_enabled("safe_well_unlocked") else 0.45
 	btn_skill_freeze.modulate = Color(1, 1, 1, a_freeze)
 	btn_skill_clear.modulate = Color(1, 1, 1, a_clear)
 	btn_skill_invuln.modulate = Color(1, 1, 1, a_well)
@@ -1374,19 +1374,19 @@ func _build_board_side_overlays() -> void:
 	top_sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_freeze = _build_skill_icon_button("freeze")
-	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, 5, "Reach level 5"))
+	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, "freeze_unlocked", "Reach player level 5"))
 	skills_v.add_child(btn_skill_freeze)
 	var mid1 = skills_v.add_spacer(false)
 	mid1.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_clear = _build_skill_icon_button("clear")
-	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, 10, "Reach level 10"))
+	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, "clear_board_unlocked", "Reach player level 10"))
 	skills_v.add_child(btn_skill_clear)
 	var mid2 = skills_v.add_spacer(false)
 	mid2.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_invuln = _build_skill_icon_button("safe_well")
-	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, 20, "Reach level 20"))
+	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, "safe_well_unlocked", "Reach player level 20"))
 	skills_v.add_child(btn_skill_invuln)
 	var bot_sp = skills_v.add_spacer(false)
 	bot_sp.size_flags_vertical = Control.SIZE_EXPAND_FILL

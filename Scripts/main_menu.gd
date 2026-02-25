@@ -3,6 +3,10 @@ extends Control
 const GAME_SCENE := "res://Scenes/Main.tscn"
 
 var lbl_difficulty: Label
+var btn_player_level: Button
+var rewards_popup: PopupPanel
+var rewards_level_label: Label
+var rewards_status_labels: Dictionary = {}
 var popup_difficulty: PopupPanel
 var opt_difficulty: OptionButton
 var chk_no_mercy: CheckBox
@@ -57,6 +61,7 @@ func _ready() -> void:
 	_audio_setup()
 	_build_ui()
 	_refresh_difficulty_label()
+	_refresh_rewards_stub()
 
 
 func _build_ui() -> void:
@@ -71,6 +76,23 @@ func _build_ui() -> void:
 	if skin_manager != null and skin_manager.get_theme() != null:
 		root.theme = skin_manager.get_theme()
 	add_child(root)
+
+	btn_player_level = Button.new()
+	btn_player_level.text = "Level %d" % Save.get_player_level()
+	btn_player_level.custom_minimum_size = Vector2(130, 40)
+	btn_player_level.size = Vector2(130, 40)
+	btn_player_level.anchor_left = 1.0
+	btn_player_level.anchor_right = 1.0
+	btn_player_level.anchor_top = 0.0
+	btn_player_level.anchor_bottom = 0.0
+	btn_player_level.offset_left = -150
+	btn_player_level.offset_right = -20
+	btn_player_level.offset_top = 20
+	btn_player_level.offset_bottom = 60
+	btn_player_level.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	btn_player_level.pressed.connect(func(): _play_sfx("ui_click"))
+	btn_player_level.pressed.connect(_open_rewards_stub)
+	root.add_child(btn_player_level)
 
 	var v := VBoxContainer.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -97,6 +119,7 @@ func _build_ui() -> void:
 	v.add_child(_menu_button("Exit", _on_exit))
 
 	_build_difficulty_popup(root)
+	_build_rewards_popup(root)
 
 
 func _menu_button(text: String, cb: Callable) -> Button:
@@ -181,11 +204,65 @@ func _on_start() -> void:
 
 
 func _on_rewards() -> void:
-	var d := AcceptDialog.new()
-	d.title = "Rewards"
-	d.dialog_text = "Coming soon"
-	add_child(d)
-	d.popup_centered()
+	_open_rewards_stub()
+
+
+func _build_rewards_popup(root: Control) -> void:
+	rewards_popup = PopupPanel.new()
+	rewards_popup.size = Vector2(520, 360)
+	rewards_popup.visible = false
+	root.add_child(rewards_popup)
+
+	var v := VBoxContainer.new()
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = 18
+	v.offset_top = 18
+	v.offset_right = -18
+	v.offset_bottom = -18
+	v.add_theme_constant_override("separation", 8)
+	rewards_popup.add_child(v)
+
+	var title := Label.new()
+	title.text = "Rewards"
+	title.add_theme_font_size_override("font_size", 26)
+	v.add_child(title)
+
+	rewards_level_label = Label.new()
+	v.add_child(rewards_level_label)
+
+	var milestones = [5, 10, 20, 50]
+	for m in milestones:
+		var line := Label.new()
+		line.name = "milestone_%d" % m
+		v.add_child(line)
+		rewards_status_labels[m] = line
+
+	var close := Button.new()
+	close.text = "Close"
+	close.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	close.pressed.connect(func(): _play_sfx("ui_click"))
+	close.pressed.connect(func(): rewards_popup.hide())
+	v.add_child(close)
+
+
+func _open_rewards_stub() -> void:
+	if rewards_popup == null:
+		return
+	_refresh_rewards_stub()
+	rewards_popup.popup_centered()
+
+
+func _refresh_rewards_stub() -> void:
+	var level = Save.get_player_level()
+	if btn_player_level != null:
+		btn_player_level.text = "Level %d" % level
+	if rewards_popup == null:
+		return
+	if rewards_level_label != null:
+		rewards_level_label.text = "Player Level: %d" % level
+	for m in rewards_status_labels.keys():
+		var status = "Unlocked" if level >= int(m) else "Locked"
+		rewards_status_labels[m].text = "Level %d checkpoint: %s" % [int(m), status]
 
 
 func _on_settings() -> void:
