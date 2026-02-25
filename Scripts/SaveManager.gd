@@ -20,6 +20,7 @@ func _ready() -> void:
 	call_deferred("startup_cloud_sync")
 
 
+
 func defaults() -> Dictionary:
 	return {
 		"save_version": SAVE_VERSION,
@@ -105,6 +106,7 @@ func save(push_cloud: bool = true) -> void:
 	f.close()
 	if push_cloud:
 		cloud_push_best_effort()
+
 
 
 func _merge_into(dst: Dictionary, src: Dictionary) -> void:
@@ -279,6 +281,10 @@ func add_unique_day_if_needed(on_round_completed: bool = true) -> bool:
 
 	if unique_days.has(today):
 		return false
+	var today = get_today_date_string_local()
+	var unique_days = data.get("unique_days_played", [])
+	if typeof(unique_days) != TYPE_ARRAY:
+		unique_days = []
 
 	unique_days.append(today)
 	data["unique_days_played"] = unique_days

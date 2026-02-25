@@ -7,6 +7,10 @@
       "RelativeMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|solutionrelative:scripts\\core\\corebridge.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|f:\\it\\mygame\\block-puzzle-sudoku\\scripts\\core\\difficultydirector.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|solutionrelative:scripts\\core\\difficultydirector.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|f:\\it\\mygame\\block-puzzle-sudoku\\scripts\\core\\balanceconfig.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|solutionrelative:scripts\\core\\balanceconfig.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -30,7 +34,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 9,
+          "SelectedChildIndex": 10,
           "Children": [
             {
               "$type": "Bookmark",
@@ -55,6 +59,19 @@
             {
               "$type": "Document",
               "DocumentIndex": 1,
+              "Title": "DifficultyDirector.cs",
+              "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\DifficultyDirector.cs",
+              "RelativeDocumentMoniker": "Scripts\\Core\\DifficultyDirector.cs",
+              "ToolTip": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\DifficultyDirector.cs",
+              "RelativeToolTip": "Scripts\\Core\\DifficultyDirector.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAxwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-25T12:26:25.429Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "BalanceConfig.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\BalanceConfig.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\BalanceConfig.cs",
@@ -62,12 +79,11 @@
               "RelativeToolTip": "Scripts\\Core\\BalanceConfig.cs",
               "ViewState": "AgIAAHUAAAAAAAAAAAAAAH8AAAAQAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-24T02:53:06.917Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-24T02:53:06.917Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "PieceGenerator.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\PieceGenerator.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\PieceGenerator.cs",
@@ -79,7 +95,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 4,
               "Title": "BoardModel.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\BoardModel.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\BoardModel.cs",
@@ -91,7 +107,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 5,
               "Title": "PieceData.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\PieceData.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\PieceData.cs",
@@ -109,7 +125,7 @@
               "RelativeDocumentMoniker": "Scripts\\Core\\CoreBridge.cs",
               "ToolTip": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\CoreBridge.cs",
               "RelativeToolTip": "Scripts\\Core\\CoreBridge.cs",
-              "ViewState": "AgIAABoAAAAAAAAAAAA3wCYAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAC4BAAAAAAAAAAAwwDEBAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-02-18T01:19:37.605Z",
               "EditorCaption": ""
