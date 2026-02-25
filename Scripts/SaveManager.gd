@@ -5,10 +5,20 @@ const SAVE_PATH := "user://save.json"
 const SAVE_VERSION = 1
 const DATE_RX = "^\\d{4}-\\d{2}-\\d{2}$"
 
+const NullCloudSaveProviderScript = preload("res://Scripts/Cloud/NullCloudSaveProvider.gd")
+const GooglePlayCloudSaveProviderScript = preload("res://Scripts/Cloud/GooglePlayCloudSaveProvider.gd")
+
 var data: Dictionary = {}
+var cloud_provider: CloudSaveProvider = null
+var cloud_sync_in_progress = false
+var cloud_pending_upload = false
+
 
 func _ready() -> void:
 	load_save()
+	cloud_provider = _create_cloud_provider()
+	call_deferred("startup_cloud_sync")
+
 
 
 func defaults() -> Dictionary:
@@ -50,13 +60,19 @@ func _default_best_scores() -> Dictionary:
 	}
 
 
+func _create_cloud_provider() -> CloudSaveProvider:
+	if OS.get_name() == "Android":
+		return GooglePlayCloudSaveProviderScript.new()
+	return NullCloudSaveProviderScript.new()
+
+
 func load_save() -> Dictionary:
 	data = defaults()
 	var needs_save = false
 
 	var f = FileAccess.open(SAVE_PATH, FileAccess.READ)
 	if f == null:
-		save()
+		save(false)
 		return data
 
 	var txt = f.get_as_text()
@@ -65,7 +81,7 @@ func load_save() -> Dictionary:
 	var parsed = JSON.parse_string(txt)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		data = defaults()
-		save()
+		save(false)
 		return data
 
 	_merge_into(data, parsed)
@@ -75,11 +91,11 @@ func load_save() -> Dictionary:
 	needs_save = recompute_player_level_and_unlocks() or needs_save
 
 	if needs_save:
-		save()
+		save(false)
 	return data
 
 
-func save() -> void:
+func save(push_cloud: bool = true) -> void:
 	var f = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
 		push_error("Cannot open save file for writing: %s" % SAVE_PATH)
@@ -88,6 +104,9 @@ func save() -> void:
 	var json_text = JSON.stringify(data)
 	f.store_buffer(json_text.to_utf8_buffer())
 	f.close()
+	if push_cloud:
+		cloud_push_best_effort()
+
 
 
 func _merge_into(dst: Dictionary, src: Dictionary) -> void:
@@ -165,7 +184,7 @@ func _sanitize_unique_days() -> bool:
 		data["unique_days_played"] = []
 		return true
 
-	var uniq := {}
+	var uniq = {}
 	var cleaned: Array = []
 	for entry in source:
 		var s = String(entry)
@@ -191,7 +210,7 @@ func _is_valid_day_string(s: String) -> bool:
 
 func _build_synthetic_days(total: int) -> Array:
 	var result: Array = []
-	var seen := {}
+	var seen = {}
 	var now = int(Time.get_unix_time_from_system())
 	for i in range(max(0, total)):
 		var dt = Time.get_datetime_dict_from_unix_time(now - (i * 86400))
@@ -209,6 +228,11 @@ func _now_unix_ms() -> int:
 
 func get_today_date_string_local() -> String:
 	var d = Time.get_datetime_dict_from_system()
+	return "%04d-%02d-%02d" % [int(d.year), int(d.month), int(d.day)]
+
+
+func _date_string_from_unix_local(unix_sec: int) -> String:
+	var d = Time.get_datetime_dict_from_unix_time(unix_sec)
 	return "%04d-%02d-%02d" % [int(d.year), int(d.month), int(d.day)]
 
 
@@ -257,12 +281,236 @@ func add_unique_day_if_needed(on_round_completed: bool = true) -> bool:
 
 	if unique_days.has(today):
 		return false
+	var today = get_today_date_string_local()
+	var unique_days = data.get("unique_days_played", [])
+	if typeof(unique_days) != TYPE_ARRAY:
+		unique_days = []
 
 	unique_days.append(today)
 	data["unique_days_played"] = unique_days
 	recompute_player_level_and_unlocks()
-	save()
+	save(true)
 	return true
+
+
+func startup_cloud_sync() -> void:
+	if cloud_sync_in_progress:
+		return
+	if cloud_provider == null:
+		return
+	if not cloud_provider.is_available():
+		return
+
+	cloud_sync_in_progress = true
+	if not cloud_provider.is_signed_in():
+		cloud_provider.sign_in()
+	if not cloud_provider.is_signed_in():
+		cloud_sync_in_progress = false
+		return
+
+	var pull_result = cloud_provider.load_snapshot()
+	if not _is_snapshot_payload_ok(pull_result):
+		cloud_sync_in_progress = false
+		return
+
+	var remote_blob = _parse_blob_from_snapshot(pull_result.get("data", PackedByteArray()))
+	if remote_blob.is_empty():
+		cloud_sync_in_progress = false
+		return
+
+	var decision = _compare_blobs(remote_blob, data)
+	if decision > 0:
+		_apply_remote_blob(remote_blob)
+	elif decision < 0:
+		cloud_push_best_effort()
+
+	cloud_sync_in_progress = false
+
+
+func cloud_sign_in() -> bool:
+	if cloud_provider == null:
+		return false
+	if not cloud_provider.is_available():
+		return false
+	var ok = cloud_provider.sign_in()
+	if ok and cloud_pending_upload:
+		cloud_push_best_effort()
+	return ok
+
+
+func cloud_pull_now() -> bool:
+	if cloud_provider == null:
+		return false
+	if not cloud_provider.is_available():
+		return false
+	if not cloud_provider.is_signed_in():
+		return false
+
+	var pull_result = cloud_provider.load_snapshot()
+	if not _is_snapshot_payload_ok(pull_result):
+		return false
+
+	var remote_blob = _parse_blob_from_snapshot(pull_result.get("data", PackedByteArray()))
+	if remote_blob.is_empty():
+		return false
+
+	var decision = _compare_blobs(remote_blob, data)
+	if decision > 0:
+		_apply_remote_blob(remote_blob)
+		return true
+	if decision < 0:
+		cloud_push_best_effort()
+	return true
+
+
+func cloud_push_best_effort() -> bool:
+	if cloud_provider == null:
+		cloud_pending_upload = true
+		return false
+	if not cloud_provider.is_available():
+		cloud_pending_upload = true
+		return false
+	if not cloud_provider.is_signed_in():
+		cloud_pending_upload = true
+		return false
+
+	var ok = cloud_provider.save_snapshot(get_blob_bytes())
+	cloud_pending_upload = not ok
+	return ok
+
+
+func cloud_push_now() -> bool:
+	return cloud_push_best_effort()
+
+
+func get_blob_bytes() -> PackedByteArray:
+	return JSON.stringify(data).to_utf8_buffer()
+
+
+func _is_snapshot_payload_ok(payload: Dictionary) -> bool:
+	if typeof(payload) != TYPE_DICTIONARY:
+		return false
+	if not bool(payload.get("ok", false)):
+		return false
+	if not bool(payload.get("has_data", false)):
+		return false
+	return true
+
+
+func _parse_blob_from_snapshot(raw_data) -> Dictionary:
+	var json_text = ""
+	if raw_data is PackedByteArray:
+		json_text = (raw_data as PackedByteArray).get_string_from_utf8()
+	else:
+		json_text = String(raw_data)
+	if json_text == "":
+		return {}
+	var parsed = JSON.parse_string(json_text)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	return parsed
+
+
+func _compare_blobs(remote_blob: Dictionary, local_blob: Dictionary) -> int:
+	var remote_updated = int(remote_blob.get("updated_at_ms", 0))
+	var local_updated = int(local_blob.get("updated_at_ms", 0))
+	if remote_updated > local_updated:
+		return 1
+	if remote_updated < local_updated:
+		return -1
+
+	var remote_level = _blob_level_value(remote_blob)
+	var local_level = _blob_level_value(local_blob)
+	if remote_level > local_level:
+		return 1
+	if remote_level < local_level:
+		return -1
+	return -1
+
+
+func _blob_level_value(blob: Dictionary) -> int:
+	if typeof(blob.get("player_level", null)) == TYPE_INT:
+		return int(blob.get("player_level", 0))
+	var days = blob.get("unique_days_played", [])
+	if typeof(days) == TYPE_ARRAY:
+		return (days as Array).size()
+	return 0
+
+
+func _apply_remote_blob(remote_blob: Dictionary) -> void:
+	var normalized = defaults()
+	_merge_into(normalized, remote_blob)
+	data = normalized
+	_migrate_legacy_fields()
+	_normalize_blob_shape()
+	_sanitize_unique_days()
+	recompute_player_level_and_unlocks()
+	save(false)
+
+
+func get_cloud_last_error() -> String:
+	if cloud_provider == null:
+		return "Cloud provider unavailable."
+	return cloud_provider.get_last_error()
+
+
+func is_cloud_available() -> bool:
+	if cloud_provider == null:
+		return false
+	return cloud_provider.is_available()
+
+
+func is_cloud_signed_in() -> bool:
+	if cloud_provider == null:
+		return false
+	return cloud_provider.is_signed_in()
+
+
+func debug_add_one_level() -> bool:
+	var unique_days = data.get("unique_days_played", [])
+	if typeof(unique_days) != TYPE_ARRAY:
+		unique_days = []
+
+	var existing = {}
+	for day in unique_days:
+		existing[String(day)] = true
+
+	var base_unix = int(Time.get_unix_time_from_system())
+	for i in range(0, 5000):
+		var candidate = _date_string_from_unix_local(base_unix + (i * 86400))
+		if not existing.has(candidate):
+			unique_days.append(candidate)
+			data["unique_days_played"] = unique_days
+			recompute_player_level_and_unlocks()
+			save(true)
+			return true
+	return false
+
+
+func debug_remove_one_level() -> bool:
+	var unique_days = data.get("unique_days_played", [])
+	if typeof(unique_days) != TYPE_ARRAY:
+		return false
+	if unique_days.is_empty():
+		return false
+	unique_days.pop_back()
+	data["unique_days_played"] = unique_days
+	recompute_player_level_and_unlocks()
+	save(true)
+	return true
+
+
+func debug_print_save() -> void:
+	print("SAVE_BLOB: %s" % JSON.stringify(data))
+
+
+func debug_corrupt_local_save() -> void:
+	var f = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f == null:
+		push_error("Cannot open save file for corrupt-write test: %s" % SAVE_PATH)
+		return
+	f.store_string("{ invalid json")
+	f.close()
 
 
 func get_player_level() -> int:

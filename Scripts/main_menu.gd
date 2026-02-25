@@ -1,6 +1,7 @@
 extends Control
 
 const GAME_SCENE := "res://Scenes/Main.tscn"
+const FORCE_DEBUG_PANEL = false
 
 var lbl_difficulty: Label
 var btn_player_level: Button
@@ -14,10 +15,13 @@ var lbl_no_mercy_help: Label
 var sfx_players = {}
 var missing_sfx_warned = {}
 
+var debug_section: VBoxContainer
+var debug_body: VBoxContainer
+var lbl_cloud_status: Label
+
 
 func _skin_manager():
 	return get_node_or_null("/root/SkinManager")
-
 
 
 func _audio_setup() -> void:
@@ -57,11 +61,13 @@ func _play_sfx(key) -> void:
 	if p != null and p.stream != null:
 		p.play()
 
+
 func _ready() -> void:
 	_audio_setup()
 	_build_ui()
 	_refresh_difficulty_label()
 	_refresh_rewards_stub()
+	_refresh_debug_cloud_status()
 
 
 func _build_ui() -> void:
@@ -70,7 +76,7 @@ func _build_ui() -> void:
 			continue
 		ch.queue_free()
 
-	var root := Panel.new()
+	var root = Panel.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var skin_manager = _skin_manager()
 	if skin_manager != null and skin_manager.get_theme() != null:
@@ -94,14 +100,14 @@ func _build_ui() -> void:
 	btn_player_level.pressed.connect(_open_rewards_stub)
 	root.add_child(btn_player_level)
 
-	var v := VBoxContainer.new()
+	var v = VBoxContainer.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	v.position = Vector2(-220, -300)
-	v.size = Vector2(440, 600)
+	v.position = Vector2(-220, -360)
+	v.size = Vector2(440, 720)
 	v.add_theme_constant_override("separation", 14)
 	root.add_child(v)
 
-	var title := Label.new()
+	var title = Label.new()
 	title.text = "TETRIS SUDOKU"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 52)
@@ -118,6 +124,9 @@ func _build_ui() -> void:
 	v.add_child(_menu_button("Change difficulty", _on_change_difficulty))
 	v.add_child(_menu_button("Exit", _on_exit))
 
+	if _is_debug_panel_visible():
+		_build_debug_section(v)
+
 	_build_difficulty_popup(root)
 	_build_rewards_popup(root)
 
@@ -132,13 +141,67 @@ func _menu_button(text: String, cb: Callable) -> Button:
 	return b
 
 
+func _build_debug_section(parent: VBoxContainer) -> void:
+	debug_section = VBoxContainer.new()
+	debug_section.add_theme_constant_override("separation", 6)
+	parent.add_child(debug_section)
+
+	var toggle = Button.new()
+	toggle.text = "Debug"
+	toggle.custom_minimum_size = Vector2(380, 46)
+	toggle.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	toggle.pressed.connect(func(): _play_sfx("ui_click"))
+	debug_section.add_child(toggle)
+
+	debug_body = VBoxContainer.new()
+	debug_body.visible = false
+	debug_body.add_theme_constant_override("separation", 6)
+	debug_section.add_child(debug_body)
+
+	toggle.pressed.connect(func(): debug_body.visible = not debug_body.visible)
+
+	lbl_cloud_status = Label.new()
+	debug_body.add_child(lbl_cloud_status)
+
+	debug_body.add_child(_debug_button("+1 Level (DEBUG)", _on_debug_add_level))
+	debug_body.add_child(_debug_button("-1 Level (DEBUG)", _on_debug_remove_level))
+	debug_body.add_child(_debug_button("Print Save (DEBUG)", _on_debug_print_save))
+	debug_body.add_child(_debug_button("Cloud: Sign In (DEBUG)", _on_debug_cloud_sign_in))
+	debug_body.add_child(_debug_button("Cloud: Pull (DEBUG)", _on_debug_cloud_pull))
+	debug_body.add_child(_debug_button("Cloud: Push (DEBUG)", _on_debug_cloud_push))
+	debug_body.add_child(_debug_button("Corrupt Local Save (DEBUG)", _on_debug_corrupt_local))
+
+
+func _debug_button(text: String, cb: Callable) -> Button:
+	var b = Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(380, 42)
+	b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	b.pressed.connect(func(): _play_sfx("ui_click"))
+	b.pressed.connect(cb)
+	return b
+
+
+func _refresh_debug_cloud_status() -> void:
+	if lbl_cloud_status == null:
+		return
+	var mode = "Available" if Save.is_cloud_available() else "Unavailable"
+	var signin = "Signed In" if Save.is_cloud_signed_in() else "Signed Out"
+	var err = Save.get_cloud_last_error()
+	lbl_cloud_status.text = "Cloud: %s / %s / %s" % [mode, signin, err]
+
+
+func _is_debug_panel_visible() -> bool:
+	return FORCE_DEBUG_PANEL or OS.is_debug_build()
+
+
 func _build_difficulty_popup(root: Control) -> void:
 	popup_difficulty = PopupPanel.new()
 	popup_difficulty.size = Vector2(520, 380)
 	popup_difficulty.visible = false
 	root.add_child(popup_difficulty)
 
-	var v := VBoxContainer.new()
+	var v = VBoxContainer.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.offset_left = 18
 	v.offset_top = 18
@@ -147,7 +210,7 @@ func _build_difficulty_popup(root: Control) -> void:
 	v.add_theme_constant_override("separation", 10)
 	popup_difficulty.add_child(v)
 
-	var t := Label.new()
+	var t = Label.new()
 	t.text = "Difficulty"
 	t.add_theme_font_size_override("font_size", 26)
 	v.add_child(t)
@@ -171,18 +234,18 @@ func _build_difficulty_popup(root: Control) -> void:
 	lbl_no_mercy_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(lbl_no_mercy_help)
 
-	var btns := HBoxContainer.new()
+	var btns = HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 10)
 	v.add_child(btns)
 
-	var apply := Button.new()
+	var apply = Button.new()
 	apply.text = "Apply"
 	apply.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	apply.pressed.connect(func(): _play_sfx("ui_click"))
 	apply.pressed.connect(_on_apply_difficulty)
 	btns.add_child(apply)
 
-	var cancel := Button.new()
+	var cancel = Button.new()
 	cancel.text = "Cancel"
 	cancel.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	cancel.pressed.connect(func(): _play_sfx("ui_click"))
@@ -191,8 +254,8 @@ func _build_difficulty_popup(root: Control) -> void:
 
 
 func _refresh_difficulty_label() -> void:
-	var difficulty := Save.get_current_difficulty()
-	var no_mercy := Save.get_no_mercy()
+	var difficulty = Save.get_current_difficulty()
+	var no_mercy = Save.get_no_mercy()
 	if difficulty == "Hard" and no_mercy:
 		lbl_difficulty.text = "Difficulty: Hard (No Mercy)"
 	else:
@@ -213,7 +276,7 @@ func _build_rewards_popup(root: Control) -> void:
 	rewards_popup.visible = false
 	root.add_child(rewards_popup)
 
-	var v := VBoxContainer.new()
+	var v = VBoxContainer.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.offset_left = 18
 	v.offset_top = 18
@@ -222,7 +285,7 @@ func _build_rewards_popup(root: Control) -> void:
 	v.add_theme_constant_override("separation", 8)
 	rewards_popup.add_child(v)
 
-	var title := Label.new()
+	var title = Label.new()
 	title.text = "Rewards"
 	title.add_theme_font_size_override("font_size", 26)
 	v.add_child(title)
@@ -232,12 +295,12 @@ func _build_rewards_popup(root: Control) -> void:
 
 	var milestones = [5, 10, 20, 50]
 	for m in milestones:
-		var line := Label.new()
+		var line = Label.new()
 		line.name = "milestone_%d" % m
 		v.add_child(line)
 		rewards_status_labels[m] = line
 
-	var close := Button.new()
+	var close = Button.new()
 	close.text = "Close"
 	close.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	close.pressed.connect(func(): _play_sfx("ui_click"))
@@ -266,7 +329,7 @@ func _refresh_rewards_stub() -> void:
 
 
 func _on_settings() -> void:
-	var d := AcceptDialog.new()
+	var d = AcceptDialog.new()
 	d.title = "Settings"
 	d.dialog_text = "Settings popup placeholder"
 	add_child(d)
@@ -274,7 +337,7 @@ func _on_settings() -> void:
 
 
 func _on_change_difficulty() -> void:
-	var current := Save.get_current_difficulty()
+	var current = Save.get_current_difficulty()
 	match current:
 		"Easy": opt_difficulty.select(0)
 		"Medium": opt_difficulty.select(1)
@@ -290,7 +353,7 @@ func _on_difficulty_selected(index: int) -> void:
 
 
 func _update_no_mercy_visibility() -> void:
-	var is_hard := opt_difficulty.get_selected_id() == 2
+	var is_hard = opt_difficulty.get_selected_id() == 2
 	chk_no_mercy.visible = is_hard
 	lbl_no_mercy_help.visible = is_hard
 	if not is_hard:
@@ -298,7 +361,7 @@ func _update_no_mercy_visibility() -> void:
 
 
 func _on_apply_difficulty() -> void:
-	var difficulty := "Medium"
+	var difficulty = "Medium"
 	match opt_difficulty.get_selected_id():
 		0: difficulty = "Easy"
 		1: difficulty = "Medium"
@@ -314,6 +377,44 @@ func _on_apply_difficulty() -> void:
 
 	_refresh_difficulty_label()
 	popup_difficulty.hide()
+
+
+func _on_debug_add_level() -> void:
+	Save.debug_add_one_level()
+	_refresh_rewards_stub()
+	_refresh_debug_cloud_status()
+
+
+func _on_debug_remove_level() -> void:
+	Save.debug_remove_one_level()
+	_refresh_rewards_stub()
+	_refresh_debug_cloud_status()
+
+
+func _on_debug_print_save() -> void:
+	Save.debug_print_save()
+	_refresh_debug_cloud_status()
+
+
+func _on_debug_cloud_sign_in() -> void:
+	Save.cloud_sign_in()
+	_refresh_debug_cloud_status()
+
+
+func _on_debug_cloud_pull() -> void:
+	Save.cloud_pull_now()
+	_refresh_rewards_stub()
+	_refresh_debug_cloud_status()
+
+
+func _on_debug_cloud_push() -> void:
+	Save.cloud_push_now()
+	_refresh_debug_cloud_status()
+
+
+func _on_debug_corrupt_local() -> void:
+	Save.debug_corrupt_local_save()
+	_refresh_debug_cloud_status()
 
 
 func _on_exit() -> void:
