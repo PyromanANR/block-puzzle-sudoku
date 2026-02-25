@@ -440,6 +440,7 @@ func _setup_skill_vfx_controller() -> void:
 	skill_vfx_controller = SkillVFXControllerScript.new()
 	add_child(skill_vfx_controller)
 	skill_vfx_controller.setup(self, board_panel, drop_zone_panel, well_slots_panel, root_frame)
+	skill_vfx_controller.setup_sfx_callback(Callable(self, "_play_sfx"))
 	if OS.is_debug_build() and not skill_vfx_debug_rects_logged and drop_zone_panel != null and well_slots_panel != null:
 		skill_vfx_debug_rects_logged = true
 		print("DROP:", drop_zone_panel.get_global_rect())
@@ -618,7 +619,8 @@ func _try_trigger_time_slow_from_well_placement() -> void:
 		time_slow_overlay.visible = true
 		time_slow_overlay.modulate = Color(0.45, 0.78, 1.0, 0.55)
 		time_slow_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	_play_sfx("time_slow")
+	if skill_vfx_controller != null:
+		skill_vfx_controller.on_time_slow_cast()
 
 
 func _try_trigger_first_well_entry_slow() -> void:
