@@ -694,7 +694,6 @@ func _build_ui() -> void:
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center_section.add_child(title_label)
-	print("Title fs=", fs, " text=", title_label.text, " size=", title_label.size)
 
 	var right_stats = VBoxContainer.new()
 	right_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -1405,19 +1404,25 @@ func _build_board_side_overlays() -> void:
 func _reposition_board_side_overlays() -> void:
 	if board_panel == null or board_overlay_right == null:
 		return
-	var host_right = board_panel.size.x
 	var grid_control = board_grid_overlay
 	var grid_rect = Rect2(board_start, Vector2(BOARD_SIZE * cell_size, BOARD_SIZE * cell_size))
 	if grid_control != null:
 		grid_rect = Rect2(grid_control.position, grid_control.size)
-	var grid_right = grid_rect.position.x + grid_rect.size.x
-	var bg_right_margin = 10.0
-	var left_x = grid_right + 8.0
-	var right_x = host_right - bg_right_margin
+	const BEZEL_PAD = 14.0
+	var bezel_top = grid_rect.position.y - BEZEL_PAD
+	var bezel_h = grid_rect.size.y + (BEZEL_PAD * 2.0)
+	bezel_top = clamp(bezel_top, 0.0, max(0.0, board_panel.size.y - bezel_h))
+	const GAP_FROM_GRID = 12.0
+	var left_x = (grid_rect.position.x + grid_rect.size.x) + GAP_FROM_GRID
+	const RIGHT_MARGIN = 10.0
+	var right_x = board_panel.size.x - RIGHT_MARGIN
 	var w = max(0.0, right_x - left_x)
 	board_overlay_right.scale = Vector2.ONE
-	board_overlay_right.position = Vector2(left_x, grid_rect.position.y)
-	board_overlay_right.size = Vector2(w, grid_rect.size.y)
+	board_overlay_right.position = Vector2(left_x, bezel_top)
+	board_overlay_right.size = Vector2(w, bezel_h)
+	var skill_even_area = board_overlay_right.get_node_or_null("skill_even_area") as Control
+	if skill_even_area != null:
+		skill_even_area.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _build_board_grid() -> void:
