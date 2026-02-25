@@ -1170,21 +1170,21 @@ func _clear_color_grid() -> void:
 
 func _build_board_side_overlays() -> void:
 
-	var skills_panel = PanelContainer.new()
-	skills_panel.name = "skills_panel"
-	skills_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	skills_panel.custom_minimum_size = Vector2(76, 0)
-	skills_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	skills_panel.add_theme_stylebox_override("panel", _style_skills_panel())
-	board_panel.add_child(skills_panel)
-	board_overlay_right = skills_panel
+	var skills_holder = Control.new()
+	skills_holder.name = "skills_holder"
+	skills_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skills_holder.custom_minimum_size = Vector2(76, 0)
+	skills_holder.size_flags_vertical = Control.SIZE_FILL
+	board_panel.add_child(skills_holder)
+	board_overlay_right = skills_holder
 
 	var skill_even_area = VBoxContainer.new()
 	skill_even_area.name = "skill_even_area"
 	skill_even_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skill_even_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	skill_even_area.add_theme_constant_override("separation", 0)
-	skills_panel.add_child(skill_even_area)
+	skills_holder.add_child(skill_even_area)
+	skill_even_area.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var skill_spacer_top = Control.new()
 	skill_spacer_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1266,23 +1266,21 @@ func _reposition_board_side_overlays() -> void:
 	if board_panel == null or board_overlay_right == null:
 		return
 	var host_right = board_panel.size.x
-	var host_h = board_panel.size.y
-	var grid_right = board_start.x + float(BOARD_SIZE * cell_size)
+	var grid_control = board_grid_overlay
+	var grid_rect = Rect2(board_start, Vector2(BOARD_SIZE * cell_size, BOARD_SIZE * cell_size))
+	if grid_control != null:
+		grid_rect = Rect2(grid_control.position, grid_control.size)
+	var grid_right = grid_rect.position.x + grid_rect.size.x
 	var right_pad = max(0.0, host_right - grid_right)
-	var right_base_size = board_overlay_right.get_combined_minimum_size()
-	var overlay_scale = 1.0
-	if right_pad < 120.0:
-		overlay_scale = clamp(right_pad / 120.0, 0.35, 1.0)
-	if right_base_size.x > 0.0:
-		overlay_scale = min(overlay_scale, right_pad / right_base_size.x)
-	overlay_scale = clamp(overlay_scale, 0.20, 1.0)
-	board_overlay_right.scale = Vector2(overlay_scale, overlay_scale)
-	var right_size = right_base_size * overlay_scale
-	var desired_x = grid_right + max(12.0, (right_pad - right_size.x) * 0.5)
-	var clamp_x = min(desired_x, host_right - right_size.x - 12.0)
-	var overlay_h = max(right_size.y, host_h - 24.0)
-	board_overlay_right.size = Vector2(right_size.x, overlay_h)
-	board_overlay_right.position = Vector2(clamp_x, 12.0)
+	var holder_w = min(76.0, right_pad)
+	var desired_x = grid_right + max(12.0, (right_pad - holder_w) * 0.5)
+	var clamp_x = min(desired_x, host_right - holder_w - 12.0)
+	board_overlay_right.scale = Vector2.ONE
+	board_overlay_right.position = Vector2(clamp_x, grid_rect.position.y)
+	board_overlay_right.size = Vector2(holder_w, grid_rect.size.y)
+	var skill_even_area = board_overlay_right.get_node_or_null("skill_even_area") as Control
+	if skill_even_area != null:
+		skill_even_area.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _build_board_grid() -> void:
