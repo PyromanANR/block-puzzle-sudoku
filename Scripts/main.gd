@@ -283,7 +283,11 @@ func _sync_time_slow_column_width() -> void:
 	if h <= 0.0:
 		return
 	time_slow_mid.custom_minimum_size.x = ceil(h * ratio)
-	time_slow_mid.minimum_size_changed()
+	var p = time_slow_mid.get_parent()
+	if p is Container:
+		(p as Container).queue_sort()
+	elif time_slow_mid is Container:
+		(time_slow_mid as Container).queue_sort()
 
 
 func _apply_balance_well_settings() -> void:
