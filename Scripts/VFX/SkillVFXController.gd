@@ -210,7 +210,7 @@ func _ensure_freeze_nodes() -> void:
 			freeze_frost_rect.material = freeze_frost_mat
 	if freeze_vignette_rect == null or not is_instance_valid(freeze_vignette_rect):
 		var vignette = ColorRect.new()
-		vignette.color = Color(0.20, 0.28, 0.42, 0.0)
+		vignette.color = Color(0.0, 0.0, 0.0, 0.0)
 		vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		overlay_root.add_child(vignette)
@@ -221,8 +221,8 @@ func _ensure_freeze_nodes() -> void:
 			freeze_vignette_mat.shader = vignette_shader
 			freeze_vignette_mat.set_shader_parameter("u_strength", 0.0)
 			freeze_vignette_rect.material = freeze_vignette_mat
-	freeze_frost_rect.visible = true
-	freeze_vignette_rect.visible = true
+	freeze_frost_rect.visible = false
+	freeze_vignette_rect.visible = false
 
 
 func _ensure_clear_flash_node() -> void:
@@ -245,7 +245,7 @@ func _ensure_clear_flash_node() -> void:
 		clear_flash_rect.size = board_rect.size
 	else:
 		clear_flash_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	clear_flash_rect.visible = true
+	clear_flash_rect.visible = false
 
 
 func _ensure_safe_well_nodes() -> void:
@@ -356,16 +356,12 @@ func _spawn_safe_well_sparks() -> void:
 		spark.add_point(Vector2(x0 + rng.randf_range(-8.0, 8.0), y0 + rng.randf_range(4.0, 14.0)))
 		spark.add_point(Vector2(x0 + rng.randf_range(-14.0, 14.0), y0 + rng.randf_range(8.0, 18.0)))
 		overlay_root.add_child(spark)
-		var timer = Timer.new()
-		timer.one_shot = true
-		timer.wait_time = 0.1
-		timer.ignore_time_scale = true
-		spark.add_child(timer)
-		timer.timeout.connect(func():
+		# Use SceneTreeTimer so this lifetime is not affected by Engine.time_scale.
+		var t := get_tree().create_timer(0.1, true, false, true) # 0.1s, ignore_time_scale=true
+		t.timeout.connect(func():
 			if is_instance_valid(spark):
 				spark.queue_free()
 		)
-		timer.start()
 
 
 func _update_freeze(now: int) -> bool:
@@ -391,7 +387,9 @@ func _update_freeze(now: int) -> bool:
 	if freeze_vignette_rect != null and is_instance_valid(freeze_vignette_rect):
 		freeze_vignette_rect.visible = true
 		var v_strength = 0.2 * alpha
-		freeze_vignette_rect.modulate.a = v_strength
+		# Keep the rect fully enabled; shader controls darkness/strength.
+		if freeze_vignette_rect is ColorRect:
+			freeze_vignette_rect.color.a = 1.0
 		if freeze_vignette_mat != null:
 			freeze_vignette_mat.set_shader_parameter("u_strength", v_strength)
 	return true
