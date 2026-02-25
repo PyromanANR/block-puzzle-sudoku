@@ -438,7 +438,7 @@ func _setup_skill_vfx_controller() -> void:
 		return
 	skill_vfx_controller = SkillVFXControllerScript.new()
 	add_child(skill_vfx_controller)
-	skill_vfx_controller.setup(self, board_panel, drop_zone_panel, well_slots_panel)
+	skill_vfx_controller.setup(self, board_panel, drop_zone_panel, well_panel, root_frame)
 
 
 func _ensure_sfx(key, path, volume_db) -> void:
