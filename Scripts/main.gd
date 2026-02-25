@@ -1868,7 +1868,6 @@ func _redraw_well() -> void:
 		fall2.gui_input.connect(func(ev): _on_falling_piece_input(ev, 2))
 		drop_zone_draw.add_child(fall2)
 
-
 func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
 	if is_game_over:
 		return
@@ -1898,7 +1897,10 @@ func _on_falling_piece_input(event: InputEvent, slot: int) -> void:
 func _start_drag_selected() -> void:
 	if selected_piece == null:
 		return
-	if _piece_is_committed(selected_piece):
+	_ensure_piece_state(selected_piece)
+	# Committed pieces in the well MUST remain pickable (yellow/top_selectable logic is elsewhere).
+	# Only block re-grab if this piece is explicitly grace-blocked.
+	if bool(selected_piece.get_meta("grace_blocked", false)):
 		selected_piece = null
 		selected_from_pile_index = -1
 		return
@@ -1953,6 +1955,8 @@ func _ensure_piece_state(piece) -> void:
 		piece.set_meta("is_committed", false)
 	if not piece.has_meta("grace_timer"):
 		piece.set_meta("grace_timer", null)
+	if not piece.has_meta("grace_blocked"):
+		piece.set_meta("grace_blocked", false)
 	_assert_piece_state_invariant(piece)
 
 
@@ -2003,6 +2007,9 @@ func _commit_piece_to_well(piece) -> void:
 	if bool(piece.get_meta("is_committed", false)):
 		return
 	piece.set_meta("is_committed", true)
+	# Block grace re-grab ONLY if this piece is currently part of the grace flow.
+	var was_in_grace = bool(piece.get_meta("is_in_grace", false)) or (pending_invalid_piece == piece)
+	piece.set_meta("grace_blocked", was_in_grace)
 	piece.set_meta("is_in_grace", false)
 	piece.set_meta("is_in_hand", false)
 	var piece_id = int(piece.get_meta("piece_id", -1))
@@ -2021,7 +2028,13 @@ func _commit_piece_to_well(piece) -> void:
 	elif piece == fall_piece_2:
 		fall_piece_2 = null
 	_assert_piece_state_invariant(piece)
-	pile.append(piece)
+	var stored = piece.duplicate(true)
+	_ensure_piece_state(stored)
+	stored.set_meta("is_committed", true)
+	stored.set_meta("is_in_hand", false)
+	stored.set_meta("is_in_grace", false)
+	stored.set_meta("grace_blocked", false) # in the well it must be pickable
+	pile.append(stored)
 	_play_sfx("well_enter")
 	_try_trigger_first_well_entry_slow()
 	_trigger_micro_freeze()
@@ -2035,12 +2048,13 @@ func _commit_piece_to_well(piece) -> void:
 
 
 func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2) -> void:
-	if _piece_is_committed(piece):
-		return
-	_clear_pending_invalid_piece()
 	if piece == null:
 		return
 	_ensure_piece_state(piece)
+	# Block only if explicitly blocked from grace re-grab after a commit race.
+	if bool(piece.get_meta("grace_blocked", false)):
+		return
+	_clear_pending_invalid_piece()
 	piece.set_meta("is_in_hand", false)
 	piece.set_meta("is_in_grace", true)
 	_assert_piece_state_invariant(piece)
@@ -2056,8 +2070,10 @@ func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2)
 	pending_invalid_timer.wait_time = max(0.01, float(core.call("GetInvalidDropGraceSec")))
 	pending_invalid_timer.timeout.connect(_on_pending_invalid_timeout.bind(int(piece.get_meta("piece_id", -1))))
 	add_child(pending_invalid_timer)
+
 	piece.set_meta("grace_timer", pending_invalid_timer)
 	pending_invalid_timer.start()
+
 	var frame = Vector2(max(48.0, float(cell_size) * 2.0), max(48.0, float(cell_size) * 2.0))
 	pending_invalid_root = Control.new()
 	pending_invalid_root.size = frame
@@ -2066,6 +2082,7 @@ func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2)
 	pending_invalid_root.z_as_relative = false
 	pending_invalid_root.position = screen_pos - frame * 0.5
 	pending_invalid_root.gui_input.connect(_on_pending_invalid_input)
+
 	var pv = _make_piece_preview(piece, max(16, int(float(cell_size) * 0.78)), frame)
 	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pending_invalid_root.add_child(pv)
@@ -2094,7 +2111,8 @@ func _on_pending_invalid_input(event: InputEvent) -> void:
 	if pending_invalid_piece == null:
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if _piece_is_committed(pending_invalid_piece):
+		_ensure_piece_state(pending_invalid_piece)
+		if bool(pending_invalid_piece.get_meta("grace_blocked", false)):
 			_clear_pending_invalid_piece()
 			return
 		_ensure_piece_state(pending_invalid_piece)
@@ -2112,7 +2130,8 @@ func _on_pending_invalid_input(event: InputEvent) -> void:
 func _update_pending_invalid_grace() -> void:
 	if pending_invalid_piece == null:
 		return
-	if _piece_is_committed(pending_invalid_piece) or _piece_is_in_hand(pending_invalid_piece):
+	_ensure_piece_state(pending_invalid_piece)
+	if bool(pending_invalid_piece.get_meta("grace_blocked", false)) or _piece_is_in_hand(pending_invalid_piece):
 		return
 	if Time.get_ticks_msec() < pending_invalid_until_ms:
 		return
@@ -2123,7 +2142,8 @@ func _on_pending_invalid_timeout(piece_id: int) -> void:
 	var piece = grace_piece_by_id.get(piece_id, null)
 	if piece == null:
 		return
-	if _piece_is_committed(piece) or _piece_is_in_hand(piece):
+	_ensure_piece_state(piece)
+	if bool(piece.get_meta("grace_blocked", false)) or _piece_is_in_hand(piece):
 		return
 	if not _piece_is_in_grace(piece):
 		return
