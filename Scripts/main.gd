@@ -2149,7 +2149,20 @@ func _commit_piece_to_well(piece) -> void:
 	elif piece == fall_piece_2:
 		fall_piece_2 = null
 	if is_safe_well_active():
-		piece.queue_free()
+		# Discard the falling piece safely (PieceData is a Resource, no queue_free()).
+		if piece == fall_piece:
+			fall_piece = null
+		elif piece == fall_piece_2:
+			fall_piece_2 = null
+
+		# If this piece was involved in grace/drag, clear those references too.
+		if pending_invalid_piece == piece:
+			_clear_pending_invalid_piece()
+		if selected_piece == piece:
+			_force_cancel_drag("SafeWellDiscard", true)
+
+		_assert_piece_state_invariant(piece)
+
 		if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
 			_schedule_next_falling_piece()
 		return
