@@ -182,6 +182,7 @@ var last_dual_drop_min = -1.0
 var speed_curve_warning_shown = false
 var time_slow_ui_ready = false
 var skill_vfx_controller: SkillVFXController = null
+var skill_vfx_debug_rects_logged: bool = false
 
 const UI_ICON_MAP = {
 	"score": {"tres": "res://Assets/UI/icons/icon_score.tres", "png": "res://Assets/UI/icons/icon_score.png", "placeholder": "S"},
@@ -438,7 +439,11 @@ func _setup_skill_vfx_controller() -> void:
 		return
 	skill_vfx_controller = SkillVFXControllerScript.new()
 	add_child(skill_vfx_controller)
-	skill_vfx_controller.setup(self, board_panel, drop_zone_panel, well_slots_panel)
+	skill_vfx_controller.setup(self, board_panel, drop_zone_panel, well_slots_panel, root_frame)
+	if OS.is_debug_build() and not skill_vfx_debug_rects_logged and drop_zone_panel != null and well_slots_panel != null:
+		skill_vfx_debug_rects_logged = true
+		print("DROP:", drop_zone_panel.get_global_rect())
+		print("WELL:", well_slots_panel.get_global_rect())
 
 
 func _ensure_sfx(key, path, volume_db) -> void:
