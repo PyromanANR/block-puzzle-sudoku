@@ -187,22 +187,31 @@ func _rect_for(control: Control) -> Rect2:
 func _ensure_freeze_nodes() -> void:
 	if overlay_root == null:
 		return
+	overlay_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay_root.offset_left = 0
+	overlay_root.offset_top = 0
+	overlay_root.offset_right = 0
+	overlay_root.offset_bottom = 0
 	if freeze_frost_rect == null or not is_instance_valid(freeze_frost_rect):
 		var frost_tex = _texture_from_path(FROST_TEXTURE_PATH)
 		if frost_tex != null:
 			var tex_rect = TextureRect.new()
 			tex_rect.texture = frost_tex
-			tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			tex_rect.stretch_mode = TextureRect.STRETCH_SCALE
-			tex_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			freeze_frost_rect = tex_rect
 		else:
 			var fallback = ColorRect.new()
 			fallback.color = Color(0.7, 0.85, 1.0, 0.12)
-			fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 			fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			freeze_frost_rect = fallback
+		freeze_frost_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		freeze_frost_rect.offset_left = 0
+		freeze_frost_rect.offset_top = 0
+		freeze_frost_rect.offset_right = 0
+		freeze_frost_rect.offset_bottom = 0
+		if freeze_frost_rect is TextureRect:
+			freeze_frost_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			freeze_frost_rect.stretch_mode = TextureRect.STRETCH_SCALE
 		overlay_root.add_child(freeze_frost_rect)
 		var frost_shader = _shader_from_path(FROST_SHADER_PATH)
 		if frost_shader != null and freeze_frost_rect is TextureRect and freeze_frost_rect.texture != null:
@@ -279,13 +288,13 @@ func _ensure_safe_well_nodes() -> void:
 	safe_well_lightning_rect.position = drop_rect.position
 	safe_well_lightning_rect.size = drop_rect.size
 	safe_well_lightning_rect.visible = false
-	var door_rect = drop_rect
+	var door_rect = _rect_for(drop_zone_control)
 	if well_control != null and is_instance_valid(well_control):
 		door_rect = _rect_for(well_control)
 	_ensure_safe_well_doors(door_rect)
 
 
-func _ensure_safe_well_doors(drop_rect: Rect2) -> void:
+func _ensure_safe_well_doors(door_rect: Rect2) -> void:
 	var door_tex = _texture_from_path(SAFE_WELL_DOOR_TEXTURE_PATH)
 	if safe_well_left_door == null or not is_instance_valid(safe_well_left_door):
 		safe_well_left_door = _build_door_panel(door_tex)
@@ -296,16 +305,16 @@ func _ensure_safe_well_doors(drop_rect: Rect2) -> void:
 	if safe_well_lock == null or not is_instance_valid(safe_well_lock):
 		safe_well_lock = _build_lock_control(_texture_from_path(SAFE_WELL_LOCK_TEXTURE_PATH))
 		overlay_root.add_child(safe_well_lock)
-	var panel_width = max(32.0, drop_rect.size.x * 0.5)
-	safe_well_left_door.size = Vector2(panel_width, drop_rect.size.y)
-	safe_well_right_door.size = Vector2(panel_width, drop_rect.size.y)
-	safe_well_left_door.position = Vector2(drop_rect.position.x - panel_width, drop_rect.position.y)
-	safe_well_right_door.position = Vector2(drop_rect.position.x + drop_rect.size.x, drop_rect.position.y)
+	var panel_width = max(32.0, door_rect.size.x * 0.5)
+	safe_well_left_door.size = Vector2(panel_width, door_rect.size.y)
+	safe_well_right_door.size = Vector2(panel_width, door_rect.size.y)
+	safe_well_left_door.position = Vector2(door_rect.position.x - panel_width, door_rect.position.y)
+	safe_well_right_door.position = Vector2(door_rect.position.x + door_rect.size.x, door_rect.position.y)
 	safe_well_left_door.visible = true
 	safe_well_right_door.visible = true
 	safe_well_left_door.set_meta("open_sfx_played", false)
 	safe_well_right_door.set_meta("open_sfx_played", false)
-	safe_well_lock.position = drop_rect.position + (drop_rect.size * 0.5) - (safe_well_lock.size * 0.5)
+	safe_well_lock.position = door_rect.position + (door_rect.size * 0.5) - (safe_well_lock.size * 0.5)
 	safe_well_lock.scale = Vector2.ONE * 0.1
 	safe_well_lock.modulate.a = 0.0
 	safe_well_lock.visible = true
@@ -473,8 +482,7 @@ func _update_doors_timeline(now: int) -> void:
 		return
 	if safe_well_right_door == null or not is_instance_valid(safe_well_right_door):
 		return
-	var drop_rect = _rect_for(drop_zone_control)
-	var door_rect = drop_rect
+	var door_rect = _rect_for(drop_zone_control)
 	if well_control != null and is_instance_valid(well_control):
 		door_rect = _rect_for(well_control)
 	var panel_w = safe_well_left_door.size.x
