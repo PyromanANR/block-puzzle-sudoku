@@ -1340,6 +1340,16 @@ func _build_board_side_overlays() -> void:
 	board_panel.add_child(skills_holder)
 	board_overlay_right = skills_holder
 
+	var skills_bg = Panel.new()
+	skills_bg.name = "skills_bg"
+	skills_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	skills_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var skills_bg_style = StyleBoxFlat.new()
+	skills_bg_style.bg_color = _skin_color("board_bg", Color(0.20, 0.22, 0.20, 1.0))
+	skills_bg.add_theme_stylebox_override("panel", skills_bg_style)
+	skills_holder.add_child(skills_bg)
+	skills_holder.move_child(skills_bg, 0)
+
 	var skills_margin = MarginContainer.new()
 	skills_margin.name = "skills_margin"
 	skills_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1391,17 +1401,13 @@ func _reposition_board_side_overlays() -> void:
 	if grid_control != null:
 		grid_rect = Rect2(grid_control.position, grid_control.size)
 	var grid_right = grid_rect.position.x + grid_rect.size.x
-	var holder_w = 76.0
 	var bg_right_margin = 10.0
-	var x_right = host_right - holder_w - bg_right_margin
-	var min_x = grid_right + 8.0
-	var clamp_x = max(min_x, x_right)
+	var left_x = grid_right + 8.0
+	var right_x = host_right - bg_right_margin
+	var w = max(0.0, right_x - left_x)
 	board_overlay_right.scale = Vector2.ONE
-	board_overlay_right.position = Vector2(clamp_x, grid_rect.position.y)
-	board_overlay_right.size = Vector2(holder_w, grid_rect.size.y)
-	var skill_even_area = board_overlay_right.get_node_or_null("skill_even_area") as Control
-	if skill_even_area != null:
-		skill_even_area.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	board_overlay_right.position = Vector2(left_x, grid_rect.position.y)
+	board_overlay_right.size = Vector2(w, grid_rect.size.y)
 
 
 func _build_board_grid() -> void:
