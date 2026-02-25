@@ -278,16 +278,11 @@ func _notification(what: int) -> void:
 func _sync_time_slow_column_width() -> void:
 	if time_slow_mid == null:
 		return
-	var ratio = (256.0 / 768.0) * 0.5
-	var h = float(time_slow_mid.size.y)
-	if h <= 0.0:
-		return
-	time_slow_mid.custom_minimum_size.x = ceil(h * ratio)
+	const TIME_SLOW_GAP_W = 24.0
+	time_slow_mid.custom_minimum_size.x = TIME_SLOW_GAP_W
 	var p = time_slow_mid.get_parent()
 	if p is Container:
 		(p as Container).queue_sort()
-	elif time_slow_mid is Container:
-		(time_slow_mid as Container).queue_sort()
 
 
 func _apply_balance_well_settings() -> void:
@@ -787,11 +782,12 @@ func _build_ui() -> void:
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
+	const TIME_SLOW_GAP_W = 24.0
 	time_slow_mid = PanelContainer.new()
 	time_slow_mid.name = "time_slow_mid"
-	time_slow_mid.custom_minimum_size = Vector2(36, 0)
-	time_slow_mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	time_slow_mid.size_flags_stretch_ratio = 0.22
+	time_slow_mid.custom_minimum_size = Vector2(TIME_SLOW_GAP_W, 0)
+	time_slow_mid.size_flags_horizontal = Control.SIZE_FILL
+	time_slow_mid.size_flags_stretch_ratio = 0.0
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_mid.z_index = 0
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1411,10 +1407,6 @@ func _reposition_board_side_overlays() -> void:
 	const BEZEL_PAD = 14.0
 	var bezel_top = grid_rect.position.y - BEZEL_PAD
 	var bezel_h = grid_rect.size.y + (BEZEL_PAD * 2.0)
-	var extra_top := 11
-	var extra_bottom := 8
-	bezel_top -= extra_top
-	bezel_h += extra_top + extra_bottom
 	bezel_top = clamp(bezel_top, 0.0, max(0.0, board_panel.size.y - bezel_h))
 	const GAP_FROM_GRID = 12.0
 	var left_x = (grid_rect.position.x + grid_rect.size.x) + GAP_FROM_GRID
