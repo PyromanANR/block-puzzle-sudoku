@@ -282,7 +282,9 @@ func _sync_time_slow_column_width() -> void:
 	var h = float(time_slow_mid.size.y)
 	if h <= 0.0:
 		return
-	time_slow_mid.custom_minimum_size.x = ceil(h * ratio)
+	var w = ceil(h * ratio * 0.5)
+	w = clamp(w, 18.0, 44.0)
+	time_slow_mid.custom_minimum_size.x = w
 	var p = time_slow_mid.get_parent()
 	if p is Container:
 		(p as Container).queue_sort()
@@ -666,7 +668,10 @@ func _build_ui() -> void:
 
 	var center_section = CenterContainer.new()
 	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center_section.custom_minimum_size = Vector2(120, 0)
+	center_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center_section.clip_contents = false
 	header_row.add_child(center_section)
 
 	title_label = Label.new()
@@ -674,11 +679,18 @@ func _build_ui() -> void:
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_label.visible = true
+	title_label.z_index = 50
+	title_label.self_modulate = Color(1, 1, 1, 1)
+	title_label.custom_minimum_size = Vector2(220, 0)
 	title_label.clip_text = true
-	title_label.add_theme_font_size_override("font_size", _skin_font_size("title", 48))
+	var fs = int(_skin_font_size("title", 48))
+	if fs <= 0:
+		fs = 48
+	title_label.add_theme_font_size_override("font_size", fs)
 	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center_section.add_child(title_label)
+	print("Title fs=", fs, " text=", title_label.text, " size=", title_label.size)
 
 	var right_stats = VBoxContainer.new()
 	right_stats.size_flags_horizontal = Control.SIZE_FILL
@@ -770,7 +782,7 @@ func _build_ui() -> void:
 	time_slow_mid.name = "time_slow_mid"
 	time_slow_mid.custom_minimum_size = Vector2(36, 0)
 	time_slow_mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	time_slow_mid.size_flags_stretch_ratio = 0.40
+	time_slow_mid.size_flags_stretch_ratio = 0.22
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_mid.z_index = 0
 	time_slow_mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
