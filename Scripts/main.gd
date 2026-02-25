@@ -99,6 +99,9 @@ var pending_invalid_piece = null
 var pending_invalid_from_pile_index: int = -1
 var pending_invalid_root: Control
 var pending_invalid_until_ms = 0
+var pending_invalid_timer: Timer
+var next_piece_state_id: int = 1
+var grace_piece_by_id: Dictionary = {}
 var invalid_drop_slow_until_ms = 0
 var toast_layer: CanvasLayer
 var toast_panel: Panel
@@ -1654,19 +1657,7 @@ func _spawn_second_falling_piece() -> void:
 
 
 func _lock_falling_to_pile() -> void:
-	if selected_piece == fall_piece:
-		_force_cancel_drag("CommittedToWell", true)
-	pile.append(fall_piece)
-	fall_piece = null
-	_play_sfx("well_enter")
-	_try_trigger_first_well_entry_slow()
-	_trigger_micro_freeze()
-	well_header_pulse_left = 0.35
-	if pile.size() > pile_max:
-		_trigger_game_over()
-		return
-	if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
-		_schedule_next_falling_piece()
+	_commit_piece_to_well(fall_piece)
 
 
 func _selected_neon_pile_index() -> int:
@@ -1907,6 +1898,11 @@ func _on_falling_piece_input(event: InputEvent, slot: int) -> void:
 func _start_drag_selected() -> void:
 	if selected_piece == null:
 		return
+	if _piece_is_committed(selected_piece):
+		selected_piece = null
+		selected_from_pile_index = -1
+		return
+	_set_piece_in_hand_state(selected_piece, true)
 	if selected_from_pile_index >= 0:
 		rescue_from_well_pending = true
 		rescue_eligible_until_ms = Time.get_ticks_msec() + int(float(core.call("GetRescueWindowSec")) * 1000.0)
@@ -1937,18 +1933,118 @@ func _finish_drag() -> void:
 		_play_sfx("invalid")
 		core.call("RegisterCancelledDrag")
 		_spawn_pending_invalid_piece(selected_snapshot, source_snapshot, release_mouse)
+	if was_selected:
+		_set_piece_in_hand_state(selected_snapshot, false)
 
 	selected_piece = null
 	selected_from_pile_index = -1
 
+func _ensure_piece_state(piece) -> void:
+	if piece == null:
+		return
+	if not piece.has("piece_id"):
+		piece["piece_id"] = next_piece_state_id
+		next_piece_state_id += 1
+	if not piece.has("is_in_hand"):
+		piece["is_in_hand"] = false
+	if not piece.has("is_in_grace"):
+		piece["is_in_grace"] = false
+	if not piece.has("is_committed"):
+		piece["is_committed"] = false
+	if not piece.has("grace_timer"):
+		piece["grace_timer"] = null
+
+
+func _piece_is_committed(piece) -> bool:
+	if piece == null:
+		return false
+	_ensure_piece_state(piece)
+	return bool(piece["is_committed"])
+
+
+func _piece_is_in_hand(piece) -> bool:
+	if piece == null:
+		return false
+	_ensure_piece_state(piece)
+	return bool(piece["is_in_hand"])
+
+
+func _piece_is_in_grace(piece) -> bool:
+	if piece == null:
+		return false
+	_ensure_piece_state(piece)
+	return bool(piece["is_in_grace"])
+
+
+func _set_piece_in_hand_state(piece, in_hand: bool) -> void:
+	if piece == null:
+		return
+	_ensure_piece_state(piece)
+	piece["is_in_hand"] = in_hand
+	if in_hand:
+		piece["is_in_grace"] = false
+
+
+func _commit_piece_to_well(piece) -> void:
+	if piece == null:
+		return
+	_ensure_piece_state(piece)
+	if bool(piece["is_committed"]):
+		return
+	piece["is_committed"] = true
+	piece["is_in_grace"] = false
+	piece["is_in_hand"] = false
+	var piece_id = int(piece["piece_id"])
+	grace_piece_by_id.erase(piece_id)
+	var grace_timer = piece["grace_timer"]
+	if grace_timer != null and is_instance_valid(grace_timer):
+		grace_timer.stop()
+		grace_timer.call_deferred("queue_free")
+	piece["grace_timer"] = null
+	if pending_invalid_piece == piece:
+		_clear_pending_invalid_piece()
+	if selected_piece == piece:
+		_force_cancel_drag("CommittedToWell", true)
+	if piece == fall_piece:
+		fall_piece = null
+	elif piece == fall_piece_2:
+		fall_piece_2 = null
+	pile.append(piece)
+	_play_sfx("well_enter")
+	_try_trigger_first_well_entry_slow()
+	_trigger_micro_freeze()
+	well_header_pulse_left = 0.35
+	if pile.size() > pile_max:
+		_trigger_game_over()
+		return
+	if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
+		_schedule_next_falling_piece()
+
+
 
 func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2) -> void:
+	if _piece_is_committed(piece):
+		return
 	_clear_pending_invalid_piece()
 	if piece == null:
 		return
+	_ensure_piece_state(piece)
+	piece["is_in_hand"] = false
+	piece["is_in_grace"] = true
 	pending_invalid_piece = piece
 	pending_invalid_from_pile_index = source_index
 	pending_invalid_until_ms = Time.get_ticks_msec() + int(float(core.call("GetInvalidDropGraceSec")) * 1000.0)
+	grace_piece_by_id[int(piece["piece_id"])] = piece
+	if pending_invalid_timer != null and is_instance_valid(pending_invalid_timer):
+		pending_invalid_timer.stop()
+		pending_invalid_timer.queue_free()
+	pending_invalid_timer = Timer.new()
+	pending_invalid_timer.one_shot = true
+	pending_invalid_timer.wait_time = max(0.01, float(core.call("GetInvalidDropGraceSec")))
+	pending_invalid_timer.timeout.connect(_on_pending_invalid_timeout.bind(int(piece["piece_id"])))
+	add_child(pending_invalid_timer)
+	piece["grace_timer"] = pending_invalid_timer
+	pending_invalid_timer.start()
 	var frame = Vector2(max(48.0, float(cell_size) * 2.0), max(48.0, float(cell_size) * 2.0))
 	pending_invalid_root = Control.new()
 	pending_invalid_root.size = frame
@@ -1964,8 +2060,17 @@ func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2)
 
 
 func _clear_pending_invalid_piece() -> void:
+	if pending_invalid_piece != null:
+		_ensure_piece_state(pending_invalid_piece)
+		pending_invalid_piece["is_in_grace"] = false
+		pending_invalid_piece["grace_timer"] = null
+		grace_piece_by_id.erase(int(pending_invalid_piece["piece_id"]))
+	if pending_invalid_timer != null and is_instance_valid(pending_invalid_timer):
+		pending_invalid_timer.stop()
+		pending_invalid_timer.call_deferred("queue_free")
+	pending_invalid_timer = null
 	if pending_invalid_root != null and is_instance_valid(pending_invalid_root):
-		pending_invalid_root.queue_free()
+		pending_invalid_root.call_deferred("queue_free")
 	pending_invalid_root = null
 	pending_invalid_piece = null
 	pending_invalid_from_pile_index = -1
@@ -1976,17 +2081,37 @@ func _on_pending_invalid_input(event: InputEvent) -> void:
 	if pending_invalid_piece == null:
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _piece_is_committed(pending_invalid_piece):
+			_clear_pending_invalid_piece()
+			return
+		_ensure_piece_state(pending_invalid_piece)
+		pending_invalid_piece["is_in_grace"] = false
+		pending_invalid_piece["is_in_hand"] = true
+		pending_invalid_piece["grace_timer"] = null
 		selected_piece = pending_invalid_piece
 		selected_from_pile_index = pending_invalid_from_pile_index
 		_clear_pending_invalid_piece()
 		_play_sfx("pick")
-		_start_drag_selected()
+		call_deferred("_start_drag_selected")
 
 
 func _update_pending_invalid_grace() -> void:
 	if pending_invalid_piece == null:
 		return
+	if _piece_is_committed(pending_invalid_piece) or _piece_is_in_hand(pending_invalid_piece):
+		return
 	if Time.get_ticks_msec() < pending_invalid_until_ms:
+		return
+	_on_pending_invalid_timeout(int(pending_invalid_piece["piece_id"]))
+
+
+func _on_pending_invalid_timeout(piece_id: int) -> void:
+	var piece = grace_piece_by_id.get(piece_id, null)
+	if piece == null:
+		return
+	if _piece_is_committed(piece) or _piece_is_in_hand(piece):
+		return
+	if not _piece_is_in_grace(piece):
 		return
 	_clear_pending_invalid_piece()
 	invalid_drop_slow_until_ms = Time.get_ticks_msec() + int(float(core.call("GetInvalidDropFailSlowSec")) * 1000.0)
@@ -2034,11 +2159,19 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	# Remove from pile if it came from pile
 	var placed_from_well = selected_from_pile_index >= 0 and selected_from_pile_index < pile.size()
 	if placed_from_well:
+		_ensure_piece_state(piece)
+		piece["is_committed"] = true
+		piece["is_in_hand"] = false
+		piece["is_in_grace"] = false
 		pile.remove_at(selected_from_pile_index)
 		if pile.size() == 0:
 			well_first_entry_slow_used = false
 		_force_cancel_drag("CommittedToBoard", true)
 	else:
+		_ensure_piece_state(piece)
+		piece["is_committed"] = true
+		piece["is_in_hand"] = false
+		piece["is_in_grace"] = false
 		# Falling piece is consumed only after successful placement.
 		if selected_piece == fall_piece:
 			fall_piece = null
@@ -2142,17 +2275,9 @@ func _process(delta: float) -> void:
 	if fall_piece_2 != null:
 		fall_y_2 += fall_speed * delta
 		if fall_y_2 > fall_bottom:
-			pile.append(fall_piece_2)
-			fall_piece_2 = null
-			_play_sfx("well_enter")
-			_try_trigger_first_well_entry_slow()
-			_trigger_micro_freeze()
-			well_header_pulse_left = 0.35
-			if pile.size() > pile_max:
-				_trigger_game_over()
+			_commit_piece_to_well(fall_piece_2)
+			if is_game_over:
 				return
-			if _active_falling_count() == 0 and pending_dual_spawn_ms == 0:
-				_schedule_next_falling_piece()
 
 	_redraw_well()
 	_update_status_hud()
