@@ -533,10 +533,6 @@ func _apply_audio_settings() -> void:
 	})
 	if music_manager != null:
 		music_manager.set_audio_settings(music_enabled, music_volume)
-		if not music_enabled or music_volume <= 0.0:
-			music_manager.stop_music()
-		else:
-			music_manager.ensure_playing_for_current_state()
 	for key in sfx_players.keys():
 		var p = sfx_players[key]
 		var base_db = float(sfx_base_volume_db.get(key, 0.0))

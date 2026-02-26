@@ -13,6 +13,8 @@ var current_mode: String = "none"
 var game_track_paths: Array = []
 var game_queue: Array = []
 var last_game_track_path: String = ""
+var _saved_pos_sec: float = 0.0
+var _was_playing: bool = false
 
 
 func _ready() -> void:
@@ -40,9 +42,9 @@ func set_audio_settings(enabled: bool, volume: float) -> void:
 	music_volume = clamp(volume, 0.0, 1.0)
 	_apply_music_runtime_volume()
 	if not _can_play_music():
-		stop_music()
+		_pause_music()
 	else:
-		ensure_playing_for_current_state()
+		_resume_or_start_music()
 
 
 func _effective_music_linear() -> float:
@@ -148,6 +150,38 @@ func ensure_playing_for_current_state() -> void:
 		return
 	if not _can_play_music():
 		return
+	_resume_or_start_music()
+
+
+
+
+func _remember_position_if_needed() -> void:
+	if music_player == null:
+		return
+	if music_player.playing or music_player.has_stream_playback():
+		_was_playing = true
+		_saved_pos_sec = max(0.0, music_player.get_playback_position())
+
+
+func _pause_music() -> void:
+	if music_player == null:
+		return
+	_remember_position_if_needed()
+	music_player.stream_paused = true
+
+
+func _resume_or_start_music() -> void:
+	if music_player == null:
+		return
+	if not _can_play_music():
+		return
+	if music_player.stream_paused:
+		music_player.stream_paused = false
+		if _was_playing and _saved_pos_sec > 0.0:
+			music_player.seek(_saved_pos_sec)
+		_saved_pos_sec = 0.0
+		_was_playing = false
+		return
 	if music_player.playing:
 		return
 	if music_player.stream != null:
@@ -158,10 +192,12 @@ func ensure_playing_for_current_state() -> void:
 	elif current_mode == "game":
 		_play_next_game_track()
 
-
 func stop_music() -> void:
 	if music_player != null:
+		music_player.stream_paused = false
 		music_player.stop()
+	_saved_pos_sec = 0.0
+	_was_playing = false
 
 
 func on_game_over_stop() -> void:
