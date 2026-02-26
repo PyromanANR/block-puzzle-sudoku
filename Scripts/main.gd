@@ -2,6 +2,7 @@ extends Control
 
 const BoardGridOverlay = preload("res://Scripts/BoardGridOverlay.gd")
 const SkillVFXControllerScript = preload("res://Scripts/VFX/SkillVFXController.gd")
+const MusicManagerScript = preload("res://Scripts/Audio/MusicManager.gd")
 const MAIN_MENU_SCENE = "res://Scenes/MainMenu.tscn"
 const MAIN_SCENE = "res://Scenes/Main.tscn"
 
@@ -183,7 +184,8 @@ var used_clear_board_this_round = false
 var used_safe_well_this_round = false
 var sfx_players = {}
 var missing_sfx_warned = {}
-var music_player: AudioStreamPlayer = null
+var sfx_base_volume_db = {}
+var music_manager: MusicManager = null
 var music_enabled: bool = true
 var sfx_enabled: bool = true
 var music_volume: float = 1.0
@@ -290,8 +292,13 @@ func _ready() -> void:
 
 	start_ms = Time.get_ticks_msec()
 	_load_audio_settings()
+	if music_manager == null:
+		music_manager = MusicManagerScript.new()
+		add_child(music_manager)
 	_audio_setup()
 	_apply_audio_settings()
+	if music_manager != null:
+		music_manager.play_game_music()
 
 	_build_ui()
 	# HUD is built from this single path during startup; no secondary HUD builder runs after this.
@@ -373,6 +380,8 @@ func _start_round() -> void:
 	sfx_blocked_by_game_over = false
 	game_over_sfx_played = false
 	_apply_audio_settings()
+	if music_manager != null:
+		music_manager.on_new_run_resume()
 
 	pile.clear()
 	board.call("Reset")
@@ -421,6 +430,8 @@ func _trigger_game_over() -> void:
 		time_slow_overlay.visible = false
 	Engine.time_scale = 1.0
 	sfx_blocked_by_game_over = true
+	if music_manager != null:
+		music_manager.on_game_over_stop()
 	_stop_music_if_any()
 	_stop_all_sfx()
 	if not game_over_sfx_played:
@@ -481,7 +492,7 @@ func _apply_audio_bus(name: String, enabled: bool, volume: float) -> void:
 	var bus_idx = AudioServer.get_bus_index(name)
 	if bus_idx < 0:
 		return
-	AudioServer.set_bus_volume_db(bus_idx, _to_volume_db(volume))
+	AudioServer.set_bus_volume_linear(bus_idx, volume)
 	AudioServer.set_bus_mute(bus_idx, not enabled)
 
 
@@ -489,10 +500,16 @@ func _apply_audio_settings() -> void:
 	_apply_audio_bus("Music", music_enabled, music_volume)
 	_apply_audio_bus("SFX", sfx_enabled, sfx_volume)
 	_apply_audio_bus("Master", true, 1.0)
-	if music_player != null:
-		music_player.volume_db = _to_volume_db(music_volume)
-		if not music_enabled or music_volume <= 0.0:
-			music_player.stop()
+	if music_manager != null:
+		music_manager.set_audio_settings(music_enabled, music_volume)
+	for key in sfx_players.keys():
+		var p = sfx_players[key]
+		var base_db = float(sfx_base_volume_db.get(key, 0.0))
+		if p != null:
+			if sfx_volume <= 0.0:
+				p.volume_db = -80.0
+			else:
+				p.volume_db = clamp(base_db + linear_to_db(sfx_volume), -80.0, 24.0)
 	if not sfx_enabled:
 		_stop_all_sfx()
 
@@ -540,6 +557,7 @@ func _ensure_sfx(key, path, volume_db) -> void:
 		return
 	add_child(p)
 	sfx_players[key] = p
+	sfx_base_volume_db[key] = volume_db
 
 
 func _warn_missing_sfx_once(key, path) -> void:
@@ -558,8 +576,8 @@ func _stop_all_sfx() -> void:
 
 
 func _stop_music_if_any() -> void:
-	if music_player != null:
-		music_player.stop()
+	if music_manager != null:
+		music_manager.stop_music()
 
 
 func _play_sfx(key) -> void:
@@ -748,7 +766,7 @@ func _update_time_slow_overlay() -> void:
 # ============================================================
 func _build_ui() -> void:
 	for ch in get_children():
-		if ch is AudioStreamPlayer:
+		if ch is AudioStreamPlayer or ch == music_manager:
 			continue
 		ch.queue_free()
 
