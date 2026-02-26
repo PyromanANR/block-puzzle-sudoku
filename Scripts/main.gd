@@ -89,6 +89,11 @@ var btn_skill_clear: TextureButton
 var btn_skill_invuln: TextureButton
 var board_overlay_right: Control
 var exit_dialog: AcceptDialog
+var settings_popup: PopupPanel
+var chk_music_enabled: CheckBox
+var chk_sfx_enabled: CheckBox
+var slider_music_volume: HSlider
+var slider_sfx_volume: HSlider
 
 # Game Over overlay
 var overlay_dim: ColorRect
@@ -178,6 +183,13 @@ var used_clear_board_this_round = false
 var used_safe_well_this_round = false
 var sfx_players = {}
 var missing_sfx_warned = {}
+var music_player: AudioStreamPlayer = null
+var music_enabled: bool = true
+var sfx_enabled: bool = true
+var music_volume: float = 1.0
+var sfx_volume: float = 1.0
+var sfx_blocked_by_game_over: bool = false
+var game_over_sfx_played: bool = false
 var last_dual_drop_min = -1.0
 var speed_curve_warning_shown = false
 var time_slow_ui_ready = false
@@ -210,6 +222,8 @@ const TIME_SLOW_FRAME_PATH = "res://Assets/UI/time_slow/tex_frame.tres"
 const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.gdshader"
 const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.gdshader"
 const TIME_SLOW_ATLAS_PNG_PATH = "res://Assets/UI/time_slow/time_slow_atlas.png"
+const SETTINGS_PATH = "user://settings.cfg"
+const GAME_OVER_SFX_PATH = "res://Assets/Audio/SFX/game_over.ogg"
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -275,7 +289,9 @@ func _ready() -> void:
 	board.call("Reset")
 
 	start_ms = Time.get_ticks_msec()
+	_load_audio_settings()
 	_audio_setup()
+	_apply_audio_settings()
 
 	_build_ui()
 	# HUD is built from this single path during startup; no secondary HUD builder runs after this.
@@ -354,6 +370,9 @@ func _start_round() -> void:
 	used_safe_well_this_round = false
 	Engine.time_scale = 1.0
 	core.call("ResetRuntimeClock")
+	sfx_blocked_by_game_over = false
+	game_over_sfx_played = false
+	_apply_audio_settings()
 
 	pile.clear()
 	board.call("Reset")
@@ -401,6 +420,12 @@ func _trigger_game_over() -> void:
 	if time_slow_overlay != null:
 		time_slow_overlay.visible = false
 	Engine.time_scale = 1.0
+	sfx_blocked_by_game_over = true
+	_stop_music_if_any()
+	_stop_all_sfx()
+	if not game_over_sfx_played:
+		_play_sfx("game_over")
+		game_over_sfx_played = true
 	set_process(false)
 
 	# Save global progress (player profile)
@@ -425,6 +450,53 @@ func _wire_button_sfx(btn) -> void:
 	btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	btn.pressed.connect(func(): _play_sfx("ui_click"))
 
+
+func _load_audio_settings() -> void:
+	var cfg = ConfigFile.new()
+	var err = cfg.load(SETTINGS_PATH)
+	if err != OK:
+		return
+	music_enabled = bool(cfg.get_value("audio", "music_enabled", true))
+	sfx_enabled = bool(cfg.get_value("audio", "sfx_enabled", true))
+	music_volume = clamp(float(cfg.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
+	sfx_volume = clamp(float(cfg.get_value("audio", "sfx_volume", 1.0)), 0.0, 1.0)
+
+
+func _save_audio_settings() -> void:
+	var cfg = ConfigFile.new()
+	cfg.set_value("audio", "music_enabled", music_enabled)
+	cfg.set_value("audio", "sfx_enabled", sfx_enabled)
+	cfg.set_value("audio", "music_volume", music_volume)
+	cfg.set_value("audio", "sfx_volume", sfx_volume)
+	cfg.save(SETTINGS_PATH)
+
+
+func _to_volume_db(v: float) -> float:
+	if v <= 0.0:
+		return -80.0
+	return linear_to_db(v)
+
+
+func _apply_audio_bus(name: String, enabled: bool, volume: float) -> void:
+	var bus_idx = AudioServer.get_bus_index(name)
+	if bus_idx < 0:
+		return
+	AudioServer.set_bus_volume_db(bus_idx, _to_volume_db(volume))
+	AudioServer.set_bus_mute(bus_idx, not enabled)
+
+
+func _apply_audio_settings() -> void:
+	_apply_audio_bus("Music", music_enabled, music_volume)
+	_apply_audio_bus("SFX", sfx_enabled, sfx_volume)
+	_apply_audio_bus("Master", true, 1.0)
+	if music_player != null:
+		music_player.volume_db = _to_volume_db(music_volume)
+		if not music_enabled or music_volume <= 0.0:
+			music_player.stop()
+	if not sfx_enabled:
+		_stop_all_sfx()
+
+
 func _audio_setup() -> void:
 	_ensure_sfx("ui_hover", "res://Assets/Audio/ui_hover.wav", -12.0)
 	_ensure_sfx("ui_click", "res://Assets/Audio/ui_click.wav", -10.0)
@@ -434,6 +506,7 @@ func _audio_setup() -> void:
 	_ensure_sfx("well_enter", "res://Assets/Audio/well_enter.wav", -6.0)
 	_ensure_sfx("clear", "res://Assets/Audio/clear.wav", -7.0)
 	_ensure_sfx("panic", "res://Assets/Audio/panic_tick.wav", -14.0)
+	_ensure_sfx("game_over", GAME_OVER_SFX_PATH, -7.0)
 	var ts_path = String(core.call("GetTimeSlowReadySfxPath"))
 	if ts_path != "":
 		_ensure_sfx("time_slow", ts_path, -8.0)
@@ -459,7 +532,7 @@ func _ensure_sfx(key, path, volume_db) -> void:
 		_warn_missing_sfx_once(key, path)
 		return
 	var p = AudioStreamPlayer.new()
-	p.bus = "Master"
+	p.bus = "SFX" if AudioServer.get_bus_index("SFX") >= 0 else "Master"
 	p.volume_db = volume_db
 	p.stream = load(path)
 	if p.stream == null:
@@ -477,7 +550,23 @@ func _warn_missing_sfx_once(key, path) -> void:
 		push_warning("Missing SFX '%s' at %s (audio skipped)." % [key, path])
 
 
+func _stop_all_sfx() -> void:
+	for key in sfx_players.keys():
+		var p = sfx_players[key]
+		if p != null:
+			p.stop()
+
+
+func _stop_music_if_any() -> void:
+	if music_player != null:
+		music_player.stop()
+
+
 func _play_sfx(key) -> void:
+	if not sfx_enabled:
+		return
+	if sfx_blocked_by_game_over and key != "game_over":
+		return
 	if not sfx_players.has(key):
 		return
 	var p = sfx_players[key]
@@ -1021,6 +1110,68 @@ func _build_ui() -> void:
 	exit_dialog.custom_action.connect(_on_exit_dialog_action)
 	root_frame.add_child(exit_dialog)
 
+	settings_popup = PopupPanel.new()
+	settings_popup.size = Vector2(420, 300)
+	root_frame.add_child(settings_popup)
+	var settings_margin = MarginContainer.new()
+	settings_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	settings_margin.add_theme_constant_override("margin_left", 16)
+	settings_margin.add_theme_constant_override("margin_right", 16)
+	settings_margin.add_theme_constant_override("margin_top", 16)
+	settings_margin.add_theme_constant_override("margin_bottom", 16)
+	settings_popup.add_child(settings_margin)
+	var settings_v = VBoxContainer.new()
+	settings_v.add_theme_constant_override("separation", 10)
+	settings_margin.add_child(settings_v)
+	var settings_title = Label.new()
+	settings_title.text = "Audio Settings"
+	settings_title.add_theme_font_size_override("font_size", 24)
+	settings_v.add_child(settings_title)
+	chk_music_enabled = CheckBox.new()
+	chk_music_enabled.text = "Music Enabled"
+	chk_music_enabled.button_pressed = music_enabled
+	chk_music_enabled.toggled.connect(_on_music_enabled_toggled)
+	settings_v.add_child(chk_music_enabled)
+	var music_row = HBoxContainer.new()
+	music_row.add_theme_constant_override("separation", 8)
+	settings_v.add_child(music_row)
+	var music_lbl = Label.new()
+	music_lbl.text = "Music Volume"
+	music_lbl.custom_minimum_size = Vector2(120, 0)
+	music_row.add_child(music_lbl)
+	slider_music_volume = HSlider.new()
+	slider_music_volume.min_value = 0
+	slider_music_volume.max_value = 100
+	slider_music_volume.step = 1
+	slider_music_volume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider_music_volume.value = round(music_volume * 100.0)
+	slider_music_volume.value_changed.connect(_on_music_volume_changed)
+	music_row.add_child(slider_music_volume)
+	chk_sfx_enabled = CheckBox.new()
+	chk_sfx_enabled.text = "SFX Enabled"
+	chk_sfx_enabled.button_pressed = sfx_enabled
+	chk_sfx_enabled.toggled.connect(_on_sfx_enabled_toggled)
+	settings_v.add_child(chk_sfx_enabled)
+	var sfx_row = HBoxContainer.new()
+	sfx_row.add_theme_constant_override("separation", 8)
+	settings_v.add_child(sfx_row)
+	var sfx_lbl = Label.new()
+	sfx_lbl.text = "SFX Volume"
+	sfx_lbl.custom_minimum_size = Vector2(120, 0)
+	sfx_row.add_child(sfx_lbl)
+	slider_sfx_volume = HSlider.new()
+	slider_sfx_volume.min_value = 0
+	slider_sfx_volume.max_value = 100
+	slider_sfx_volume.step = 1
+	slider_sfx_volume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider_sfx_volume.value = round(sfx_volume * 100.0)
+	slider_sfx_volume.value_changed.connect(_on_sfx_volume_changed)
+	sfx_row.add_child(slider_sfx_volume)
+	var close_btn = Button.new()
+	close_btn.text = "Close"
+	close_btn.pressed.connect(func(): settings_popup.hide())
+	settings_v.add_child(close_btn)
+
 
 func _hud_line(k: String, v: String) -> Label:
 	var l = Label.new()
@@ -1471,8 +1622,37 @@ func _hide_game_over_overlay() -> void:
 
 
 func _on_settings() -> void:
-	# Reserved for settings panel.
-	return
+	if settings_popup == null:
+		return
+	chk_music_enabled.button_pressed = music_enabled
+	chk_sfx_enabled.button_pressed = sfx_enabled
+	slider_music_volume.value = round(music_volume * 100.0)
+	slider_sfx_volume.value = round(sfx_volume * 100.0)
+	settings_popup.popup_centered(Vector2i(420, 300))
+
+
+func _on_music_enabled_toggled(enabled: bool) -> void:
+	music_enabled = enabled
+	_apply_audio_settings()
+	_save_audio_settings()
+
+
+func _on_sfx_enabled_toggled(enabled: bool) -> void:
+	sfx_enabled = enabled
+	_apply_audio_settings()
+	_save_audio_settings()
+
+
+func _on_music_volume_changed(value: float) -> void:
+	music_volume = clamp(value / 100.0, 0.0, 1.0)
+	_apply_audio_settings()
+	_save_audio_settings()
+
+
+func _on_sfx_volume_changed(value: float) -> void:
+	sfx_volume = clamp(value / 100.0, 0.0, 1.0)
+	_apply_audio_settings()
+	_save_audio_settings()
 
 
 func _on_exit() -> void:
@@ -1968,12 +2148,6 @@ func _redraw_well() -> void:
 			slot.modulate = Color(1.0, 1.0, 0.85 + 0.15 * neon, 1.0)
 		else:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_locked())
-			var lock_lbl = Label.new()
-			lock_lbl.text = "🔒 Locked"
-			lock_lbl.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-			lock_lbl.position = Vector2(10, 10)
-			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			slot.add_child(lock_lbl)
 
 		if pile_index >= 0:
 			var p = pile[pile_index]
@@ -2010,12 +2184,7 @@ func _redraw_well() -> void:
 				neon_frame.add_theme_stylebox_override("panel", neon_style)
 				slot.add_child(neon_frame)
 		elif is_active:
-			var empty = Label.new()
-			empty.text = "Empty"
-			empty.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-			empty.position = Vector2(10, 12)
-			empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			slot.add_child(empty)
+			pass
 
 	if fall_piece != null and not is_game_over:
 		var drop_cell_size = int(clamp(float(cell_size) * 1.0, 18.0, 54.0))
