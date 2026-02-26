@@ -7,7 +7,7 @@ const GAME_MUSIC_DIR = "res://Assets/Audio/Music/Game"
 
 var music_player: AudioStreamPlayer = null
 var music_enabled: bool = true
-var music_volume: float = 1.0
+var music_volume: float = 0.5
 var current_mode: String = "none"
 var game_track_paths: Array = []
 var game_queue: Array = []
@@ -28,8 +28,11 @@ func _load_audio_settings() -> void:
 	if cfg.load(SETTINGS_PATH) != OK:
 		return
 	music_enabled = bool(cfg.get_value("audio", "music_enabled", true))
-	music_volume = clamp(float(cfg.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
-
+	var loaded_music_volume = cfg.get_value("audio", "music_volume", 0.5)
+	if typeof(loaded_music_volume) == TYPE_FLOAT or typeof(loaded_music_volume) == TYPE_INT:
+		music_volume = clamp(float(loaded_music_volume), 0.0, 1.0)
+	else:
+		music_volume = 0.5
 
 func set_audio_settings(enabled: bool, volume: float) -> void:
 	music_enabled = enabled
@@ -50,11 +53,15 @@ func _can_play_music() -> bool:
 func _apply_music_runtime_volume() -> void:
 	var bus_idx = AudioServer.get_bus_index("Music")
 	if bus_idx >= 0:
-		AudioServer.set_bus_volume_linear(bus_idx, music_volume)
+		AudioServer.set_bus_volume_db(bus_idx, _to_volume_db(music_volume))
 		AudioServer.set_bus_mute(bus_idx, not music_enabled)
 	if music_player != null:
 		music_player.volume_db = linear_to_db(max(0.0001, music_volume))
 
+func _to_volume_db(v: float) -> float:
+	if v <= 0.0:
+		return -80.0
+	return linear_to_db(v)
 
 func play_menu_music() -> void:
 	current_mode = "menu"

@@ -188,7 +188,7 @@ var sfx_base_volume_db = {}
 var music_manager: MusicManager = null
 var music_enabled: bool = true
 var sfx_enabled: bool = true
-var music_volume: float = 1.0
+var music_volume: float = 0.5
 var sfx_volume: float = 1.0
 var sfx_blocked_by_game_over: bool = false
 var game_over_sfx_played: bool = false
@@ -469,8 +469,16 @@ func _load_audio_settings() -> void:
 		return
 	music_enabled = bool(cfg.get_value("audio", "music_enabled", true))
 	sfx_enabled = bool(cfg.get_value("audio", "sfx_enabled", true))
-	music_volume = clamp(float(cfg.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
-	sfx_volume = clamp(float(cfg.get_value("audio", "sfx_volume", 1.0)), 0.0, 1.0)
+	var loaded_music_volume = cfg.get_value("audio", "music_volume", 0.5)
+	if typeof(loaded_music_volume) == TYPE_FLOAT or typeof(loaded_music_volume) == TYPE_INT:
+		music_volume = clamp(float(loaded_music_volume), 0.0, 1.0)
+	else:
+		music_volume = 0.5
+	var loaded_sfx_volume = cfg.get_value("audio", "sfx_volume", 1.0)
+	if typeof(loaded_sfx_volume) == TYPE_FLOAT or typeof(loaded_sfx_volume) == TYPE_INT:
+		sfx_volume = clamp(float(loaded_sfx_volume), 0.0, 1.0)
+	else:
+		sfx_volume = 1.0
 
 
 func _save_audio_settings() -> void:
@@ -492,7 +500,7 @@ func _apply_audio_bus(name: String, enabled: bool, volume: float) -> void:
 	var bus_idx = AudioServer.get_bus_index(name)
 	if bus_idx < 0:
 		return
-	AudioServer.set_bus_volume_linear(bus_idx, volume)
+	AudioServer.set_bus_volume_db(bus_idx, _to_volume_db(volume))
 	AudioServer.set_bus_mute(bus_idx, not enabled)
 
 
