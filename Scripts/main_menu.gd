@@ -1077,7 +1077,7 @@ func _difficulty_color(difficulty: String) -> Color:
 
 func _set_button_icon(button: Button, path: String, fallback: String, label_text: String, icon_max: int = UI_ICON_MAX) -> void:
 	button.expand_icon = false
-	button.icon_max_width = icon_max
+	button.add_theme_constant_override("icon_max_width", icon_max)
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.custom_minimum_size = Vector2(max(button.custom_minimum_size.x, 64.0), max(button.custom_minimum_size.y, 64.0))
 	if ResourceLoader.exists(path):
