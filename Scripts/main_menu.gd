@@ -23,17 +23,21 @@ const UI_ICON_MAX = 28
 const UI_ICON_MAX_LARGE = 36
 
 const TOPBAR_H = 88
-const TOPBAR_SIDE_W = 132
+const TOPBAR_SIDE_W = 170
 const TOPBAR_PAD = 8
+const TITLE_ZONE_Y = 28
+const TITLE_FONT = 36
+const SUBTITLE_FONT = 16
 
-const NAV_HEIGHT = 76
-const NAV_SIDE_MARGIN = 12
+const NAV_HEIGHT = 78
+const NAV_SIDE_MARGIN = 10
 const NAV_SEPARATION = 8
+const NAV_ICON_SIZE = 48
 
-const PLAYCARD_MAX_W = 520
-const PLAYCARD_PAD = 14
-const PLAYCARD_SEPARATION = 10
-const PLAYCARD_BUTTON_H = 54
+const PLAYCARD_MAX_W = 500
+const PLAYCARD_PAD = 12
+const PLAYCARD_SEPARATION = 8
+const PLAYCARD_BUTTON_H = 52
 const PLAYCARD_CHIP_H = 40
 
 const BG_FRAMES_DIR = "res://Assets/UI/Background/FallingBlocks/frames"
@@ -59,7 +63,8 @@ var safe_left: float = 0.0
 var safe_right: float = 0.0
 
 var difficulty_chip_label: Label
-var profile_chip_label: Label
+var level_chip_label: Label
+var level_chip_progress: ProgressBar
 var mode_description_label: Label
 var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
@@ -372,94 +377,111 @@ func _build_top_bar() -> void:
 	right_slot.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
 	top.add_child(right_slot)
 
+	var level_chip = Button.new()
+	level_chip.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
+	level_chip.anchor_left = 0.0
+	level_chip.anchor_top = 0.0
+	level_chip.anchor_right = 0.0
+	level_chip.anchor_bottom = 1.0
+	level_chip.offset_left = 0
+	level_chip.offset_right = TOPBAR_SIDE_W
+	level_chip.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	level_chip.pressed.connect(func(): _play_sfx("ui_click"))
+	level_chip.pressed.connect(func(): _open_panel(rewards_panel))
+	left_slot.add_child(level_chip)
+
+	var chip_margin = MarginContainer.new()
+	chip_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	chip_margin.add_theme_constant_override("margin_left", 8)
+	chip_margin.add_theme_constant_override("margin_right", 8)
+	chip_margin.add_theme_constant_override("margin_top", 8)
+	chip_margin.add_theme_constant_override("margin_bottom", 8)
+	level_chip.add_child(chip_margin)
+
+	var chip_vbox = VBoxContainer.new()
+	chip_vbox.add_theme_constant_override("separation", 4)
+	chip_margin.add_child(chip_vbox)
+
+	var chip_row = HBoxContainer.new()
+	chip_row.add_theme_constant_override("separation", 6)
+	chip_vbox.add_child(chip_row)
+
+	var badge_icon = TextureRect.new()
+	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	badge_icon.custom_minimum_size = Vector2(UI_ICON_MAX, UI_ICON_MAX)
+	if ResourceLoader.exists(ICON_PROFILE):
+		var badge_tex = load(ICON_PROFILE)
+		if badge_tex != null:
+			badge_icon.texture = badge_tex
+	chip_row.add_child(badge_icon)
+	if badge_icon.texture == null:
+		var badge_fallback = Label.new()
+		badge_fallback.text = "🏅"
+		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		chip_row.add_child(badge_fallback)
+
+	level_chip_label = Label.new()
+	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	chip_row.add_child(level_chip_label)
+
+	level_chip_progress = ProgressBar.new()
+	level_chip_progress.min_value = 0.0
+	level_chip_progress.max_value = 1.0
+	level_chip_progress.value = 0.35
+	level_chip_progress.show_percentage = false
+	level_chip_progress.custom_minimum_size = Vector2(0, 10)
+	chip_vbox.add_child(level_chip_progress)
+
+	var center_margin = MarginContainer.new()
+	center_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center_slot.add_child(center_margin)
+
+	var center_container = CenterContainer.new()
+	center_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center_margin.add_child(center_container)
+
+	var center = VBoxContainer.new()
+	center.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_theme_constant_override("separation", 6)
+	center_container.add_child(center)
+
+	var title = Label.new()
+	title.text = "Tetris Sudoku"
+	title.add_theme_font_size_override("font_size", TITLE_FONT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(title)
+
+	difficulty_chip_label = Label.new()
+	difficulty_chip_label.custom_minimum_size = Vector2(128, PLAYCARD_CHIP_H)
+	difficulty_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	difficulty_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	center.add_child(difficulty_chip_label)
+
+	var subtitle = Label.new()
+	subtitle.text = "Classic block strategy"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", SUBTITLE_FONT)
+	subtitle.modulate = Color(0.9, 0.9, 0.95, 0.75)
+	center.add_child(subtitle)
+
 	var btn_settings = Button.new()
 	btn_settings.custom_minimum_size = Vector2(80, TOPBAR_H)
-	btn_settings.anchor_left = 0.0
+	btn_settings.anchor_left = 1.0
 	btn_settings.anchor_top = 0.5
-	btn_settings.anchor_right = 0.0
+	btn_settings.anchor_right = 1.0
 	btn_settings.anchor_bottom = 0.5
-	btn_settings.offset_left = 0
+	btn_settings.offset_left = -80
 	btn_settings.offset_top = -32
-	btn_settings.offset_right = 80
+	btn_settings.offset_right = 0
 	btn_settings.offset_bottom = 32
 	_set_button_icon(btn_settings, ICON_SETTINGS, "⚙", "Settings", UI_ICON_MAX_LARGE)
 	btn_settings.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	btn_settings.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_settings.pressed.connect(func(): _open_panel(settings_panel))
-	left_slot.add_child(btn_settings)
-
-	var center_container = CenterContainer.new()
-	center_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center_slot.add_child(center_container)
-
-	var center = VBoxContainer.new()
-	center.alignment = BoxContainer.ALIGNMENT_CENTER
-	center.add_theme_constant_override("separation", 4)
-	center_container.add_child(center)
-
-	var row = HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 8)
-	center.add_child(row)
-
-	var title = Label.new()
-	title.text = "Tetris Sudoku"
-	title.add_theme_font_size_override("font_size", 36)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	row.add_child(title)
-
-	difficulty_chip_label = Label.new()
-	difficulty_chip_label.custom_minimum_size = Vector2(96, PLAYCARD_CHIP_H)
-	difficulty_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	difficulty_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(difficulty_chip_label)
-
-	var subtitle = Label.new()
-	subtitle.text = "Classic block strategy"
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.modulate = Color(0.9, 0.9, 0.95, 0.75)
-	center.add_child(subtitle)
-
-	var btn_profile = Button.new()
-	btn_profile.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
-	btn_profile.anchor_left = 1.0
-	btn_profile.anchor_top = 0.0
-	btn_profile.anchor_right = 1.0
-	btn_profile.anchor_bottom = 1.0
-	btn_profile.offset_left = -TOPBAR_SIDE_W
-	btn_profile.offset_right = 0
-	btn_profile.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	btn_profile.pressed.connect(func(): _play_sfx("ui_click"))
-	btn_profile.pressed.connect(func(): _open_panel(rewards_panel))
-	right_slot.add_child(btn_profile)
-
-	var profile_row = HBoxContainer.new()
-	profile_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	profile_row.offset_left = 8
-	profile_row.offset_right = -8
-	profile_row.offset_top = 8
-	profile_row.offset_bottom = -8
-	profile_row.add_theme_constant_override("separation", 6)
-	btn_profile.add_child(profile_row)
-
-	var profile_icon = TextureRect.new()
-	profile_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	profile_icon.custom_minimum_size = Vector2(UI_ICON_MAX, UI_ICON_MAX)
-	if ResourceLoader.exists(ICON_PROFILE):
-		var profile_tex = load(ICON_PROFILE)
-		if profile_tex != null:
-			profile_icon.texture = profile_tex
-	profile_row.add_child(profile_icon)
-	if profile_icon.texture == null:
-		var glyph = Label.new()
-		glyph.text = "👤"
-		glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		profile_row.add_child(glyph)
-
-	profile_chip_label = Label.new()
-	profile_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	profile_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	profile_row.add_child(profile_chip_label)
+	right_slot.add_child(btn_settings)
 
 
 func _build_play_card() -> void:
@@ -562,7 +584,7 @@ func _build_bottom_nav() -> void:
 	bottom_bar.offset_left = 0
 	bottom_bar.offset_right = 0
 	bottom_bar.offset_bottom = 0
-	bottom_bar.offset_top = -NAV_HEIGHT
+	bottom_bar.offset_top = -(NAV_HEIGHT + safe_bottom)
 	bottom_nav_layer.add_child(bottom_bar)
 
 	var background_panel = Panel.new()
@@ -600,39 +622,22 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.size_flags_vertical = Control.SIZE_FILL
 	b.size_flags_stretch_ratio = 1.0
+	b.expand_icon = true
+	b.add_theme_constant_override("icon_max_width", NAV_ICON_SIZE)
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	b.text = ""
+	b.tooltip_text = label_text
+	if icon_path != "" and ResourceLoader.exists(icon_path):
+		var tex = load(icon_path)
+		if tex != null:
+			b.icon = tex
+	if b.icon == null:
+		b.expand_icon = false
+		b.text = fallback_glyph
 	b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	b.pressed.connect(func(): _play_sfx("ui_click"))
 	b.pressed.connect(callback)
 	parent.add_child(b)
-
-	var v = VBoxContainer.new()
-	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	v.offset_left = 6
-	v.offset_right = -6
-	v.offset_top = 4
-	v.offset_bottom = -4
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_theme_constant_override("separation", 2)
-	b.add_child(v)
-
-	var icon = TextureRect.new()
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.custom_minimum_size = Vector2(UI_ICON_MAX, UI_ICON_MAX)
-	if icon_path != "" and ResourceLoader.exists(icon_path):
-		var tex = load(icon_path)
-		if tex != null:
-			icon.texture = tex
-	v.add_child(icon)
-	if icon.texture == null:
-		var icon_label = Label.new()
-		icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		icon_label.text = fallback_glyph
-		v.add_child(icon_label)
-
-	var text_label = Label.new()
-	text_label.text = label_text
-	text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(text_label)
 
 
 func _build_modal_layer() -> void:
@@ -920,22 +925,21 @@ func _build_debug_content(panel: Panel) -> void:
 
 
 func _refresh_all_ui() -> void:
-	_refresh_profile_chip()
+	_refresh_level_chip()
 	_refresh_difficulty_chip()
 	_refresh_mode_description()
 	_refresh_rewards_panel()
 	_refresh_debug_cloud_status()
 
 
-func _refresh_profile_chip() -> void:
-	if profile_chip_label == null:
+func _refresh_level_chip() -> void:
+	if level_chip_label == null:
 		return
 	var level = _get_player_level()
-	var day = _get_player_day()
-	if day > 0:
-		profile_chip_label.text = "Level %d\nDay %d" % [level, day]
-	else:
-		profile_chip_label.text = "Level %d" % level
+	level_chip_label.text = "Level %d" % level
+	if level_chip_progress != null:
+		# TODO: Replace placeholder XP with real progression source once XP data is available.
+		level_chip_progress.value = 0.35
 
 
 func _refresh_difficulty_chip() -> void:
@@ -1044,8 +1048,8 @@ func _apply_safe_area() -> void:
 	if top_bar != null:
 		top_bar.offset_left = safe_left
 		top_bar.offset_right = -safe_right
-		top_bar.offset_top = safe_top + TOPBAR_PAD
-		top_bar.offset_bottom = safe_top + TOPBAR_PAD + TOPBAR_H
+		top_bar.offset_top = safe_top + TOPBAR_PAD + TITLE_ZONE_Y
+		top_bar.offset_bottom = safe_top + TOPBAR_PAD + TITLE_ZONE_Y + TOPBAR_H
 
 	var play_card = content_layer.get_node_or_null("PlayCard")
 	if play_card != null:
@@ -1057,7 +1061,7 @@ func _apply_safe_area() -> void:
 
 	var bottom_bar = bottom_nav_layer.get_node_or_null("BottomBar")
 	if bottom_bar != null:
-		bottom_bar.offset_top = -NAV_HEIGHT
+		bottom_bar.offset_top = -(NAV_HEIGHT + safe_bottom)
 		var safe_margin = bottom_bar.get_node_or_null("BackgroundPanel/SafeMargin")
 		if safe_margin != null:
 			safe_margin.add_theme_constant_override("margin_bottom", int(safe_bottom))
