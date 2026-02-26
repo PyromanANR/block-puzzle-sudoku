@@ -3,6 +3,7 @@ extends Control
 const BoardGridOverlay = preload("res://Scripts/BoardGridOverlay.gd")
 const SkillVFXControllerScript = preload("res://Scripts/VFX/SkillVFXController.gd")
 const MusicManagerScript = preload("res://Scripts/Audio/MusicManager.gd")
+const AudioManagerScript = preload("res://Scripts/Modules/Audio/AudioManager.gd")
 const MAIN_MENU_SCENE = "res://Scenes/MainMenu.tscn"
 const MAIN_SCENE = "res://Scenes/Main.tscn"
 
@@ -513,25 +514,26 @@ func _save_audio_settings() -> void:
 	cfg.save(SETTINGS_PATH)
 
 
-func _to_volume_db(v: float) -> float:
-	if v <= 0.0:
-		return -80.0
-	return linear_to_db(v)
-
-
-func _apply_audio_bus(name: String, enabled: bool, volume: float) -> void:
-	var bus_idx = AudioServer.get_bus_index(name)
-	if bus_idx < 0:
-		return
-	AudioServer.set_bus_volume_db(bus_idx, _to_volume_db(volume))
-	AudioServer.set_bus_mute(bus_idx, not enabled)
+func _get_audio_manager() -> AudioManager:
+	var manager = get_node_or_null("/root/AudioManager")
+	if manager == null:
+		manager = AudioManagerScript.new()
+		manager.name = "AudioManager"
+		get_tree().root.add_child(manager)
+	return manager
 
 
 func _apply_audio_settings() -> void:
 	var effective_music_volume = clamp(music_volume * MUSIC_ATTENUATION_LINEAR, 0.0, 1.0)
-	_apply_audio_bus("Music", music_enabled, effective_music_volume)
-	_apply_audio_bus("SFX", sfx_enabled, sfx_volume)
-	_apply_audio_bus("Master", true, 1.0)
+	var audio_manager = _get_audio_manager()
+	audio_manager.apply_from_settings_dict({
+		"music_enabled": music_enabled,
+		"sfx_enabled": sfx_enabled,
+		"music_volume": effective_music_volume,
+		"sfx_volume": sfx_volume,
+		"master_enabled": true,
+		"master_volume": 1.0,
+	})
 	if music_manager != null:
 		music_manager.set_audio_settings(music_enabled, music_volume)
 		if not music_enabled or music_volume <= 0.0:
