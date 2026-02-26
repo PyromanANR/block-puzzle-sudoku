@@ -25,9 +25,10 @@ const UI_ICON_MAX_LARGE = 36
 const TOPBAR_H = 88
 const TOPBAR_SIDE_W = 170
 const TOPBAR_PAD = 8
-const TITLE_ZONE_Y = 28
-const TITLE_FONT = 36
+const HERO_TITLE_Y = 90
+const TITLE_FONT = 40
 const SUBTITLE_FONT = 16
+const HERO_TITLE_HEIGHT = 120
 
 const NAV_HEIGHT = 78
 const NAV_SIDE_MARGIN = 10
@@ -65,6 +66,7 @@ var safe_right: float = 0.0
 var difficulty_chip_label: Label
 var level_chip_label: Label
 var level_chip_progress: ProgressBar
+var hero_title_zone: Control
 var mode_description_label: Label
 var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
@@ -151,10 +153,6 @@ func _apply_audio_settings() -> void:
 		})
 	if music_manager != null:
 		music_manager.set_audio_settings(music_enabled, music_volume)
-		if not music_enabled or music_volume <= 0.0:
-			music_manager.stop_music()
-		else:
-			music_manager.ensure_playing_for_current_state()
 
 
 func _get_audio_settings_state() -> Dictionary:
@@ -263,6 +261,7 @@ func _build_ui() -> void:
 	root_layer.add_child(modal_layer)
 
 	_build_top_bar()
+	_build_hero_title()
 	_build_play_card()
 	_build_bottom_nav()
 	_build_modal_layer()
@@ -434,38 +433,10 @@ func _build_top_bar() -> void:
 	level_chip_progress.custom_minimum_size = Vector2(0, 10)
 	chip_vbox.add_child(level_chip_progress)
 
-	var center_margin = MarginContainer.new()
-	center_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center_slot.add_child(center_margin)
-
-	var center_container = CenterContainer.new()
-	center_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	center_margin.add_child(center_container)
-
-	var center = VBoxContainer.new()
-	center.alignment = BoxContainer.ALIGNMENT_CENTER
-	center.add_theme_constant_override("separation", 6)
-	center_container.add_child(center)
-
-	var title = Label.new()
-	title.text = "Tetris Sudoku"
-	title.add_theme_font_size_override("font_size", TITLE_FONT)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	center.add_child(title)
-
-	difficulty_chip_label = Label.new()
-	difficulty_chip_label.custom_minimum_size = Vector2(128, PLAYCARD_CHIP_H)
-	difficulty_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	difficulty_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	center.add_child(difficulty_chip_label)
-
-	var subtitle = Label.new()
-	subtitle.text = "Classic block strategy"
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_font_size_override("font_size", SUBTITLE_FONT)
-	subtitle.modulate = Color(0.9, 0.9, 0.95, 0.75)
-	center.add_child(subtitle)
+	var center_spacer = Control.new()
+	center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_spacer.custom_minimum_size = Vector2(0, TOPBAR_H)
+	center_slot.add_child(center_spacer)
 
 	var btn_settings = Button.new()
 	btn_settings.custom_minimum_size = Vector2(80, TOPBAR_H)
@@ -574,6 +545,41 @@ func _build_play_card() -> void:
 	row.add_child(exit_btn)
 
 
+func _build_hero_title() -> void:
+	hero_title_zone = Control.new()
+	hero_title_zone.name = "HeroTitle"
+	hero_title_zone.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	hero_title_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hero_title_zone.offset_top = HERO_TITLE_Y
+	hero_title_zone.offset_bottom = HERO_TITLE_Y + HERO_TITLE_HEIGHT
+	content_layer.add_child(hero_title_zone)
+
+	var center_container = CenterContainer.new()
+	center_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hero_title_zone.add_child(center_container)
+
+	var center = VBoxContainer.new()
+	center.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_theme_constant_override("separation", 8)
+	center_container.add_child(center)
+
+	var title = Label.new()
+	title.text = "Tetris Sudoku"
+	title.add_theme_font_size_override("font_size", TITLE_FONT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(title)
+
+	var subtitle = Label.new()
+	subtitle.text = "Classic block strategy"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", SUBTITLE_FONT)
+	subtitle.modulate = Color(0.9, 0.9, 0.95, 0.75)
+	subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(subtitle)
+
+
 func _build_bottom_nav() -> void:
 	var bottom_bar = Control.new()
 	bottom_bar.name = "BottomBar"
@@ -584,7 +590,7 @@ func _build_bottom_nav() -> void:
 	bottom_bar.offset_left = 0
 	bottom_bar.offset_right = 0
 	bottom_bar.offset_bottom = 0
-	bottom_bar.offset_top = -(NAV_HEIGHT + safe_bottom)
+	bottom_bar.offset_top = -NAV_HEIGHT
 	bottom_nav_layer.add_child(bottom_bar)
 
 	var background_panel = Panel.new()
@@ -1043,13 +1049,22 @@ func _apply_safe_area() -> void:
 	safe_top = float(max(0, safe.position.y))
 	safe_right = float(max(0, int(vp.size.x) - (safe.position.x + safe.size.x)))
 	safe_bottom = float(max(0, int(vp.size.y) - (safe.position.y + safe.size.y)))
+	if OS.get_name() != "Android" and OS.get_name() != "iOS":
+		safe_bottom = 0.0
 
 	var top_bar = content_layer.get_node_or_null("TopBar")
 	if top_bar != null:
 		top_bar.offset_left = safe_left
 		top_bar.offset_right = -safe_right
-		top_bar.offset_top = safe_top + TOPBAR_PAD + TITLE_ZONE_Y
-		top_bar.offset_bottom = safe_top + TOPBAR_PAD + TITLE_ZONE_Y + TOPBAR_H
+		top_bar.offset_top = safe_top + TOPBAR_PAD
+		top_bar.offset_bottom = safe_top + TOPBAR_PAD + TOPBAR_H
+
+	var hero_title = content_layer.get_node_or_null("HeroTitle")
+	if hero_title != null:
+		hero_title.offset_left = safe_left + 24.0
+		hero_title.offset_right = -safe_right - 24.0
+		hero_title.offset_top = safe_top + HERO_TITLE_Y
+		hero_title.offset_bottom = safe_top + HERO_TITLE_Y + HERO_TITLE_HEIGHT
 
 	var play_card = content_layer.get_node_or_null("PlayCard")
 	if play_card != null:
@@ -1061,7 +1076,10 @@ func _apply_safe_area() -> void:
 
 	var bottom_bar = bottom_nav_layer.get_node_or_null("BottomBar")
 	if bottom_bar != null:
-		bottom_bar.offset_top = -(NAV_HEIGHT + safe_bottom)
+		bottom_bar.offset_left = 0
+		bottom_bar.offset_right = 0
+		bottom_bar.offset_bottom = 0
+		bottom_bar.offset_top = -NAV_HEIGHT
 		var safe_margin = bottom_bar.get_node_or_null("BackgroundPanel/SafeMargin")
 		if safe_margin != null:
 			safe_margin.add_theme_constant_override("margin_bottom", int(safe_bottom))
