@@ -20,6 +20,10 @@ config/icon="res://icon.svg"
 Core="*res://Scripts/Core/CoreBridge.cs"
 Save="*res://Scripts/SaveManager.gd"
 SkinManager="*res://Scripts/SkinManager.gd"
+AudioManager="*res://Scripts/Modules/Audio/AudioManager.gd"
+AdsManager="*res://Scripts/Modules/Ads/AdsManager.gd"
+IAPManager="*res://Scripts/Modules/IAP/IAPManager.gd"
+ProgressManager="*res://Scripts/Modules/Progress/ProgressManager.gd"
 
 [display]
 
