@@ -493,19 +493,13 @@ func _create_modal_panel(title_text: String) -> Panel:
 	panel.visible = false
 	modal_layer.add_child(panel)
 
-	var margin = MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 18)
-	margin.add_theme_constant_override("margin_right", 18)
-	margin.add_theme_constant_override("margin_top", 18)
-	margin.add_theme_constant_override("margin_bottom", 18)
-	panel.add_child(margin)
-
-	var v = VBoxContainer.new()
-	v.name = "Body"
-	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	v.add_theme_constant_override("separation", 12)
-	margin.add_child(v)
+	var v = _get_or_create(panel, "Body", VBoxContainer)
+	if v is Control:
+		v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if v is Container:
+		v.add_theme_constant_override("separation", 12)
+	if v is Control:
+		v.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 10)
@@ -525,15 +519,12 @@ func _create_modal_panel(title_text: String) -> Panel:
 	close_btn.pressed.connect(func(): _close_all_panels())
 	header.add_child(close_btn)
 
-	var scroll = ScrollContainer.new()
-	scroll.name = "Scroll"
+	var scroll = _get_or_create(v, "Scroll", ScrollContainer)
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_child(scroll)
 
-	var content = VBoxContainer.new()
-	content.name = "Content"
-	content.add_theme_constant_override("separation", 10)
-	scroll.add_child(content)
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
 
 	var footer = HBoxContainer.new()
 	footer.name = "Footer"
@@ -552,8 +543,73 @@ func _create_modal_panel(title_text: String) -> Panel:
 	return panel
 
 
+func _get_or_create(parent: Node, name: String, klass: Variant) -> Node:
+	if parent == null:
+		return null
+	var existing = parent.get_node_or_null(name)
+	if existing != null:
+		return existing
+	var created = klass.new()
+	created.name = name
+	parent.add_child(created)
+	return created
+
+
+func _ensure_panel_content(panel: Panel) -> VBoxContainer:
+	if panel == null:
+		return null
+
+	var body = _get_or_create(panel, "Body", VBoxContainer)
+	if not (body is VBoxContainer):
+		if body != null:
+			body.queue_free()
+		body = VBoxContainer.new()
+		body.name = "Body"
+		panel.add_child(body)
+	body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	body.offset_left = 18
+	body.offset_right = -18
+	body.offset_top = 18
+	body.offset_bottom = -18
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 12)
+
+	var scroll = _get_or_create(body, "Scroll", ScrollContainer)
+	if not (scroll is ScrollContainer):
+		if scroll != null:
+			scroll.queue_free()
+		scroll = ScrollContainer.new()
+		scroll.name = "Scroll"
+		body.add_child(scroll)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var content_node = scroll.get_node_or_null("Content")
+	if not (content_node is VBoxContainer):
+		if content_node != null:
+			content_node.queue_free()
+		content_node = VBoxContainer.new()
+		content_node.name = "Content"
+		scroll.add_child(content_node)
+
+	var content = content_node as VBoxContainer
+	if content == null:
+		var fallback_content = VBoxContainer.new()
+		fallback_content.name = "Content"
+		scroll.add_child(fallback_content)
+		content = fallback_content
+
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 8)
+	return content
+
+
 func _build_rewards_content(panel: Panel) -> void:
-	var content = panel.get_node("Body/Scroll/Content")
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
 	rewards_level_label = Label.new()
 	content.add_child(rewards_level_label)
 	for m in [5, 10, 20, 50]:
@@ -563,7 +619,10 @@ func _build_rewards_content(panel: Panel) -> void:
 
 
 func _build_leaderboard_content(panel: Panel) -> void:
-	var content = panel.get_node("Body/Scroll/Content")
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
 	var chips = HBoxContainer.new()
 	chips.add_theme_constant_override("separation", 8)
 	content.add_child(chips)
@@ -592,7 +651,10 @@ func _build_leaderboard_content(panel: Panel) -> void:
 
 
 func _build_quests_content(panel: Panel) -> void:
-	var content = panel.get_node("Body/Scroll/Content")
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
 	for quest_name in ["Clear 2 lines", "Place 15 blocks", "Finish 1 run"]:
 		var wrap = VBoxContainer.new()
 		content.add_child(wrap)
@@ -611,7 +673,10 @@ func _build_quests_content(panel: Panel) -> void:
 
 
 func _build_shop_content(panel: Panel) -> void:
-	var content = panel.get_node("Body/Scroll/Content")
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
 	for item_name in ["Remove Ads", "Sudoku Pack", "Rome Pack"]:
 		var card = Panel.new()
 		card.custom_minimum_size = Vector2(0, 96)
@@ -625,7 +690,10 @@ func _build_shop_content(panel: Panel) -> void:
 
 
 func _build_settings_content(panel: Panel) -> void:
-	var content = panel.get_node("Body/Scroll/Content")
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
 	var message = Label.new()
 	message.text = "Settings popup placeholder"
 	content.add_child(message)
@@ -640,7 +708,10 @@ func _build_settings_content(panel: Panel) -> void:
 
 
 func _build_debug_content(panel: Panel) -> void:
-	var content = panel.get_node("Body/Scroll/Content")
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
 	lbl_cloud_status = Label.new()
 	content.add_child(lbl_cloud_status)
 
