@@ -905,11 +905,6 @@ func _on_admin_mode_no_ads_toggled(enabled: bool) -> void:
 		AdsManager.set_admin_mode_no_ads(enabled)
 
 
-func _on_admin_mode_no_ads_toggled(enabled: bool) -> void:
-	if AdsManager != null:
-		AdsManager.set_admin_mode_no_ads(enabled)
-
-
 func _refresh_debug_cloud_status() -> void:
 	if lbl_cloud_status == null:
 		return
