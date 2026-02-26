@@ -7,16 +7,20 @@ const DATE_RX = "^\\d{4}-\\d{2}-\\d{2}$"
 
 const NullCloudSaveProviderScript = preload("res://Scripts/Cloud/NullCloudSaveProvider.gd")
 const GooglePlayCloudSaveProviderScript = preload("res://Scripts/Cloud/GooglePlayCloudSaveProvider.gd")
+const PlayGamesLeaderboardsScript = preload("res://Scripts/Platform/PlayGamesLeaderboards.gd")
 
 var data: Dictionary = {}
 var cloud_provider: CloudSaveProvider = null
 var cloud_sync_in_progress = false
 var cloud_pending_upload = false
+var play_games_leaderboards: PlayGamesLeaderboards = null
 
 
 func _ready() -> void:
 	load_save()
 	cloud_provider = _create_cloud_provider()
+	play_games_leaderboards = PlayGamesLeaderboardsScript.new()
+	add_child(play_games_leaderboards)
 	call_deferred("startup_cloud_sync")
 
 
@@ -29,6 +33,7 @@ func defaults() -> Dictionary:
 		"player_level": 0,
 		"unlocks": _default_unlocks(),
 		"best_score_by_difficulty": _default_best_scores(),
+		"pending_leaderboard_submissions": {},
 
 		"best_score": 0,
 		"best_level": 0,
@@ -159,6 +164,9 @@ func _normalize_blob_shape() -> bool:
 	if typeof(data.get("best_score_by_difficulty", {})) != TYPE_DICTIONARY:
 		data["best_score_by_difficulty"] = _default_best_scores()
 		changed = true
+	if typeof(data.get("pending_leaderboard_submissions", {})) != TYPE_DICTIONARY:
+		data["pending_leaderboard_submissions"] = {}
+		changed = true
 
 	var unlocks = data["unlocks"]
 	for k in _default_unlocks().keys():
@@ -173,6 +181,11 @@ func _normalize_blob_shape() -> bool:
 			best_map[k] = int(best_map.get(k, 0))
 			changed = true
 	data["best_score_by_difficulty"] = best_map
+
+	var pending = data["pending_leaderboard_submissions"]
+	for k in pending.keys():
+		pending[k] = int(pending[k])
+	data["pending_leaderboard_submissions"] = pending
 	return changed
 
 
@@ -528,6 +541,16 @@ func get_best_score_by_difficulty() -> Dictionary:
 	return data["best_score_by_difficulty"]
 
 
+func get_pending_leaderboard_submissions() -> Dictionary:
+	if typeof(data.get("pending_leaderboard_submissions", {})) != TYPE_DICTIONARY:
+		data["pending_leaderboard_submissions"] = {}
+	return data["pending_leaderboard_submissions"]
+
+
+func get_current_difficulty_key() -> String:
+	return _current_best_score_key()
+
+
 func _current_best_score_key() -> String:
 	var difficulty = String(data.get("difficulty", "Medium")).to_lower()
 	if difficulty == "easy":
@@ -553,6 +576,84 @@ func update_best(score: int, level: int) -> void:
 	if score > prev:
 		map[key] = score
 		data["best_score_by_difficulty"] = map
+
+
+func queue_pending_leaderboard_submission(diff_key: String, score: int) -> void:
+	if score <= 0:
+		return
+	var pending = get_pending_leaderboard_submissions()
+	var key = String(diff_key)
+	var prev = int(pending.get(key, 0))
+	if score > prev:
+		pending[key] = score
+		data["pending_leaderboard_submissions"] = pending
+		save(false)
+
+
+func clear_pending_leaderboard_submission(diff_key: String) -> void:
+	var pending = get_pending_leaderboard_submissions()
+	if pending.erase(String(diff_key)):
+		data["pending_leaderboard_submissions"] = pending
+		save(false)
+
+
+func retry_pending_leaderboard_submissions() -> void:
+	if play_games_leaderboards == null:
+		return
+	var pending = get_pending_leaderboard_submissions()
+	if pending.is_empty():
+		return
+	var changed = false
+	for key in pending.keys().duplicate():
+		var score = int(pending[key])
+		if play_games_leaderboards.submit_best_score_if_needed(String(key), score):
+			pending.erase(key)
+			changed = true
+	if changed:
+		data["pending_leaderboard_submissions"] = pending
+		save(false)
+
+
+func play_games_is_available() -> bool:
+	if play_games_leaderboards == null:
+		return false
+	return play_games_leaderboards.is_available()
+
+
+func play_games_is_signed_in() -> bool:
+	if play_games_leaderboards == null:
+		return false
+	return play_games_leaderboards.is_signed_in()
+
+
+func play_games_sign_in() -> void:
+	if play_games_leaderboards == null:
+		return
+	play_games_leaderboards.sign_in()
+	if play_games_leaderboards.is_signed_in():
+		retry_pending_leaderboard_submissions()
+
+
+func play_games_show_leaderboard(diff_key: String) -> void:
+	if play_games_leaderboards == null:
+		return
+	play_games_leaderboards.show_leaderboard_for_difficulty(diff_key)
+
+
+func play_games_submit_best_if_needed(diff_key: String, score: int) -> void:
+	if score <= 0:
+		return
+	if play_games_leaderboards == null:
+		queue_pending_leaderboard_submission(diff_key, score)
+		return
+	if play_games_leaderboards.submit_best_score_if_needed(diff_key, score):
+		clear_pending_leaderboard_submission(diff_key)
+		return
+	queue_pending_leaderboard_submission(diff_key, score)
+
+
+func play_games_retry_pending() -> void:
+	retry_pending_leaderboard_submissions()
 
 
 func get_music_volume() -> float:

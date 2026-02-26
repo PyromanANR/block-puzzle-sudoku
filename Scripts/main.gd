@@ -405,8 +405,13 @@ func _trigger_game_over() -> void:
 
 	# Save global progress (player profile)
 	Save.add_unique_day_if_needed(true)
+	var difficulty_key = Save.get_current_difficulty_key()
+	var best_by_difficulty = Save.get_best_score_by_difficulty()
+	var previous_best = int(best_by_difficulty.get(difficulty_key, 0))
 	Save.update_best(score, level)
 	Save.save()
+	if score > previous_best:
+		Save.play_games_submit_best_if_needed(difficulty_key, score)
 
 	_show_game_over_overlay()
 	if toast_panel != null:

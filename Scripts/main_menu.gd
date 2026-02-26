@@ -9,6 +9,7 @@ var rewards_popup: PopupPanel
 var rewards_level_label: Label
 var rewards_status_labels: Dictionary = {}
 var popup_difficulty: PopupPanel
+var popup_leaderboards: PopupPanel
 var opt_difficulty: OptionButton
 var chk_no_mercy: CheckBox
 var lbl_no_mercy_help: Label
@@ -122,12 +123,15 @@ func _build_ui() -> void:
 	v.add_child(_menu_button("Rewards", _on_rewards))
 	v.add_child(_menu_button("Settings", _on_settings))
 	v.add_child(_menu_button("Change difficulty", _on_change_difficulty))
+	v.add_child(_menu_button("Play Games: Sign In", _on_play_games_sign_in))
+	v.add_child(_menu_button("Leaderboard", _on_open_leaderboard_popup))
 	v.add_child(_menu_button("Exit", _on_exit))
 
 	if _is_debug_panel_visible():
 		_build_debug_section(v)
 
 	_build_difficulty_popup(root)
+	_build_leaderboards_popup(root)
 	_build_rewards_popup(root)
 
 
@@ -169,6 +173,8 @@ func _build_debug_section(parent: VBoxContainer) -> void:
 	debug_body.add_child(_debug_button("Cloud: Sign In (DEBUG)", _on_debug_cloud_sign_in))
 	debug_body.add_child(_debug_button("Cloud: Pull (DEBUG)", _on_debug_cloud_pull))
 	debug_body.add_child(_debug_button("Cloud: Push (DEBUG)", _on_debug_cloud_push))
+	debug_body.add_child(_debug_button("LB: Retry Pending", _on_debug_lb_retry_pending))
+	debug_body.add_child(_debug_button("LB: Submit Test Score", _on_debug_lb_submit_test_score))
 	debug_body.add_child(_debug_button("Corrupt Local Save (DEBUG)", _on_debug_corrupt_local))
 
 
@@ -308,6 +314,49 @@ func _build_rewards_popup(root: Control) -> void:
 	v.add_child(close)
 
 
+func _build_leaderboards_popup(root: Control) -> void:
+	popup_leaderboards = PopupPanel.new()
+	popup_leaderboards.size = Vector2(520, 360)
+	popup_leaderboards.visible = false
+	root.add_child(popup_leaderboards)
+
+	var v = VBoxContainer.new()
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = 18
+	v.offset_top = 18
+	v.offset_right = -18
+	v.offset_bottom = -18
+	v.add_theme_constant_override("separation", 8)
+	popup_leaderboards.add_child(v)
+
+	var title = Label.new()
+	title.text = "Leaderboards"
+	title.add_theme_font_size_override("font_size", 26)
+	v.add_child(title)
+
+	v.add_child(_leaderboard_button("Easy", "easy"))
+	v.add_child(_leaderboard_button("Medium", "medium"))
+	v.add_child(_leaderboard_button("Hard", "hard"))
+	v.add_child(_leaderboard_button("Hard+NoMercy", "hard_plus_no_mercy"))
+
+	var close = Button.new()
+	close.text = "Close"
+	close.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	close.pressed.connect(func(): _play_sfx("ui_click"))
+	close.pressed.connect(func(): popup_leaderboards.hide())
+	v.add_child(close)
+
+
+func _leaderboard_button(text: String, diff_key: String) -> Button:
+	var b = Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(380, 50)
+	b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	b.pressed.connect(func(): _play_sfx("ui_click"))
+	b.pressed.connect(func(): _on_select_leaderboard(diff_key))
+	return b
+
+
 func _open_rewards_stub() -> void:
 	if rewards_popup == null:
 		return
@@ -334,6 +383,39 @@ func _on_settings() -> void:
 	d.dialog_text = "Settings popup placeholder"
 	add_child(d)
 	d.popup_centered()
+
+
+func _on_play_games_sign_in() -> void:
+	if not Save.play_games_is_available():
+		_show_message("Play Games is unavailable on this platform")
+		return
+	Save.play_games_sign_in()
+	if Save.play_games_is_signed_in():
+		_show_message("Signed in to Play Games")
+	else:
+		_show_message("Play Games sign-in failed or canceled")
+
+
+func _on_open_leaderboard_popup() -> void:
+	if popup_leaderboards == null:
+		return
+	popup_leaderboards.popup_centered()
+
+
+func _on_select_leaderboard(diff_key: String) -> void:
+	if not Save.play_games_is_signed_in():
+		_show_message("Sign in to view leaderboards")
+		return
+	Save.play_games_show_leaderboard(diff_key)
+	popup_leaderboards.hide()
+
+
+func _show_message(message: String) -> void:
+	var dialog = AcceptDialog.new()
+	dialog.title = "Play Games"
+	dialog.dialog_text = message
+	add_child(dialog)
+	dialog.popup_centered()
 
 
 func _on_change_difficulty() -> void:
@@ -415,6 +497,20 @@ func _on_debug_cloud_push() -> void:
 func _on_debug_corrupt_local() -> void:
 	Save.debug_corrupt_local_save()
 	_refresh_debug_cloud_status()
+
+
+func _on_debug_lb_retry_pending() -> void:
+	Save.play_games_retry_pending()
+
+
+func _on_debug_lb_submit_test_score() -> void:
+	var diff_key = Save.get_current_difficulty_key()
+	var best = int(Save.get_best_score_by_difficulty().get(diff_key, 0))
+	if best <= 0:
+		_show_message("No local best score for current difficulty")
+		return
+	Save.play_games_submit_best_if_needed(diff_key, best)
+	_show_message("Leaderboard submit attempt finished")
 
 
 func _on_exit() -> void:
