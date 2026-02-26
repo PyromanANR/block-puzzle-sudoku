@@ -188,7 +188,7 @@ var sfx_base_volume_db = {}
 var music_manager: MusicManager = null
 var music_enabled: bool = true
 var sfx_enabled: bool = true
-var music_volume: float = 1.0
+var music_volume: float = 0.5
 var sfx_volume: float = 1.0
 var sfx_blocked_by_game_over: bool = false
 var game_over_sfx_played: bool = false
@@ -225,6 +225,7 @@ const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.
 const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.gdshader"
 const TIME_SLOW_ATLAS_PNG_PATH = "res://Assets/UI/time_slow/time_slow_atlas.png"
 const SETTINGS_PATH = "user://settings.cfg"
+const MUSIC_ATTENUATION_LINEAR = 0.05
 const GAME_OVER_SFX_PATH = "res://Assets/Audio/SFX/game_over.ogg"
 
 # Per-round perks (optional: keep buttons later if you want)
@@ -465,12 +466,42 @@ func _wire_button_sfx(btn) -> void:
 func _load_audio_settings() -> void:
 	var cfg = ConfigFile.new()
 	var err = cfg.load(SETTINGS_PATH)
+	var save_defaults = false
 	if err != OK:
-		return
-	music_enabled = bool(cfg.get_value("audio", "music_enabled", true))
-	sfx_enabled = bool(cfg.get_value("audio", "sfx_enabled", true))
-	music_volume = clamp(float(cfg.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
-	sfx_volume = clamp(float(cfg.get_value("audio", "sfx_volume", 1.0)), 0.0, 1.0)
+		save_defaults = true
+	else:
+		if cfg.has_section_key("audio", "music_enabled"):
+			music_enabled = bool(cfg.get_value("audio", "music_enabled", true))
+		else:
+			music_enabled = true
+			save_defaults = true
+		if cfg.has_section_key("audio", "sfx_enabled"):
+			sfx_enabled = bool(cfg.get_value("audio", "sfx_enabled", true))
+		else:
+			sfx_enabled = true
+			save_defaults = true
+		if cfg.has_section_key("audio", "music_volume"):
+			var loaded_music_volume = cfg.get_value("audio", "music_volume", 0.5)
+			if typeof(loaded_music_volume) == TYPE_FLOAT or typeof(loaded_music_volume) == TYPE_INT:
+				music_volume = clamp(float(loaded_music_volume), 0.0, 1.0)
+			else:
+				music_volume = 0.5
+				save_defaults = true
+		else:
+			music_volume = 0.5
+			save_defaults = true
+		if cfg.has_section_key("audio", "sfx_volume"):
+			var loaded_sfx_volume = cfg.get_value("audio", "sfx_volume", 1.0)
+			if typeof(loaded_sfx_volume) == TYPE_FLOAT or typeof(loaded_sfx_volume) == TYPE_INT:
+				sfx_volume = clamp(float(loaded_sfx_volume), 0.0, 1.0)
+			else:
+				sfx_volume = 1.0
+				save_defaults = true
+		else:
+			sfx_volume = 1.0
+			save_defaults = true
+	if save_defaults:
+		_save_audio_settings()
 
 
 func _save_audio_settings() -> void:
@@ -492,16 +523,21 @@ func _apply_audio_bus(name: String, enabled: bool, volume: float) -> void:
 	var bus_idx = AudioServer.get_bus_index(name)
 	if bus_idx < 0:
 		return
-	AudioServer.set_bus_volume_linear(bus_idx, volume)
+	AudioServer.set_bus_volume_db(bus_idx, _to_volume_db(volume))
 	AudioServer.set_bus_mute(bus_idx, not enabled)
 
 
 func _apply_audio_settings() -> void:
-	_apply_audio_bus("Music", music_enabled, music_volume)
+	var effective_music_volume = clamp(music_volume * MUSIC_ATTENUATION_LINEAR, 0.0, 1.0)
+	_apply_audio_bus("Music", music_enabled, effective_music_volume)
 	_apply_audio_bus("SFX", sfx_enabled, sfx_volume)
 	_apply_audio_bus("Master", true, 1.0)
 	if music_manager != null:
 		music_manager.set_audio_settings(music_enabled, music_volume)
+		if not music_enabled or music_volume <= 0.0:
+			music_manager.stop_music()
+		else:
+			music_manager.ensure_playing_for_current_state()
 	for key in sfx_players.keys():
 		var p = sfx_players[key]
 		var base_db = float(sfx_base_volume_db.get(key, 0.0))

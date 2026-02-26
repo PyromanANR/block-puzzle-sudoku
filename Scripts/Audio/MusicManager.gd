@@ -4,10 +4,11 @@ class_name MusicManager
 const SETTINGS_PATH = "user://settings.cfg"
 const MENU_TRACK_PATH = "res://Assets/Audio/Music/Menu/ags_project-8-bit-219384.ogg"
 const GAME_MUSIC_DIR = "res://Assets/Audio/Music/Game"
+const MUSIC_ATTENUATION_LINEAR = 0.05
 
 var music_player: AudioStreamPlayer = null
 var music_enabled: bool = true
-var music_volume: float = 1.0
+var music_volume: float = 0.5
 var current_mode: String = "none"
 var game_track_paths: Array = []
 var game_queue: Array = []
@@ -28,8 +29,11 @@ func _load_audio_settings() -> void:
 	if cfg.load(SETTINGS_PATH) != OK:
 		return
 	music_enabled = bool(cfg.get_value("audio", "music_enabled", true))
-	music_volume = clamp(float(cfg.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
-
+	var loaded_music_volume = cfg.get_value("audio", "music_volume", 0.5)
+	if typeof(loaded_music_volume) == TYPE_FLOAT or typeof(loaded_music_volume) == TYPE_INT:
+		music_volume = clamp(float(loaded_music_volume), 0.0, 1.0)
+	else:
+		music_volume = 0.5
 
 func set_audio_settings(enabled: bool, volume: float) -> void:
 	music_enabled = enabled
@@ -37,24 +41,31 @@ func set_audio_settings(enabled: bool, volume: float) -> void:
 	_apply_music_runtime_volume()
 	if not _can_play_music():
 		stop_music()
-	elif current_mode == "menu" and not music_player.playing:
-		play_menu_music()
-	elif current_mode == "game" and not music_player.playing:
-		play_game_music()
+	else:
+		ensure_playing_for_current_state()
+
+
+func _effective_music_linear() -> float:
+	return clamp(music_volume * MUSIC_ATTENUATION_LINEAR, 0.0, 1.0)
 
 
 func _can_play_music() -> bool:
-	return music_enabled and music_volume > 0.0
+	return music_enabled and _effective_music_linear() > 0.0
 
 
 func _apply_music_runtime_volume() -> void:
+	var effective_volume = _effective_music_linear()
 	var bus_idx = AudioServer.get_bus_index("Music")
 	if bus_idx >= 0:
-		AudioServer.set_bus_volume_linear(bus_idx, music_volume)
+		AudioServer.set_bus_volume_db(bus_idx, _to_volume_db(effective_volume))
 		AudioServer.set_bus_mute(bus_idx, not music_enabled)
 	if music_player != null:
-		music_player.volume_db = linear_to_db(max(0.0001, music_volume))
+		music_player.volume_db = _to_volume_db(effective_volume)
 
+func _to_volume_db(v: float) -> float:
+	if v <= 0.0:
+		return -80.0
+	return linear_to_db(v)
 
 func play_menu_music() -> void:
 	current_mode = "menu"
@@ -132,6 +143,22 @@ func play_game_music() -> void:
 	_play_next_game_track()
 
 
+func ensure_playing_for_current_state() -> void:
+	if music_player == null:
+		return
+	if not _can_play_music():
+		return
+	if music_player.playing:
+		return
+	if music_player.stream != null:
+		music_player.play()
+		return
+	if current_mode == "menu":
+		play_menu_music()
+	elif current_mode == "game":
+		_play_next_game_track()
+
+
 func stop_music() -> void:
 	if music_player != null:
 		music_player.stop()
@@ -143,10 +170,12 @@ func on_game_over_stop() -> void:
 
 func on_new_run_resume() -> void:
 	if current_mode == "game":
-		play_game_music()
+		ensure_playing_for_current_state()
 
 
 func _on_music_finished() -> void:
+	if not _can_play_music():
+		return
 	if current_mode == "menu":
 		play_menu_music()
 	elif current_mode == "game":
