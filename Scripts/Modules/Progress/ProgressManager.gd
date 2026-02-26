@@ -1,6 +1,4 @@
 extends Node
-class_name ProgressManager
-
 
 func get_level() -> int:
 	if Save == null:

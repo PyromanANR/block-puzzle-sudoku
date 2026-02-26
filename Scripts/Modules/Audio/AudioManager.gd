@@ -1,6 +1,4 @@
 extends Node
-class_name AudioManager
-
 const MIN_DB = -80.0
 
 var music_enabled: bool = true

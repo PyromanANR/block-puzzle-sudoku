@@ -1,5 +1,4 @@
 extends Node
-class_name AdsManager
 
 var admin_mode_no_ads: bool = false
 var interstitial_cooldown_ms: int = 90000

@@ -1,6 +1,4 @@
 extends Node
-class_name IAPManager
-
 const KEY_REMOVE_ADS = "iap_remove_ads_owned"
 const KEY_SUDOKU_PACK = "iap_sudoku_pack_owned"
 const KEY_ROME_PACK = "iap_rome_pack_owned"
