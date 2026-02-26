@@ -92,7 +92,7 @@ var btn_skill_clear: TextureButton
 var btn_skill_invuln: TextureButton
 var board_overlay_right: Control
 var exit_dialog: AcceptDialog
-var settings_popup: PopupPanel
+var settings_popup: Control
 
 # Game Over overlay
 var overlay_dim: ColorRect
@@ -1627,7 +1627,7 @@ func _on_settings() -> void:
 		var sync_settings = settings_popup.get_meta("sync_settings")
 		if sync_settings is Callable:
 			(sync_settings as Callable).call()
-	settings_popup.popup_centered(Vector2i(420, 300))
+	settings_popup.visible = true
 
 
 

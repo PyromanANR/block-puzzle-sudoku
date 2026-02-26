@@ -1,12 +1,20 @@
 extends RefCounted
 class_name SettingsPanel
 
-const PANEL_SIZE = Vector2i(420, 300)
+const PANEL_SIZE = Vector2(420, 300)
 
-static func build(parent: Control, on_close: Callable, config: Dictionary = {}) -> Panel:
-	var panel = PopupPanel.new()
-	panel.size = PANEL_SIZE
-	parent.add_child(panel)
+static func build(parent: Control, on_close: Callable, config: Dictionary = {}) -> Control:
+	var center = CenterContainer.new()
+	center.name = "SettingsPanel"
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_STOP
+	center.visible = false
+	parent.add_child(center)
+
+	var panel = PanelContainer.new()
+	panel.custom_minimum_size = PANEL_SIZE
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	center.add_child(panel)
 
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -64,7 +72,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	var close_btn = Button.new()
 	close_btn.text = "Close"
 	close_btn.pressed.connect(func():
-		panel.hide()
+		center.visible = false
 		if on_close.is_valid():
 			on_close.call()
 	)
@@ -96,6 +104,6 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 			config["on_sfx_volume"].call(value)
 	)
 
-	panel.set_meta("sync_settings", sync_state)
+	center.set_meta("sync_settings", sync_state)
 	sync_state.call()
-	return panel
+	return center
