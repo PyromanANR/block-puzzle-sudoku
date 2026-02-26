@@ -3,6 +3,11 @@ extends Control
 const GAME_SCENE = "res://Scenes/Main.tscn"
 const FORCE_DEBUG_PANEL = false
 const MusicManagerScript = preload("res://Scripts/Audio/MusicManager.gd")
+const MainMenuTopBar = preload("res://Scripts/Modules/UI/MainMenu/TopBar.gd")
+const MainMenuPrimaryButtons = preload("res://Scripts/Modules/UI/MainMenu/PrimaryButtons.gd")
+const MainMenuPopups = preload("res://Scripts/Modules/UI/MainMenu/Popups.gd")
+const DialogFactory = preload("res://Scripts/Modules/UI/Common/DialogFactory.gd")
+const DebugMenu = preload("res://Scripts/Modules/Debug/DebugMenu.gd")
 
 const ICON_SETTINGS = "res://Assets/UI/Icons/icon_settings.png"
 const ICON_SHOP = "res://Assets/UI/Icons/icon_shop.png"
@@ -892,11 +897,12 @@ func _on_select_leaderboard(diff_key: String) -> void:
 
 
 func _show_message(message: String) -> void:
-	var dialog = AcceptDialog.new()
-	dialog.title = "Play Games"
-	dialog.dialog_text = message
-	add_child(dialog)
-	dialog.popup_centered()
+	DialogFactory.show_message(self, "Play Games", message)
+
+
+func _on_admin_mode_no_ads_toggled(enabled: bool) -> void:
+	if AdsManager != null:
+		AdsManager.set_admin_mode_no_ads(enabled)
 
 
 func _on_admin_mode_no_ads_toggled(enabled: bool) -> void:
