@@ -7,6 +7,7 @@ const MainMenuTopBar = preload("res://Scripts/Modules/UI/MainMenu/TopBar.gd")
 const MainMenuPrimaryButtons = preload("res://Scripts/Modules/UI/MainMenu/PrimaryButtons.gd")
 const MainMenuPopups = preload("res://Scripts/Modules/UI/MainMenu/Popups.gd")
 const DialogFactory = preload("res://Scripts/Modules/UI/Common/DialogFactory.gd")
+const SettingsPanel = preload("res://Scripts/Modules/UI/Common/SettingsPanel.gd")
 const DebugMenu = preload("res://Scripts/Modules/Debug/DebugMenu.gd")
 
 const ICON_SETTINGS = "res://Assets/UI/Icons/icon_settings.png"
@@ -15,12 +16,36 @@ const ICON_LEADERBOARD = "res://Assets/UI/Icons/icon_leaderboard.png"
 const ICON_QUESTS = "res://Assets/UI/Icons/icon_quests.png"
 const ICON_PROFILE = "res://Assets/UI/Icons/icon_profile.png"
 
+const SETTINGS_PATH = "user://settings.cfg"
+const MUSIC_ATTENUATION_LINEAR = 0.05
+
+const UI_ICON_MAX = 28
+const UI_ICON_MAX_LARGE = 36
+
+const TOPBAR_H = 88
+const TOPBAR_SIDE_W = 132
+const TOPBAR_PAD = 8
+
+const NAV_HEIGHT = 76
+const NAV_SIDE_MARGIN = 12
+const NAV_SEPARATION = 8
+
+const PLAYCARD_MAX_W = 520
+const PLAYCARD_PAD = 14
+const PLAYCARD_SEPARATION = 10
+const PLAYCARD_BUTTON_H = 54
+const PLAYCARD_CHIP_H = 40
+
 const BG_FRAMES_DIR = "res://Assets/UI/Background/FallingBlocks/frames"
 const NO_MERCY_OVERLAY_PATH = "res://Assets/UI/Background/NoMercy/overlay.png"
 
 var music_manager: MusicManager = null
 var sfx_players = {}
 var missing_sfx_warned = {}
+var music_enabled: bool = true
+var sfx_enabled: bool = true
+var music_volume: float = 0.5
+var sfx_volume: float = 1.0
 
 var root_layer: Control
 var background_layer: Control
@@ -46,7 +71,7 @@ var rewards_panel: Panel
 var rewards_level_label: Label
 var rewards_status_labels: Dictionary = {}
 
-var settings_panel: Panel
+var settings_panel: Control
 var leaderboard_panel: Panel
 var quests_panel: Panel
 var shop_panel: Panel
@@ -62,6 +87,8 @@ func _ready() -> void:
 	if music_manager == null:
 		music_manager = MusicManagerScript.new()
 		add_child(music_manager)
+	_load_audio_settings()
+	_apply_audio_settings()
 	music_manager.play_menu_music()
 	_audio_setup()
 	_build_ui()
@@ -72,6 +99,90 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_apply_safe_area()
 
+
+
+func _load_audio_settings() -> void:
+	var cfg = ConfigFile.new()
+	var err = cfg.load(SETTINGS_PATH)
+	if err != OK:
+		return
+	music_enabled = bool(cfg.get_value("audio", "music_enabled", true))
+	sfx_enabled = bool(cfg.get_value("audio", "sfx_enabled", true))
+	music_volume = clamp(float(cfg.get_value("audio", "music_volume", 0.5)), 0.0, 1.0)
+	sfx_volume = clamp(float(cfg.get_value("audio", "sfx_volume", 1.0)), 0.0, 1.0)
+
+
+func _save_audio_settings() -> void:
+	var cfg = ConfigFile.new()
+	cfg.set_value("audio", "music_enabled", music_enabled)
+	cfg.set_value("audio", "sfx_enabled", sfx_enabled)
+	cfg.set_value("audio", "music_volume", music_volume)
+	cfg.set_value("audio", "sfx_volume", sfx_volume)
+	cfg.save(SETTINGS_PATH)
+
+
+func _get_audio_manager() -> Node:
+	var manager = get_node_or_null("/root/AudioManager")
+	if manager == null:
+		var audio_manager_script = load("res://Scripts/Modules/Audio/AudioManager.gd")
+		if audio_manager_script != null:
+			manager = audio_manager_script.new()
+			manager.name = "AudioManager"
+			get_tree().root.add_child(manager)
+	return manager
+
+
+func _apply_audio_settings() -> void:
+	var effective_music_volume = clamp(music_volume * MUSIC_ATTENUATION_LINEAR, 0.0, 1.0)
+	var audio_manager = _get_audio_manager()
+	if audio_manager != null:
+		audio_manager.apply_from_settings_dict({
+			"music_enabled": music_enabled,
+			"sfx_enabled": sfx_enabled,
+			"music_volume": effective_music_volume,
+			"sfx_volume": sfx_volume,
+			"master_enabled": true,
+			"master_volume": 1.0,
+		})
+	if music_manager != null:
+		music_manager.set_audio_settings(music_enabled, music_volume)
+		if not music_enabled or music_volume <= 0.0:
+			music_manager.stop_music()
+		else:
+			music_manager.ensure_playing_for_current_state()
+
+
+func _get_audio_settings_state() -> Dictionary:
+	return {
+		"music_enabled": music_enabled,
+		"sfx_enabled": sfx_enabled,
+		"music_volume": music_volume,
+		"sfx_volume": sfx_volume
+	}
+
+
+func _on_music_enabled_toggled(enabled: bool) -> void:
+	music_enabled = enabled
+	_apply_audio_settings()
+	_save_audio_settings()
+
+
+func _on_sfx_enabled_toggled(enabled: bool) -> void:
+	sfx_enabled = enabled
+	_apply_audio_settings()
+	_save_audio_settings()
+
+
+func _on_music_volume_changed(value: float) -> void:
+	music_volume = clamp(value / 100.0, 0.0, 1.0)
+	_apply_audio_settings()
+	_save_audio_settings()
+
+
+func _on_sfx_volume_changed(value: float) -> void:
+	sfx_volume = clamp(value / 100.0, 0.0, 1.0)
+	_apply_audio_settings()
+	_save_audio_settings()
 
 func _audio_setup() -> void:
 	_ensure_sfx("ui_hover", "res://Assets/Audio/ui_hover.wav", -12.0)
@@ -244,25 +355,47 @@ func _build_top_bar() -> void:
 	top.anchor_top = 0.0
 	top.anchor_right = 1.0
 	top.anchor_bottom = 0.0
-	top.offset_left = 24
-	top.offset_right = -24
-	top.offset_top = 16
-	top.offset_bottom = 96
-	top.add_theme_constant_override("separation", 12)
+	top.offset_top = 0
+	top.offset_bottom = TOPBAR_H
 	content_layer.add_child(top)
 
+	var left_slot = Control.new()
+	left_slot.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
+	top.add_child(left_slot)
+
+	var center_slot = Control.new()
+	center_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_slot.custom_minimum_size = Vector2(0, TOPBAR_H)
+	top.add_child(center_slot)
+
+	var right_slot = Control.new()
+	right_slot.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
+	top.add_child(right_slot)
+
 	var btn_settings = Button.new()
-	btn_settings.custom_minimum_size = Vector2(80, 64)
-	_set_button_icon(btn_settings, ICON_SETTINGS, "⚙", "Settings")
+	btn_settings.custom_minimum_size = Vector2(80, TOPBAR_H)
+	btn_settings.anchor_left = 0.0
+	btn_settings.anchor_top = 0.5
+	btn_settings.anchor_right = 0.0
+	btn_settings.anchor_bottom = 0.5
+	btn_settings.offset_left = 0
+	btn_settings.offset_top = -32
+	btn_settings.offset_right = 80
+	btn_settings.offset_bottom = 32
+	_set_button_icon(btn_settings, ICON_SETTINGS, "⚙", "Settings", UI_ICON_MAX_LARGE)
 	btn_settings.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	btn_settings.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_settings.pressed.connect(func(): _open_panel(settings_panel))
-	top.add_child(btn_settings)
+	left_slot.add_child(btn_settings)
+
+	var center_container = CenterContainer.new()
+	center_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center_slot.add_child(center_container)
 
 	var center = VBoxContainer.new()
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.alignment = BoxContainer.ALIGNMENT_CENTER
-	top.add_child(center)
+	center.add_theme_constant_override("separation", 4)
+	center_container.add_child(center)
 
 	var row = HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -276,7 +409,7 @@ func _build_top_bar() -> void:
 	row.add_child(title)
 
 	difficulty_chip_label = Label.new()
-	difficulty_chip_label.custom_minimum_size = Vector2(96, 36)
+	difficulty_chip_label.custom_minimum_size = Vector2(96, PLAYCARD_CHIP_H)
 	difficulty_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	difficulty_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(difficulty_chip_label)
@@ -288,11 +421,17 @@ func _build_top_bar() -> void:
 	center.add_child(subtitle)
 
 	var btn_profile = Button.new()
-	btn_profile.custom_minimum_size = Vector2(170, 64)
+	btn_profile.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
+	btn_profile.anchor_left = 1.0
+	btn_profile.anchor_top = 0.0
+	btn_profile.anchor_right = 1.0
+	btn_profile.anchor_bottom = 1.0
+	btn_profile.offset_left = -TOPBAR_SIDE_W
+	btn_profile.offset_right = 0
 	btn_profile.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	btn_profile.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_profile.pressed.connect(func(): _open_panel(rewards_panel))
-	top.add_child(btn_profile)
+	right_slot.add_child(btn_profile)
 
 	var profile_row = HBoxContainer.new()
 	profile_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -300,13 +439,22 @@ func _build_top_bar() -> void:
 	profile_row.offset_right = -8
 	profile_row.offset_top = 8
 	profile_row.offset_bottom = -8
+	profile_row.add_theme_constant_override("separation", 6)
 	btn_profile.add_child(profile_row)
 
-	var profile_icon = Label.new()
-	profile_icon.text = "👤"
+	var profile_icon = TextureRect.new()
+	profile_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	profile_icon.custom_minimum_size = Vector2(UI_ICON_MAX, UI_ICON_MAX)
 	if ResourceLoader.exists(ICON_PROFILE):
-		profile_icon.text = ""
+		var profile_tex = load(ICON_PROFILE)
+		if profile_tex != null:
+			profile_icon.texture = profile_tex
 	profile_row.add_child(profile_icon)
+	if profile_icon.texture == null:
+		var glyph = Label.new()
+		glyph.text = "👤"
+		glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		profile_row.add_child(glyph)
 
 	profile_chip_label = Label.new()
 	profile_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -321,28 +469,25 @@ func _build_play_card() -> void:
 	card.anchor_top = 0.5
 	card.anchor_right = 0.5
 	card.anchor_bottom = 0.5
-	card.offset_left = -260
-	card.offset_top = -270
-	card.offset_right = 260
-	card.offset_bottom = 180
+	card.custom_minimum_size = Vector2(PLAYCARD_MAX_W, 0)
 	content_layer.add_child(card)
 
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_bottom", 20)
+	margin.add_theme_constant_override("margin_left", PLAYCARD_PAD)
+	margin.add_theme_constant_override("margin_right", PLAYCARD_PAD)
+	margin.add_theme_constant_override("margin_top", PLAYCARD_PAD)
+	margin.add_theme_constant_override("margin_bottom", PLAYCARD_PAD)
 	card.add_child(margin)
 
 	var v = VBoxContainer.new()
-	v.add_theme_constant_override("separation", 14)
+	v.add_theme_constant_override("separation", PLAYCARD_SEPARATION)
 	margin.add_child(v)
 
 	var play_button = Button.new()
 	play_button.text = "PLAY"
-	play_button.custom_minimum_size = Vector2(0, 88)
-	play_button.add_theme_font_size_override("font_size", 40)
+	play_button.custom_minimum_size = Vector2(0, PLAYCARD_BUTTON_H)
+	play_button.add_theme_font_size_override("font_size", 34)
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	play_button.pressed.connect(func(): _play_sfx("ui_click"))
 	play_button.pressed.connect(_on_start)
@@ -353,13 +498,13 @@ func _build_play_card() -> void:
 	v.add_child(difficulty_title)
 
 	var chips = HBoxContainer.new()
-	chips.add_theme_constant_override("separation", 10)
+	chips.add_theme_constant_override("separation", PLAYCARD_SEPARATION)
 	v.add_child(chips)
 	for diff in ["Easy", "Medium", "Hard"]:
 		var chip = Button.new()
 		chip.text = diff
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		chip.custom_minimum_size = Vector2(0, 52)
+		chip.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
 		chip.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 		chip.pressed.connect(func(): _play_sfx("ui_click"))
 		chip.pressed.connect(func(): _apply_difficulty_selection(diff))
@@ -368,7 +513,7 @@ func _build_play_card() -> void:
 
 	no_mercy_toggle = CheckBox.new()
 	no_mercy_toggle.text = "No Mercy"
-	no_mercy_toggle.custom_minimum_size = Vector2(0, 52)
+	no_mercy_toggle.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
 	no_mercy_toggle.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	no_mercy_toggle.pressed.connect(func(): _play_sfx("ui_click"))
 	no_mercy_toggle.toggled.connect(_on_no_mercy_toggled)
@@ -385,12 +530,12 @@ func _build_play_card() -> void:
 	v.add_child(mode_description_label)
 
 	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	row.add_theme_constant_override("separation", PLAYCARD_SEPARATION)
 	v.add_child(row)
 
 	var rewards_btn = Button.new()
 	rewards_btn.text = "Rewards"
-	rewards_btn.custom_minimum_size = Vector2(0, 52)
+	rewards_btn.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
 	rewards_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rewards_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	rewards_btn.pressed.connect(func(): _play_sfx("ui_click"))
@@ -399,7 +544,7 @@ func _build_play_card() -> void:
 
 	var exit_btn = Button.new()
 	exit_btn.text = "Exit"
-	exit_btn.custom_minimum_size = Vector2(0, 52)
+	exit_btn.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
 	exit_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	exit_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	exit_btn.pressed.connect(func(): _play_sfx("ui_click"))
@@ -408,30 +553,53 @@ func _build_play_card() -> void:
 
 
 func _build_bottom_nav() -> void:
-	var nav = HBoxContainer.new()
-	nav.name = "BottomNavBar"
-	nav.anchor_left = 0.0
-	nav.anchor_top = 1.0
-	nav.anchor_right = 1.0
-	nav.anchor_bottom = 1.0
-	nav.offset_left = 24
-	nav.offset_right = -24
-	nav.offset_top = -112
-	nav.offset_bottom = -18
-	nav.add_theme_constant_override("separation", 10)
-	bottom_nav_layer.add_child(nav)
+	var bottom_bar = Control.new()
+	bottom_bar.name = "BottomBar"
+	bottom_bar.anchor_left = 0.0
+	bottom_bar.anchor_right = 1.0
+	bottom_bar.anchor_top = 1.0
+	bottom_bar.anchor_bottom = 1.0
+	bottom_bar.offset_left = 0
+	bottom_bar.offset_right = 0
+	bottom_bar.offset_bottom = 0
+	bottom_bar.offset_top = -NAV_HEIGHT
+	bottom_nav_layer.add_child(bottom_bar)
 
-	_add_nav_button(nav, "Shop", ICON_SHOP, "🛍", func(): _open_panel(shop_panel))
-	_add_nav_button(nav, "Leaderboard", ICON_LEADERBOARD, "🏆", func(): _open_panel(leaderboard_panel))
-	_add_nav_button(nav, "Quests", ICON_QUESTS, "📜", func(): _open_panel(quests_panel))
+	var background_panel = Panel.new()
+	background_panel.name = "BackgroundPanel"
+	background_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# TODO: Replace with StyleBoxTexture 9-slice when res://Assets/UI/9patch/bottom_bar_9slice.png is available.
+	var bar_style = StyleBoxFlat.new()
+	bar_style.bg_color = Color(0.07, 0.09, 0.14, 0.86)
+	bar_style.corner_radius_top_left = 22
+	bar_style.corner_radius_top_right = 22
+	background_panel.add_theme_stylebox_override("panel", bar_style)
+	bottom_bar.add_child(background_panel)
+
+	var safe_margin = MarginContainer.new()
+	safe_margin.name = "SafeMargin"
+	safe_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background_panel.add_child(safe_margin)
+
+	var nav_row = HBoxContainer.new()
+	nav_row.name = "NavRow"
+	nav_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nav_row.add_theme_constant_override("separation", NAV_SEPARATION)
+	safe_margin.add_child(nav_row)
+
+	_add_nav_button(nav_row, "Shop", ICON_SHOP, "🛍", func(): _open_panel(shop_panel))
+	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD, "🏆", func(): _open_panel(leaderboard_panel))
+	_add_nav_button(nav_row, "Quests", ICON_QUESTS, "📜", func(): _open_panel(quests_panel))
 	if _is_debug_panel_visible():
-		_add_nav_button(nav, "Debug", "", "🧪", func(): _open_panel(debug_panel))
+		_add_nav_button(nav_row, "Debug", "", "🧪", func(): _open_panel(debug_panel))
 
 
 func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: String, fallback_glyph: String, callback: Callable) -> void:
 	var b = Button.new()
-	b.custom_minimum_size = Vector2(0, 82)
+	b.custom_minimum_size = Vector2(0, NAV_HEIGHT)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.size_flags_vertical = Control.SIZE_FILL
+	b.size_flags_stretch_ratio = 1.0
 	b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	b.pressed.connect(func(): _play_sfx("ui_click"))
 	b.pressed.connect(callback)
@@ -441,18 +609,25 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.offset_left = 6
 	v.offset_right = -6
-	v.offset_top = 6
-	v.offset_bottom = -6
+	v.offset_top = 4
+	v.offset_bottom = -4
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 2)
 	b.add_child(v)
 
-	var icon_label = Label.new()
-	icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if ResourceLoader.exists(icon_path):
-		icon_label.text = ""
-	else:
+	var icon = TextureRect.new()
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.custom_minimum_size = Vector2(UI_ICON_MAX, UI_ICON_MAX)
+	if icon_path != "" and ResourceLoader.exists(icon_path):
+		var tex = load(icon_path)
+		if tex != null:
+			icon.texture = tex
+	v.add_child(icon)
+	if icon.texture == null:
+		var icon_label = Label.new()
+		icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		icon_label.text = fallback_glyph
-	v.add_child(icon_label)
+		v.add_child(icon_label)
 
 	var text_label = Label.new()
 	text_label.text = label_text
@@ -478,14 +653,20 @@ func _build_modal_layer() -> void:
 	leaderboard_panel = _create_modal_panel("Leaderboard")
 	quests_panel = _create_modal_panel("Quests")
 	shop_panel = _create_modal_panel("Shop")
-	settings_panel = _create_modal_panel("Settings")
 	debug_panel = _create_modal_panel("Debug")
+
+	settings_panel = SettingsPanel.build(modal_layer, Callable(self, "_close_all_panels"), {
+		"state_getter": Callable(self, "_get_audio_settings_state"),
+		"on_music_enabled": Callable(self, "_on_music_enabled_toggled"),
+		"on_sfx_enabled": Callable(self, "_on_sfx_enabled_toggled"),
+		"on_music_volume": Callable(self, "_on_music_volume_changed"),
+		"on_sfx_volume": Callable(self, "_on_sfx_volume_changed")
+	})
 
 	_build_rewards_content(rewards_panel)
 	_build_leaderboard_content(leaderboard_panel)
 	_build_quests_content(quests_panel)
 	_build_shop_content(shop_panel)
-	_build_settings_content(settings_panel)
 	_build_debug_content(debug_panel)
 
 
@@ -699,21 +880,7 @@ func _build_shop_content(panel: Panel) -> void:
 
 
 func _build_settings_content(panel: Panel) -> void:
-	var content = _ensure_panel_content(panel)
-	if content == null:
-		push_error("Menu panel content is null: " + panel.name)
-		return
-	var message = Label.new()
-	message.text = "Settings popup placeholder"
-	content.add_child(message)
-
-	var difficulty_btn = Button.new()
-	difficulty_btn.text = "Open Rewards"
-	difficulty_btn.custom_minimum_size = Vector2(0, 52)
-	difficulty_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	difficulty_btn.pressed.connect(func(): _play_sfx("ui_click"))
-	difficulty_btn.pressed.connect(func(): _open_panel(rewards_panel))
-	content.add_child(difficulty_btn)
+	pass
 
 
 func _build_debug_content(panel: Panel) -> void:
@@ -875,23 +1042,27 @@ func _apply_safe_area() -> void:
 
 	var top_bar = content_layer.get_node_or_null("TopBar")
 	if top_bar != null:
-		top_bar.offset_left = 16 + safe_left
-		top_bar.offset_right = -16 - safe_right
-		top_bar.offset_top = 12 + safe_top
-		top_bar.offset_bottom = 96 + safe_top
+		top_bar.offset_left = safe_left
+		top_bar.offset_right = -safe_right
+		top_bar.offset_top = safe_top + TOPBAR_PAD
+		top_bar.offset_bottom = safe_top + TOPBAR_PAD + TOPBAR_H
 
 	var play_card = content_layer.get_node_or_null("PlayCard")
 	if play_card != null:
-		var max_width = min(640.0, vp.size.x - (safe_left + safe_right + 36.0))
-		play_card.offset_left = -max_width * 0.5
-		play_card.offset_right = max_width * 0.5
+		var card_width = min(float(PLAYCARD_MAX_W), vp.size.x - (safe_left + safe_right + 32.0))
+		play_card.offset_left = -card_width * 0.5
+		play_card.offset_right = card_width * 0.5
+		play_card.offset_top = -210
+		play_card.offset_bottom = 150
 
-	var nav = bottom_nav_layer.get_node_or_null("BottomNavBar")
-	if nav != null:
-		nav.offset_left = 16 + safe_left
-		nav.offset_right = -16 - safe_right
-		nav.offset_bottom = -12 - safe_bottom
-		nav.offset_top = nav.offset_bottom - 94
+	var bottom_bar = bottom_nav_layer.get_node_or_null("BottomBar")
+	if bottom_bar != null:
+		bottom_bar.offset_top = -NAV_HEIGHT
+		var safe_margin = bottom_bar.get_node_or_null("BackgroundPanel/SafeMargin")
+		if safe_margin != null:
+			safe_margin.add_theme_constant_override("margin_bottom", int(safe_bottom))
+			safe_margin.add_theme_constant_override("margin_left", int(NAV_SIDE_MARGIN + safe_left))
+			safe_margin.add_theme_constant_override("margin_right", int(NAV_SIDE_MARGIN + safe_right))
 
 
 func _difficulty_color(difficulty: String) -> Color:
@@ -904,8 +1075,9 @@ func _difficulty_color(difficulty: String) -> Color:
 			return Color(1.0, 0.76, 0.26)
 
 
-func _set_button_icon(button: Button, path: String, fallback: String, label_text: String) -> void:
+func _set_button_icon(button: Button, path: String, fallback: String, label_text: String, icon_max: int = UI_ICON_MAX) -> void:
 	button.expand_icon = false
+	button.icon_max_width = icon_max
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.custom_minimum_size = Vector2(max(button.custom_minimum_size.x, 64.0), max(button.custom_minimum_size.y, 64.0))
 	if ResourceLoader.exists(path):
@@ -923,22 +1095,32 @@ func _skin_manager():
 	return get_node_or_null("/root/SkinManager")
 
 
-func _open_panel(panel: Panel) -> void:
+func _open_panel(panel: Control) -> void:
 	if panel == null:
 		return
 	popup_overlay.visible = true
 	popup_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	for p in [rewards_panel, settings_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
+	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
 		if p != null:
 			p.visible = (p == panel)
+	if settings_panel != null and settings_panel is PopupPanel:
+		(settings_panel as PopupPanel).hide()
+	if panel is PopupPanel:
+		if panel.has_meta("sync_settings"):
+			var sync_settings = panel.get_meta("sync_settings")
+			if sync_settings is Callable:
+				(sync_settings as Callable).call()
+		(panel as PopupPanel).popup_centered(Vector2i(420, 300))
 
 
 func _close_all_panels() -> void:
 	popup_overlay.visible = false
 	popup_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for p in [rewards_panel, settings_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
+	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
 		if p != null:
 			p.visible = false
+	if settings_panel != null and settings_panel is PopupPanel:
+		(settings_panel as PopupPanel).hide()
 
 
 func _is_debug_panel_visible() -> bool:

@@ -4,6 +4,7 @@ const BoardGridOverlay = preload("res://Scripts/BoardGridOverlay.gd")
 const SkillVFXControllerScript = preload("res://Scripts/VFX/SkillVFXController.gd")
 const MusicManagerScript = preload("res://Scripts/Audio/MusicManager.gd")
 const AudioManagerScript = preload("res://Scripts/Modules/Audio/AudioManager.gd")
+const SettingsPanel = preload("res://Scripts/Modules/UI/Common/SettingsPanel.gd")
 const MAIN_MENU_SCENE = "res://Scenes/MainMenu.tscn"
 const MAIN_SCENE = "res://Scenes/Main.tscn"
 
@@ -92,10 +93,6 @@ var btn_skill_invuln: TextureButton
 var board_overlay_right: Control
 var exit_dialog: AcceptDialog
 var settings_popup: PopupPanel
-var chk_music_enabled: CheckBox
-var chk_sfx_enabled: CheckBox
-var slider_music_volume: HSlider
-var slider_sfx_volume: HSlider
 
 # Game Over overlay
 var overlay_dim: ColorRect
@@ -1166,67 +1163,13 @@ func _build_ui() -> void:
 	exit_dialog.custom_action.connect(_on_exit_dialog_action)
 	root_frame.add_child(exit_dialog)
 
-	settings_popup = PopupPanel.new()
-	settings_popup.size = Vector2(420, 300)
-	root_frame.add_child(settings_popup)
-	var settings_margin = MarginContainer.new()
-	settings_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	settings_margin.add_theme_constant_override("margin_left", 16)
-	settings_margin.add_theme_constant_override("margin_right", 16)
-	settings_margin.add_theme_constant_override("margin_top", 16)
-	settings_margin.add_theme_constant_override("margin_bottom", 16)
-	settings_popup.add_child(settings_margin)
-	var settings_v = VBoxContainer.new()
-	settings_v.add_theme_constant_override("separation", 10)
-	settings_margin.add_child(settings_v)
-	var settings_title = Label.new()
-	settings_title.text = "Audio Settings"
-	settings_title.add_theme_font_size_override("font_size", 24)
-	settings_v.add_child(settings_title)
-	chk_music_enabled = CheckBox.new()
-	chk_music_enabled.text = "Music Enabled"
-	chk_music_enabled.button_pressed = music_enabled
-	chk_music_enabled.toggled.connect(_on_music_enabled_toggled)
-	settings_v.add_child(chk_music_enabled)
-	var music_row = HBoxContainer.new()
-	music_row.add_theme_constant_override("separation", 8)
-	settings_v.add_child(music_row)
-	var music_lbl = Label.new()
-	music_lbl.text = "Music Volume"
-	music_lbl.custom_minimum_size = Vector2(120, 0)
-	music_row.add_child(music_lbl)
-	slider_music_volume = HSlider.new()
-	slider_music_volume.min_value = 0
-	slider_music_volume.max_value = 100
-	slider_music_volume.step = 1
-	slider_music_volume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider_music_volume.value = round(music_volume * 100.0)
-	slider_music_volume.value_changed.connect(_on_music_volume_changed)
-	music_row.add_child(slider_music_volume)
-	chk_sfx_enabled = CheckBox.new()
-	chk_sfx_enabled.text = "SFX Enabled"
-	chk_sfx_enabled.button_pressed = sfx_enabled
-	chk_sfx_enabled.toggled.connect(_on_sfx_enabled_toggled)
-	settings_v.add_child(chk_sfx_enabled)
-	var sfx_row = HBoxContainer.new()
-	sfx_row.add_theme_constant_override("separation", 8)
-	settings_v.add_child(sfx_row)
-	var sfx_lbl = Label.new()
-	sfx_lbl.text = "SFX Volume"
-	sfx_lbl.custom_minimum_size = Vector2(120, 0)
-	sfx_row.add_child(sfx_lbl)
-	slider_sfx_volume = HSlider.new()
-	slider_sfx_volume.min_value = 0
-	slider_sfx_volume.max_value = 100
-	slider_sfx_volume.step = 1
-	slider_sfx_volume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider_sfx_volume.value = round(sfx_volume * 100.0)
-	slider_sfx_volume.value_changed.connect(_on_sfx_volume_changed)
-	sfx_row.add_child(slider_sfx_volume)
-	var close_btn = Button.new()
-	close_btn.text = "Close"
-	close_btn.pressed.connect(func(): settings_popup.hide())
-	settings_v.add_child(close_btn)
+	settings_popup = SettingsPanel.build(root_frame, Callable(), {
+		"state_getter": Callable(self, "_get_audio_settings_state"),
+		"on_music_enabled": Callable(self, "_on_music_enabled_toggled"),
+		"on_sfx_enabled": Callable(self, "_on_sfx_enabled_toggled"),
+		"on_music_volume": Callable(self, "_on_music_volume_changed"),
+		"on_sfx_volume": Callable(self, "_on_sfx_volume_changed")
+	})
 
 
 func _hud_line(k: String, v: String) -> Label:
@@ -1680,12 +1623,21 @@ func _hide_game_over_overlay() -> void:
 func _on_settings() -> void:
 	if settings_popup == null:
 		return
-	chk_music_enabled.button_pressed = music_enabled
-	chk_sfx_enabled.button_pressed = sfx_enabled
-	slider_music_volume.value = round(music_volume * 100.0)
-	slider_sfx_volume.value = round(sfx_volume * 100.0)
+	if settings_popup.has_meta("sync_settings"):
+		var sync_settings = settings_popup.get_meta("sync_settings")
+		if sync_settings is Callable:
+			(sync_settings as Callable).call()
 	settings_popup.popup_centered(Vector2i(420, 300))
 
+
+
+func _get_audio_settings_state() -> Dictionary:
+	return {
+		"music_enabled": music_enabled,
+		"sfx_enabled": sfx_enabled,
+		"music_volume": music_volume,
+		"sfx_volume": sfx_volume
+	}
 
 func _on_music_enabled_toggled(enabled: bool) -> void:
 	music_enabled = enabled
