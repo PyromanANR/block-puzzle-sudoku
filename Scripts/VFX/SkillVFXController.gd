@@ -239,24 +239,12 @@ func _ensure_freeze_nodes() -> void:
 	if freeze_frost_rect == null or not is_instance_valid(freeze_frost_rect):
 		var frost_tex = _texture_from_path(FROST_TEXTURE_PATH)
 		if frost_tex != null:
-			var np = NinePatchRect.new()
-			np.texture = frost_tex
-			np.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-			# 9-slice margins (border thickness)
-			np.patch_margin_left = 90
-			np.patch_margin_right = 90
-			np.patch_margin_top = 90
-			np.patch_margin_bottom = 90
-
-			# Draw only the border, keep center transparent
-			np.draw_center = false
-
-			# Tile edges (avoids distortion). Texture should be seamless enough for tiling.
-			np.axis_stretch_horizontal = NinePatchRect.AXIS_STRETCH_MODE_TILE
-			np.axis_stretch_vertical = NinePatchRect.AXIS_STRETCH_MODE_TILE
-
-			freeze_frost_rect = np
+			var tex_rect = TextureRect.new()
+			tex_rect.texture = frost_tex
+			tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tex_rect.stretch_mode = TextureRect.STRETCH_SCALE
+			freeze_frost_rect = tex_rect
 		else:
 			var fallback = ColorRect.new()
 			fallback.color = Color(0.7, 0.85, 1.0, 0.0)
@@ -269,11 +257,14 @@ func _ensure_freeze_nodes() -> void:
 		freeze_frost_rect.offset_bottom = 0
 		overlay_root.add_child(freeze_frost_rect)
 		var frost_shader = _shader_from_path(FROST_SHADER_PATH)
-		if frost_shader != null and freeze_frost_rect is NinePatchRect and freeze_frost_rect.texture != null:
+		if frost_shader != null:
 			freeze_frost_mat = ShaderMaterial.new()
 			freeze_frost_mat.shader = frost_shader
 			freeze_frost_mat.set_shader_parameter("u_strength", 0.0)
 			freeze_frost_rect.material = freeze_frost_mat
+	var frame_rect = _freeze_frame_rect()
+	overlay_root.position = frame_rect.position
+	overlay_root.size = frame_rect.size
 	if freeze_vignette_rect == null or not is_instance_valid(freeze_vignette_rect):
 		var vignette = ColorRect.new()
 		vignette.color = Color(0.0, 0.0, 0.0, 0.0)
@@ -494,13 +485,6 @@ func _update_freeze(now: int) -> bool:
 	var eased_out = clamp((1.0 - t) * 1.4, 0.0, 1.0)
 	var alpha = min(eased_in, eased_out)
 	if freeze_frost_rect != null and is_instance_valid(freeze_frost_rect):
-		var frame_rect = _freeze_frame_rect()
-		freeze_frost_rect.position = frame_rect.position
-		freeze_frost_rect.size = frame_rect.size
-		if freeze_frost_rect is TextureRect:
-			freeze_frost_rect.rotation = 0.0
-			freeze_frost_rect.flip_h = false
-			freeze_frost_rect.flip_v = false
 		freeze_frost_rect.visible = true
 		freeze_frost_rect.modulate.a = 0.35 * alpha
 		if freeze_frost_mat != null:
