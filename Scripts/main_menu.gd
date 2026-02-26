@@ -1103,14 +1103,12 @@ func _open_panel(panel: Control) -> void:
 	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
 		if p != null:
 			p.visible = (p == panel)
-	if settings_panel != null and settings_panel is PopupPanel:
-		(settings_panel as PopupPanel).hide()
-	if panel is PopupPanel:
-		if panel.has_meta("sync_settings"):
-			var sync_settings = panel.get_meta("sync_settings")
-			if sync_settings is Callable:
-				(sync_settings as Callable).call()
-		(panel as PopupPanel).popup_centered(Vector2i(420, 300))
+	if settings_panel != null:
+		settings_panel.visible = (settings_panel == panel)
+	if panel.has_meta("sync_settings"):
+		var sync_settings = panel.get_meta("sync_settings")
+		if sync_settings is Callable:
+			(sync_settings as Callable).call()
 
 
 func _close_all_panels() -> void:
@@ -1119,8 +1117,8 @@ func _close_all_panels() -> void:
 	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
 		if p != null:
 			p.visible = false
-	if settings_panel != null and settings_panel is PopupPanel:
-		(settings_panel as PopupPanel).hide()
+	if settings_panel != null:
+		settings_panel.visible = false
 
 
 func _is_debug_panel_visible() -> bool:
