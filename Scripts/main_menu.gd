@@ -3,6 +3,11 @@ extends Control
 const GAME_SCENE := "res://Scenes/Main.tscn"
 const FORCE_DEBUG_PANEL = false
 const MusicManagerScript = preload("res://Scripts/Audio/MusicManager.gd")
+const MainMenuTopBar = preload("res://Scripts/Modules/UI/MainMenu/TopBar.gd")
+const MainMenuPrimaryButtons = preload("res://Scripts/Modules/UI/MainMenu/PrimaryButtons.gd")
+const MainMenuPopups = preload("res://Scripts/Modules/UI/MainMenu/Popups.gd")
+const DialogFactory = preload("res://Scripts/Modules/UI/Common/DialogFactory.gd")
+const DebugMenu = preload("res://Scripts/Modules/Debug/DebugMenu.gd")
 
 var lbl_difficulty: Label
 var btn_player_level: Button
@@ -21,6 +26,7 @@ var music_manager: MusicManager = null
 var debug_section: VBoxContainer
 var debug_body: VBoxContainer
 var lbl_cloud_status: Label
+var chk_admin_mode_no_ads: CheckBox
 
 
 func _skin_manager():
@@ -90,55 +96,35 @@ func _build_ui() -> void:
 		root.theme = skin_manager.get_theme()
 	add_child(root)
 
-	btn_player_level = Button.new()
-	btn_player_level.text = "Level %d" % Save.get_player_level()
-	btn_player_level.custom_minimum_size = Vector2(130, 40)
-	btn_player_level.size = Vector2(130, 40)
-	btn_player_level.anchor_left = 1.0
-	btn_player_level.anchor_right = 1.0
-	btn_player_level.anchor_top = 0.0
-	btn_player_level.anchor_bottom = 0.0
-	btn_player_level.offset_left = -150
-	btn_player_level.offset_right = -20
-	btn_player_level.offset_top = 20
-	btn_player_level.offset_bottom = 60
-	btn_player_level.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	btn_player_level.pressed.connect(func(): _play_sfx("ui_click"))
-	btn_player_level.pressed.connect(_open_rewards_stub)
-	root.add_child(btn_player_level)
+	var top_bar = MainMenuTopBar.build(
+		root,
+		self,
+		Callable(self, "_open_rewards_stub"),
+		func(): _play_sfx("ui_hover"),
+		func(): _play_sfx("ui_click")
+	)
+	btn_player_level = top_bar["btn_player_level"]
 
-	var v = VBoxContainer.new()
-	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	v.position = Vector2(-220, -360)
-	v.size = Vector2(440, 720)
-	v.add_theme_constant_override("separation", 14)
-	root.add_child(v)
-
-	var title = Label.new()
-	title.text = "TETRIS SUDOKU"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 52)
-	v.add_child(title)
-
-	lbl_difficulty = Label.new()
-	lbl_difficulty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl_difficulty.add_theme_font_size_override("font_size", 24)
-	v.add_child(lbl_difficulty)
-
-	v.add_child(_menu_button("Start", _on_start))
-	v.add_child(_menu_button("Rewards", _on_rewards))
-	v.add_child(_menu_button("Settings", _on_settings))
-	v.add_child(_menu_button("Change difficulty", _on_change_difficulty))
-	v.add_child(_menu_button("Play Games: Sign In", _on_play_games_sign_in))
-	v.add_child(_menu_button("Leaderboard", _on_open_leaderboard_popup))
-	v.add_child(_menu_button("Exit", _on_exit))
+	var primary_ui = MainMenuPrimaryButtons.build(root, self, func(): _play_sfx("ui_hover"), func(): _play_sfx("ui_click"))
+	var v = primary_ui["container"]
+	lbl_difficulty = primary_ui["lbl_difficulty"]
 
 	if _is_debug_panel_visible():
 		_build_debug_section(v)
 
-	_build_difficulty_popup(root)
-	_build_leaderboards_popup(root)
-	_build_rewards_popup(root)
+	var difficulty_ui = MainMenuPopups.build_difficulty_popup(root, self, func(): _play_sfx("ui_hover"), func(): _play_sfx("ui_click"))
+	popup_difficulty = difficulty_ui["popup_difficulty"]
+	opt_difficulty = difficulty_ui["opt_difficulty"]
+	chk_no_mercy = difficulty_ui["chk_no_mercy"]
+	lbl_no_mercy_help = difficulty_ui["lbl_no_mercy_help"]
+
+	var leaderboards_ui = MainMenuPopups.build_leaderboards_popup(root, self, func(): _play_sfx("ui_hover"), func(): _play_sfx("ui_click"))
+	popup_leaderboards = leaderboards_ui["popup_leaderboards"]
+
+	var rewards_ui = MainMenuPopups.build_rewards_popup(root, func(): _play_sfx("ui_hover"), func(): _play_sfx("ui_click"))
+	rewards_popup = rewards_ui["rewards_popup"]
+	rewards_level_label = rewards_ui["rewards_level_label"]
+	rewards_status_labels = rewards_ui["rewards_status_labels"]
 
 
 func _menu_button(text: String, cb: Callable) -> Button:
@@ -172,6 +158,15 @@ func _build_debug_section(parent: VBoxContainer) -> void:
 
 	lbl_cloud_status = Label.new()
 	debug_body.add_child(lbl_cloud_status)
+
+	chk_admin_mode_no_ads = DebugMenu.build_admin_toggle(
+		debug_body,
+		func(): _play_sfx("ui_hover"),
+		func(): _play_sfx("ui_click"),
+		Callable(self, "_on_admin_mode_no_ads_toggled")
+	)
+	if AdsManager != null:
+		AdsManager.set_admin_mode_no_ads(chk_admin_mode_no_ads.button_pressed)
 
 	debug_body.add_child(_debug_button("+1 Level (DEBUG)", _on_debug_add_level))
 	debug_body.add_child(_debug_button("-1 Level (DEBUG)", _on_debug_remove_level))
@@ -274,6 +269,12 @@ func _refresh_difficulty_label() -> void:
 		lbl_difficulty.text = "Difficulty: %s" % difficulty
 
 
+func _get_player_level() -> int:
+	if ProgressManager != null:
+		return ProgressManager.get_level()
+	return Save.get_player_level()
+
+
 func _on_start() -> void:
 	get_tree().change_scene_to_file(GAME_SCENE)
 
@@ -371,7 +372,7 @@ func _open_rewards_stub() -> void:
 
 
 func _refresh_rewards_stub() -> void:
-	var level = Save.get_player_level()
+	var level = _get_player_level()
 	if btn_player_level != null:
 		btn_player_level.text = "Level %d" % level
 	if rewards_popup == null:
@@ -384,11 +385,7 @@ func _refresh_rewards_stub() -> void:
 
 
 func _on_settings() -> void:
-	var d = AcceptDialog.new()
-	d.title = "Settings"
-	d.dialog_text = "Settings popup placeholder"
-	add_child(d)
-	d.popup_centered()
+	DialogFactory.show_message(self, "Settings", "Settings popup placeholder")
 
 
 func _on_play_games_sign_in() -> void:
@@ -417,11 +414,12 @@ func _on_select_leaderboard(diff_key: String) -> void:
 
 
 func _show_message(message: String) -> void:
-	var dialog = AcceptDialog.new()
-	dialog.title = "Play Games"
-	dialog.dialog_text = message
-	add_child(dialog)
-	dialog.popup_centered()
+	DialogFactory.show_message(self, "Play Games", message)
+
+
+func _on_admin_mode_no_ads_toggled(enabled: bool) -> void:
+	if AdsManager != null:
+		AdsManager.set_admin_mode_no_ads(enabled)
 
 
 func _on_change_difficulty() -> void:
