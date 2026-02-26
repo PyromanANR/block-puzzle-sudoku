@@ -119,6 +119,7 @@ func _build_ui() -> void:
 
 	root_layer = Control.new()
 	root_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var skin_manager = _skin_manager()
 	if skin_manager != null and skin_manager.get_theme() != null:
 		root_layer.theme = skin_manager.get_theme()
@@ -126,19 +127,23 @@ func _build_ui() -> void:
 
 	background_layer = Control.new()
 	background_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_layer.add_child(background_layer)
 	_build_background_layer()
 
 	content_layer = Control.new()
 	content_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	content_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_layer.add_child(content_layer)
 
 	bottom_nav_layer = Control.new()
 	bottom_nav_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bottom_nav_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_layer.add_child(bottom_nav_layer)
 
 	modal_layer = Control.new()
 	modal_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	modal_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_layer.add_child(modal_layer)
 
 	_build_top_bar()
@@ -152,6 +157,7 @@ func _build_background_layer() -> void:
 	var bg = ColorRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.color = Color(0.07, 0.08, 0.11, 1.0)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(bg)
 
 	var sprite_layer = Node2D.new()
@@ -171,6 +177,7 @@ func _build_background_layer() -> void:
 		var fallback = ColorRect.new()
 		fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		fallback.color = Color(0.14, 0.15, 0.19, 0.55)
+		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		background_layer.add_child(fallback)
 
 	difficulty_glow = ColorRect.new()
@@ -458,8 +465,10 @@ func _build_modal_layer() -> void:
 	popup_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup_overlay.color = Color(0, 0, 0, 0.52)
 	popup_overlay.visible = false
-	popup_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	popup_overlay.gui_input.connect(func(event):
+		if OS.is_debug_build() and popup_overlay.visible:
+			print("[MainMenu] popup_overlay received input: %s" % [event])
 		if event is InputEventMouseButton and event.pressed:
 			_close_all_panels()
 	)
@@ -869,6 +878,7 @@ func _apply_safe_area() -> void:
 		top_bar.offset_left = 16 + safe_left
 		top_bar.offset_right = -16 - safe_right
 		top_bar.offset_top = 12 + safe_top
+		top_bar.offset_bottom = 96 + safe_top
 
 	var play_card = content_layer.get_node_or_null("PlayCard")
 	if play_card != null:
@@ -895,6 +905,9 @@ func _difficulty_color(difficulty: String) -> Color:
 
 
 func _set_button_icon(button: Button, path: String, fallback: String, label_text: String) -> void:
+	button.expand_icon = false
+	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.custom_minimum_size = Vector2(max(button.custom_minimum_size.x, 64.0), max(button.custom_minimum_size.y, 64.0))
 	if ResourceLoader.exists(path):
 		var tex = load(path)
 		if tex != null:
@@ -914,6 +927,7 @@ func _open_panel(panel: Panel) -> void:
 	if panel == null:
 		return
 	popup_overlay.visible = true
+	popup_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	for p in [rewards_panel, settings_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
 		if p != null:
 			p.visible = (p == panel)
@@ -921,6 +935,7 @@ func _open_panel(panel: Panel) -> void:
 
 func _close_all_panels() -> void:
 	popup_overlay.visible = false
+	popup_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for p in [rewards_panel, settings_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
 		if p != null:
 			p.visible = false
