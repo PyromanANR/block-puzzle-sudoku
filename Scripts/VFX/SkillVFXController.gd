@@ -8,12 +8,13 @@ const SAFE_WELL_DOORS_CLOSE_SFX_PATH = "res://Assets/Audio/Skills/SafeWell/doors
 const SAFE_WELL_DOORS_OPEN_SFX_PATH = "res://Assets/Audio/Skills/SafeWell/doors_open.ogg"
 const SAFE_WELL_LOCK_SFX_PATH = "res://Assets/Audio/Skills/SafeWell/lock_clink.ogg"
 
-const FROST_TEXTURE_PATH = "res://Assets/VFX/Skills/Freeze/frost_edge.png"
+const FREEZE_ICE_TEXTURE_PATH = "res://Assets/VFX/Skills/Freeze/ice_screen_overlay.png"
+const FREEZE_FALLBACK_TEXTURE_PATH = "res://Assets/VFX/Skills/Freeze/frost_edge.png"
 const SAFE_WELL_DOOR_TEXTURE_PATH = "res://Assets/VFX/Skills/SafeWell/door_metal.png"
 const SAFE_WELL_LOCK_TEXTURE_PATH = "res://Assets/VFX/Skills/SafeWell/lock_icon.png"
 const SAFE_WELL_LIGHTNING_TEXTURE_PATH = "res://Assets/VFX/Skills/SafeWell/lightning_strip.png"
 
-const FROST_SHADER_PATH = "res://Assets/Shaders/Skills/frost_edge.gdshader"
+const FREEZE_ICE_SHADER_PATH = "res://Assets/Shaders/Skills/ice_screen.gdshader"
 const VIGNETTE_SHADER_PATH = "res://Assets/Shaders/Skills/vignette.gdshader"
 const FLASH_SHADER_PATH = "res://Assets/Shaders/Skills/flash.gdshader"
 const LIGHTNING_SHADER_PATH = "res://Assets/Shaders/Skills/lightning.gdshader"
@@ -237,7 +238,9 @@ func _ensure_freeze_nodes() -> void:
 	overlay_root.offset_right = 0
 	overlay_root.offset_bottom = 0
 	if freeze_frost_rect == null or not is_instance_valid(freeze_frost_rect):
-		var frost_tex = _texture_from_path(FROST_TEXTURE_PATH)
+		var frost_tex = _texture_from_path(FREEZE_ICE_TEXTURE_PATH)
+		if frost_tex == null:
+			frost_tex = _texture_from_path(FREEZE_FALLBACK_TEXTURE_PATH)
 		if frost_tex != null:
 			var tex_rect = TextureRect.new()
 			tex_rect.texture = frost_tex
@@ -256,7 +259,7 @@ func _ensure_freeze_nodes() -> void:
 		freeze_frost_rect.offset_right = 0
 		freeze_frost_rect.offset_bottom = 0
 		overlay_root.add_child(freeze_frost_rect)
-		var frost_shader = _shader_from_path(FROST_SHADER_PATH)
+		var frost_shader = _shader_from_path(FREEZE_ICE_SHADER_PATH)
 		if frost_shader != null:
 			freeze_frost_mat = ShaderMaterial.new()
 			freeze_frost_mat.shader = frost_shader
