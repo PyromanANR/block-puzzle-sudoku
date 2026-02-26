@@ -2,6 +2,7 @@ extends Control
 
 const GAME_SCENE := "res://Scenes/Main.tscn"
 const FORCE_DEBUG_PANEL = false
+const MusicManagerScript = preload("res://Scripts/Audio/MusicManager.gd")
 
 var lbl_difficulty: Label
 var btn_player_level: Button
@@ -15,6 +16,7 @@ var chk_no_mercy: CheckBox
 var lbl_no_mercy_help: Label
 var sfx_players = {}
 var missing_sfx_warned = {}
+var music_manager: MusicManager = null
 
 var debug_section: VBoxContainer
 var debug_body: VBoxContainer
@@ -64,6 +66,10 @@ func _play_sfx(key) -> void:
 
 
 func _ready() -> void:
+	if music_manager == null:
+		music_manager = MusicManagerScript.new()
+		add_child(music_manager)
+	music_manager.play_menu_music()
 	_audio_setup()
 	_build_ui()
 	_refresh_difficulty_label()
@@ -73,7 +79,7 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	for ch in get_children():
-		if ch is AudioStreamPlayer:
+		if ch is AudioStreamPlayer or ch == music_manager:
 			continue
 		ch.queue_free()
 
