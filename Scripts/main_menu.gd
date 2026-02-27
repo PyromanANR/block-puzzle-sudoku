@@ -504,12 +504,57 @@ func _build_top_bar() -> void:
 	chip_col.add_theme_constant_override("separation", 4)
 	chip_margin.add_child(chip_col)
 
+	var rank_top_row = HBoxContainer.new()
+	rank_top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rank_top_row.add_theme_constant_override("separation", 6)
+	chip_col.add_child(rank_top_row)
+
+	var badge_icon = TextureRect.new()
+	badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	badge_icon.custom_minimum_size = Vector2(18, 18)
+	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var badge_tex = _load_icon(ICON_BADGE_TRES)
+	if badge_tex != null:
+		badge_icon.texture = badge_tex
+	rank_top_row.add_child(badge_icon)
+	if badge_icon.texture == null:
+		var badge_fallback = Label.new()
+		badge_fallback.text = "🏅"
+		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		rank_top_row.add_child(badge_fallback)
+
+	var rank_label = Label.new()
+	rank_label.text = "RANK"
+	rank_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	rank_label.add_theme_font_size_override("font_size", 14)
+	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
+	rank_top_row.add_child(rank_label)
+
+	var rank_spacer = Control.new()
+	rank_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rank_top_row.add_child(rank_spacer)
+
+	level_chip_label = Label.new()
+	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	level_chip_label.add_theme_font_size_override("font_size", 15)
+	level_chip_label.clip_text = true
+	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
+	rank_top_row.add_child(level_chip_label)
+
+	var xp_wrap = CenterContainer.new()
+	xp_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chip_col.add_child(xp_wrap)
+
 	level_chip_progress = ProgressBar.new()
 	level_chip_progress.min_value = 0.0
 	level_chip_progress.max_value = 1.0
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
-	level_chip_progress.custom_minimum_size = Vector2(140, 10)
+	level_chip_progress.custom_minimum_size = Vector2(150, 10)
 	level_chip_progress.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	level_chip_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if ResourceLoader.exists(XP_BAR_BG_PATH):
@@ -520,44 +565,7 @@ func _build_top_bar() -> void:
 		var xp_fill = load(XP_BAR_FILL_PATH)
 		if xp_fill is StyleBox:
 			level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
-	chip_col.add_child(level_chip_progress)
-
-	var rank_row = HBoxContainer.new()
-	rank_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rank_row.add_theme_constant_override("separation", 6)
-	chip_col.add_child(rank_row)
-
-	var badge_icon = TextureRect.new()
-	badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	badge_icon.custom_minimum_size = Vector2(22, 22)
-	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var badge_tex = _load_icon(ICON_BADGE_TRES)
-	if badge_tex != null:
-		badge_icon.texture = badge_tex
-	rank_row.add_child(badge_icon)
-	if badge_icon.texture == null:
-		var badge_fallback = Label.new()
-		badge_fallback.text = "🏅"
-		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		rank_row.add_child(badge_fallback)
-
-	var rank_label = Label.new()
-	rank_label.text = "RANK"
-	rank_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	rank_label.add_theme_font_size_override("font_size", 15)
-	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
-	rank_row.add_child(rank_label)
-
-	level_chip_label = Label.new()
-	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	level_chip_label.add_theme_font_size_override("font_size", 15)
-	level_chip_label.clip_text = true
-	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
-	rank_row.add_child(level_chip_label)
+	xp_wrap.add_child(level_chip_progress)
 
 	var center_spacer = Control.new()
 	center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1436,9 +1444,12 @@ func _apply_button_style(button: Button, kind: String) -> void:
 	var hover_style = style.duplicate()
 	var pressed_style = style.duplicate()
 	var disabled_style = style.duplicate()
+	pressed_style.content_margin_top += 2
+	pressed_style.content_margin_bottom = max(0.0, pressed_style.content_margin_bottom - 2)
 	button.add_theme_stylebox_override("normal", style)
 	button.add_theme_stylebox_override("hover", hover_style)
 	button.add_theme_stylebox_override("pressed", pressed_style)
+	button.add_theme_stylebox_override("hover_pressed", pressed_style)
 	button.add_theme_stylebox_override("disabled", disabled_style)
 	button.clip_text = true
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1490,6 +1501,8 @@ func _apply_no_mercy_checkbox_style(checkbox: CheckBox) -> void:
 		checkbox.add_theme_stylebox_override("normal", chip_style)
 		checkbox.add_theme_stylebox_override("hover", chip_style.duplicate())
 		checkbox.add_theme_stylebox_override("pressed", chip_style.duplicate())
+		checkbox.add_theme_stylebox_override("hover_pressed", chip_style.duplicate())
+		checkbox.add_theme_stylebox_override("disabled", chip_style.duplicate())
 		checkbox.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	checkbox.add_theme_color_override("font_color", Color(0.10, 0.07, 0.05, 1))
 	checkbox.add_theme_color_override("font_hover_color", Color(0.10, 0.07, 0.05, 1))
@@ -1497,10 +1510,11 @@ func _apply_no_mercy_checkbox_style(checkbox: CheckBox) -> void:
 	checkbox.add_theme_constant_override("outline_size", 2)
 	checkbox.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.25))
 	checkbox.add_theme_font_size_override("font_size", 22)
-	checkbox.add_theme_constant_override("content_margin_left", 18)
+	checkbox.add_theme_constant_override("content_margin_left", 28)
 	checkbox.add_theme_constant_override("content_margin_right", 18)
 	checkbox.add_theme_constant_override("content_margin_top", 10)
 	checkbox.add_theme_constant_override("content_margin_bottom", 10)
+	checkbox.modulate = Color(1, 1, 1, 1)
 	checkbox.focus_mode = Control.FOCUS_NONE
 
 
