@@ -1,5 +1,22 @@
 extends Node
 
+const DEFAULT_SKIN_BASE_PATH = "res://Assets/Skins/Default/"
+const DEFAULT_TEXTURES_PATH = DEFAULT_SKIN_BASE_PATH + "textures/"
+const DEFAULT_TEXTURES_BOARD_PATH = DEFAULT_TEXTURES_PATH + "Board/"
+const DEFAULT_TEXTURES_PIECES_PATH = DEFAULT_TEXTURES_PATH + "Pieces/"
+const DEFAULT_TEXTURES_BACKGROUND_PATH = DEFAULT_TEXTURES_PATH + "Background/"
+const DEFAULT_TEXTURES_WELL_PATH = DEFAULT_TEXTURES_PATH + "Well/"
+const DEFAULT_TEXTURES_DROPZONE_PATH = DEFAULT_TEXTURES_PATH + "DropZone/"
+
+# TODO: Path contract for future default skin texture binding.
+const DEFAULT_TEXTURE_PATH_CONTRACT = {
+	"board": DEFAULT_TEXTURES_BOARD_PATH,
+	"pieces": DEFAULT_TEXTURES_PIECES_PATH,
+	"background": DEFAULT_TEXTURES_BACKGROUND_PATH,
+	"well": DEFAULT_TEXTURES_WELL_PATH,
+	"drop_zone": DEFAULT_TEXTURES_DROPZONE_PATH,
+}
+
 var active_skin := "Default"
 var palette: Dictionary = {}
 var theme: Theme
@@ -54,3 +71,7 @@ func _load_palette(path: String) -> Dictionary:
 	if typeof(parsed) == TYPE_DICTIONARY:
 		return parsed
 	return {}
+
+
+func get_default_palette() -> Dictionary:
+	return _load_palette(DEFAULT_SKIN_BASE_PATH + "palette.json")

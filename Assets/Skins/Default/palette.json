@@ -10,7 +10,13 @@
     "grid_border": "#9ec9ad",
     "danger": "#ff5c5c",
     "text_primary": "#181818",
-    "text_muted": "#b8bec9"
+    "text_muted": "#b8bec9",
+    "bg": "#12151c",
+    "panel": "#1d2230",
+    "gold": "#f5c96a",
+    "glow_easy": "#52eb92",
+    "glow_medium": "#ffc45c",
+    "glow_hard": "#ff5c5c"
   },
   "piece_colors": {
     "I": "#26d8f0",
@@ -34,5 +40,13 @@
     "normal": 24,
     "small": 16,
     "tiny": 12
+  },
+  "fx": {
+    "alpha_soft": 0.14,
+    "alpha_strong": 0.22
+  },
+  "spacing": {
+    "alpha_soft": 0.14,
+    "alpha_strong": 0.22
   }
 }
