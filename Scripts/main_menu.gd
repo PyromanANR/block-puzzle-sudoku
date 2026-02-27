@@ -45,7 +45,7 @@ const PLAYCARD_BUTTON_H = 78
 const PLAYCARD_CHIP_H = 60
 
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
-const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks"
+const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks/frames"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
 const MENU_PARALLAX_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_voxel_parallax.gdshader"
 const NINEPATCH_BOTTOM_BAR_PATH = "res://Assets/UI/9patch/bottom_bar.png"
@@ -376,11 +376,14 @@ func _try_add_bg_soften_overlay() -> void:
 
 func _load_falling_block_textures(dir_path: String) -> Array[Texture2D]:
 	var textures: Array[Texture2D] = []
+	if not DirAccess.dir_exists_absolute(dir_path):
+		return textures
 	var dir = DirAccess.open(dir_path)
 	if dir == null:
 		return textures
 	for file_name in dir.get_files():
-		if not file_name.to_lower().ends_with(".png"):
+		var lowered = file_name.to_lower()
+		if not lowered.ends_with(".png") and not lowered.ends_with(".webp"):
 			continue
 		var texture_path = dir_path + "/" + file_name
 		if not ResourceLoader.exists(texture_path):
@@ -605,7 +608,7 @@ func _build_play_card() -> void:
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", PLAYCARD_INNER_PAD)
 	margin.add_theme_constant_override("margin_right", PLAYCARD_INNER_PAD)
-	margin.add_theme_constant_override("margin_top", PLAYCARD_INNER_PAD + 12)
+	margin.add_theme_constant_override("margin_top", PLAYCARD_INNER_PAD + 4)
 	margin.add_theme_constant_override("margin_bottom", PLAYCARD_INNER_PAD)
 	card.add_child(margin)
 
@@ -614,14 +617,22 @@ func _build_play_card() -> void:
 	margin.add_child(v)
 
 	var play_button = Button.new()
-	play_button.text = "PLAY"
+	play_button.text = ""
 	play_button.custom_minimum_size = Vector2(0, PLAYCARD_BUTTON_H)
-	play_button.add_theme_font_size_override("font_size", 34)
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	play_button.pressed.connect(func(): _play_sfx("ui_click"))
 	play_button.pressed.connect(_on_start)
 	v.add_child(play_button)
 	_apply_button_style(play_button, "primary")
+
+	var play_label = Label.new()
+	play_label.text = "PLAY"
+	play_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	play_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	play_label.add_theme_font_size_override("font_size", 34)
+	play_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	play_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	play_button.add_child(play_label)
 
 	var difficulty_title = Label.new()
 	difficulty_title.text = "Select Difficulty"
@@ -716,11 +727,23 @@ func _build_hero_title() -> void:
 	hero_title_texture.custom_minimum_size = Vector2(560, HERO_TITLE_HEIGHT + 18)
 	hero_title_texture.visible = false
 	center.add_child(hero_title_texture)
+
+	var has_title_image = false
 	if ResourceLoader.exists(TITLE_IMAGE_PATH):
 		var title_texture = load(TITLE_IMAGE_PATH)
-		if title_texture != null:
+		if title_texture is Texture2D:
 			hero_title_texture.texture = title_texture
 			hero_title_texture.visible = true
+			has_title_image = true
+
+	if not has_title_image:
+		hero_title_label = Label.new()
+		hero_title_label.text = "BLOCK PUZZLE"
+		hero_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hero_title_label.add_theme_font_size_override("font_size", TITLE_FONT)
+		hero_title_label.modulate = _palette_color("text_primary", Color(0.96, 0.96, 1.0, 1.0))
+		hero_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		center.add_child(hero_title_label)
 
 	var subtitle = Label.new()
 	subtitle.text = "Classic block strategy"
@@ -730,6 +753,7 @@ func _build_hero_title() -> void:
 	subtitle.label_settings = subtitle_label_settings
 	subtitle.modulate = Color(0.9, 0.9, 0.95, 0.75)
 	subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	subtitle.visible = not has_title_image
 	center.add_child(subtitle)
 	hero_subtitle_label = subtitle
 
@@ -787,6 +811,9 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.text = ""
 	b.tooltip_text = label_text
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	_apply_button_style(b, "small")
 	if icon_path != "":
 		var tex = _load_icon(icon_path)
 		if tex != null:
@@ -854,36 +881,7 @@ func _create_modal_panel(title_text: String) -> Panel:
 	panel.visible = false
 	modal_layer.add_child(panel)
 	_apply_panel_style(panel)
-
-	var v = _get_or_create(panel, "Body", VBoxContainer)
-	if v is Control:
-		v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	if v is Container:
-		v.add_theme_constant_override("separation", 12)
-	if v is Control:
-		v.size_flags_vertical = Control.SIZE_EXPAND_FILL
-
-	var header = HBoxContainer.new()
-	header.add_theme_constant_override("separation", 10)
-	v.add_child(header)
-
-	var title = Label.new()
-	title.text = title_text
-	title.add_theme_font_size_override("font_size", 30)
-	title.modulate = _palette_color("text_primary", Color(0.96, 0.96, 1.0, 1.0))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-
-	var close_btn = Button.new()
-	_set_button_icon(close_btn, ICON_CLOSE_TRES, "✕", "Close")
-	close_btn.custom_minimum_size = Vector2(56, 48)
-	close_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	close_btn.pressed.connect(func(): _play_sfx("ui_click"))
-	close_btn.pressed.connect(func(): _close_all_panels())
-	header.add_child(close_btn)
-
-	var scroll = _get_or_create(v, "Scroll", ScrollContainer)
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.set_meta("title_text", title_text)
 
 	var content = _ensure_panel_content(panel)
 	if content == null:
@@ -892,65 +890,62 @@ func _create_modal_panel(title_text: String) -> Panel:
 	return panel
 
 
-func _get_or_create(parent: Node, name: String, klass: Variant) -> Node:
-	if parent == null:
-		return null
-	var existing = parent.get_node_or_null(name)
-	if existing != null:
-		return existing
-	var created = klass.new()
-	created.name = name
-	parent.add_child(created)
-	return created
-
-
 func _ensure_panel_content(panel: Panel) -> VBoxContainer:
 	if panel == null:
 		return null
 
-	var body = _get_or_create(panel, "Body", VBoxContainer)
-	if not (body is VBoxContainer):
-		if body != null:
-			body.queue_free()
-		body = VBoxContainer.new()
-		body.name = "Body"
-		panel.add_child(body)
-	body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	body.offset_left = 18
-	body.offset_right = -18
-	body.offset_top = 18
-	body.offset_bottom = -18
+	for child in panel.get_children():
+		child.queue_free()
+
+	var margin = MarginContainer.new()
+	margin.name = "Margin"
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_top", 18)
+	margin.add_theme_constant_override("margin_bottom", 18)
+	panel.add_child(margin)
+
+	var body = VBoxContainer.new()
+	body.name = "Body"
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 12)
+	margin.add_child(body)
 
-	var scroll = _get_or_create(body, "Scroll", ScrollContainer)
-	if not (scroll is ScrollContainer):
-		if scroll != null:
-			scroll.queue_free()
-		scroll = ScrollContainer.new()
-		scroll.name = "Scroll"
-		body.add_child(scroll)
+	var header = HBoxContainer.new()
+	header.name = "Header"
+	header.add_theme_constant_override("separation", 10)
+	body.add_child(header)
+
+	var title = Label.new()
+	title.text = String(panel.get_meta("title_text", ""))
+	title.add_theme_font_size_override("font_size", 30)
+	title.modulate = _palette_color("text_primary", Color(0.96, 0.96, 1.0, 1.0))
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+
+	var close_btn = Button.new()
+	_set_button_icon(close_btn, ICON_CLOSE_TRES, "✕", "Close")
+	close_btn.custom_minimum_size = Vector2(56, 48)
+	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	close_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	close_btn.pressed.connect(func(): _play_sfx("ui_click"))
+	close_btn.pressed.connect(func(): _close_all_panels())
+	header.add_child(close_btn)
+
+	var scroll = ScrollContainer.new()
+	scroll.name = "Scroll"
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_child(scroll)
 
-	var content_node = scroll.get_node_or_null("Content")
-	if not (content_node is VBoxContainer):
-		if content_node != null:
-			content_node.queue_free()
-		content_node = VBoxContainer.new()
-		content_node.name = "Content"
-		scroll.add_child(content_node)
-
-	var content = content_node as VBoxContainer
-	if content == null:
-		var fallback_content = VBoxContainer.new()
-		fallback_content.name = "Content"
-		scroll.add_child(fallback_content)
-		content = fallback_content
-
+	var content = VBoxContainer.new()
+	content.name = "Content"
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 8)
+	scroll.add_child(content)
 	return content
 
 
@@ -1419,6 +1414,8 @@ func _apply_button_style(button: Button, kind: String) -> void:
 	button.add_theme_stylebox_override("hover", style.duplicate())
 	button.add_theme_stylebox_override("pressed", style.duplicate())
 	button.add_theme_stylebox_override("disabled", style.duplicate())
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
 func _apply_panel_style(panel: Panel) -> void:
@@ -1439,6 +1436,8 @@ func _apply_top_chip_style(button: Button) -> void:
 	button.add_theme_stylebox_override("normal", style)
 	button.add_theme_stylebox_override("hover", style.duplicate())
 	button.add_theme_stylebox_override("pressed", style.duplicate())
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
 func _load_icon(path_to_tres: String) -> Texture2D:
@@ -1457,6 +1456,8 @@ func _set_button_icon(button: Button, path: String, fallback: String, label_text
 	button.add_theme_constant_override("icon_max_width", icon_max)
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.custom_minimum_size = Vector2(max(button.custom_minimum_size.x, 64.0), max(button.custom_minimum_size.y, 64.0))
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	var tex = _load_icon(path)
 	if tex != null:
 		button.icon = tex
