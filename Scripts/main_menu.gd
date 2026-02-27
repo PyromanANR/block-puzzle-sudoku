@@ -84,7 +84,7 @@ var hero_title_label: Label
 var hero_title_texture: TextureRect
 var hero_subtitle_label: Label
 var mode_description_label: Label
-var no_mercy_toggle: CheckBox
+var no_mercy_toggle: Button
 var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
 var difficulty_glow: ColorRect
@@ -489,23 +489,20 @@ func _build_top_bar() -> void:
 
 	var chip_margin = MarginContainer.new()
 	chip_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	chip_margin.add_theme_constant_override("margin_left", 8)
-	chip_margin.add_theme_constant_override("margin_right", 8)
-	chip_margin.add_theme_constant_override("margin_top", 8)
-	chip_margin.add_theme_constant_override("margin_bottom", 8)
+	# Level chip fix: keep icon + text + XP bar aligned with consistent inner padding.
+	chip_margin.add_theme_constant_override("margin_left", 9)
+	chip_margin.add_theme_constant_override("margin_right", 9)
+	chip_margin.add_theme_constant_override("margin_top", 9)
+	chip_margin.add_theme_constant_override("margin_bottom", 9)
 	level_chip.add_child(chip_margin)
 
-	var chip_vbox = VBoxContainer.new()
-	chip_vbox.add_theme_constant_override("separation", 4)
-	chip_margin.add_child(chip_vbox)
-
 	var chip_row = HBoxContainer.new()
-	chip_row.add_theme_constant_override("separation", 6)
-	chip_vbox.add_child(chip_row)
+	chip_row.add_theme_constant_override("separation", 8)
+	chip_margin.add_child(chip_row)
 
 	var badge_icon = TextureRect.new()
 	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	badge_icon.custom_minimum_size = Vector2(32, 32)
+	badge_icon.custom_minimum_size = Vector2(34, 34)
 	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var badge_tex = _load_icon(ICON_BADGE_TRES)
@@ -518,28 +515,32 @@ func _build_top_bar() -> void:
 		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		chip_row.add_child(badge_fallback)
 
+	var level_stack = VBoxContainer.new()
+	level_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	level_stack.add_theme_constant_override("separation", 4)
+	chip_row.add_child(level_stack)
+
 	level_chip_label = Label.new()
 	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	chip_row.add_child(level_chip_label)
+	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
+	level_stack.add_child(level_chip_label)
 
 	level_chip_progress = ProgressBar.new()
 	level_chip_progress.min_value = 0.0
 	level_chip_progress.max_value = 1.0
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
-	level_chip_progress.custom_minimum_size = Vector2(0, 11)
+	level_chip_progress.custom_minimum_size = Vector2(0, 13)
 	level_chip_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if ResourceLoader.exists(XP_BAR_BG_PATH):
-		var xp_bg = load(XP_BAR_BG_PATH)
-		if xp_bg is StyleBox:
-			level_chip_progress.add_theme_stylebox_override("background", xp_bg)
-	if ResourceLoader.exists(XP_BAR_FILL_PATH):
-		var xp_fill = load(XP_BAR_FILL_PATH)
-		if xp_fill is StyleBox:
-			level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
-	chip_vbox.add_child(level_chip_progress)
+	var xp_bg = load(XP_BAR_BG_PATH)
+	if xp_bg is StyleBox:
+		level_chip_progress.add_theme_stylebox_override("background", xp_bg)
+	var xp_fill = load(XP_BAR_FILL_PATH)
+	if xp_fill is StyleBox:
+		level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
+	level_stack.add_child(level_chip_progress)
 
 	var center_spacer = Control.new()
 	center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -603,8 +604,15 @@ func _build_play_card() -> void:
 	margin.add_child(v)
 
 	var play_button = Button.new()
-	play_button.text = ""
+	# Play button fix: clip text and keep banner text centered inside the 9-patch bounds.
+	play_button.text = "PLAY"
 	play_button.custom_minimum_size = Vector2(0, PLAYCARD_BUTTON_H)
+	play_button.clip_text = true
+	play_button.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	play_button.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var play_label_settings = LabelSettings.new()
+	play_label_settings.font_size = 34
+	play_button.label_settings = play_label_settings
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	play_button.pressed.connect(func(): _play_sfx("ui_click"))
 	play_button.pressed.connect(_on_start)
@@ -633,17 +641,24 @@ func _build_play_card() -> void:
 		_apply_button_style(chip, "small")
 		difficulty_chip_buttons[diff] = chip
 
-	no_mercy_toggle = CheckBox.new()
+	# No Mercy fix: use a stylable toggle chip that matches the rest of the menu.
+	no_mercy_toggle = Button.new()
+	no_mercy_toggle.toggle_mode = true
+	no_mercy_toggle.button_pressed = Save.get_no_mercy()
 	no_mercy_toggle.text = "No Mercy"
 	no_mercy_toggle.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
+	no_mercy_toggle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	no_mercy_toggle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	no_mercy_toggle.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	no_mercy_toggle.pressed.connect(func(): _play_sfx("ui_click"))
 	no_mercy_toggle.toggled.connect(_on_no_mercy_toggled)
 	v.add_child(no_mercy_toggle)
+	_apply_top_chip_style(no_mercy_toggle)
+	_apply_small_button_readability(no_mercy_toggle)
 
 	no_mercy_help = Label.new()
 	no_mercy_help.text = "No Mercy removes reserve slots."
-	no_mercy_help.modulate = Color(1, 0.92, 0.85, 0.9)
+	no_mercy_help.modulate = Color(0.28, 0.20, 0.12, 0.95)
 	v.add_child(no_mercy_help)
 
 	mode_description_label = Label.new()
@@ -1395,8 +1410,35 @@ func _apply_button_style(button: Button, kind: String) -> void:
 	button.add_theme_stylebox_override("hover", style.duplicate())
 	button.add_theme_stylebox_override("pressed", style.duplicate())
 	button.add_theme_stylebox_override("disabled", style.duplicate())
+	button.clip_text = true
+	button.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	if kind == "primary":
+		button.add_theme_constant_override("content_margin_left", 26)
+		button.add_theme_constant_override("content_margin_right", 26)
+		button.add_theme_constant_override("content_margin_top", 12)
+		button.add_theme_constant_override("content_margin_bottom", 12)
+		button.add_theme_font_size_override("font_size", 34)
+	elif kind == "small":
+		_apply_small_button_readability(button)
 	button.focus_mode = Control.FOCUS_NONE
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+
+func _apply_small_button_readability(button: Button) -> void:
+	if button == null:
+		return
+	# Small button readability fix: dark text + subtle outline + safe inner padding.
+	button.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1))
+	button.add_theme_color_override("font_hover_color", Color(0.18, 0.12, 0.08, 1))
+	button.add_theme_color_override("font_pressed_color", Color(0.10, 0.07, 0.05, 1))
+	button.add_theme_color_override("font_disabled_color", Color(0.40, 0.32, 0.22, 0.9))
+	button.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.35))
+	button.add_theme_constant_override("outline_size", 2)
+	button.add_theme_constant_override("content_margin_left", 18)
+	button.add_theme_constant_override("content_margin_right", 18)
+	button.add_theme_constant_override("content_margin_top", 10)
+	button.add_theme_constant_override("content_margin_bottom", 10)
 
 
 func _apply_panel_style(panel: Panel) -> void:
