@@ -1,7 +1,7 @@
 [gd_resource type="AtlasTexture" load_steps=2 format=3 uid="uid://c071vobgtnj1g"]
 
-[ext_resource type="Texture2D" uid="uid://bmpqnjdqfh05m" path="res://Assets/UI/icons/menu/icons_menu_atlas .png" id="1_1ij63"]
+[ext_resource type="Texture2D" uid="uid://cvo7h2nor0jma" path="res://Assets/UI/icons/menu/icons_menu_atlas .png" id="1_1ij63"]
 
 [resource]
 atlas = ExtResource("1_1ij63")
-region = Rect2(664, 358, 278, 285)
+region = Rect2(368, 200, 104, 128)
