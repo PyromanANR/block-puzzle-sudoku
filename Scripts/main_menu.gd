@@ -22,18 +22,17 @@ const MUSIC_ATTENUATION_LINEAR = 0.05
 const UI_ICON_MAX = 28
 const UI_ICON_MAX_LARGE = 36
 
-const TOPBAR_H = 88
+const TOPBAR_H = 96
 const TOPBAR_SIDE_W = 170
 const TOPBAR_PAD = 8
-const HERO_TITLE_Y = 90
-const TITLE_FONT = 40
-const SUBTITLE_FONT = 16
-const HERO_TITLE_HEIGHT = 120
+const TITLE_FONT = 48
+const SUBTITLE_FONT = 18
+const HERO_TITLE_HEIGHT = 140
 
-const NAV_HEIGHT = 78
+const NAV_HEIGHT = 110
 const NAV_SIDE_MARGIN = 10
 const NAV_SEPARATION = 8
-const NAV_ICON_SIZE = 48
+const NAV_ICON_SIZE = 90
 
 const PLAYCARD_MAX_W = 500
 const PLAYCARD_PAD = 12
@@ -67,6 +66,8 @@ var difficulty_chip_label: Label
 var level_chip_label: Label
 var level_chip_progress: ProgressBar
 var hero_title_zone: Control
+var hero_title_label: Label
+var hero_subtitle_label: Label
 var mode_description_label: Label
 var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
@@ -100,6 +101,7 @@ func _ready() -> void:
 	_audio_setup()
 	_build_ui()
 	_refresh_all_ui()
+	_update_menu_fx()
 
 
 func _notification(what: int) -> void:
@@ -364,15 +366,18 @@ func _build_top_bar() -> void:
 	content_layer.add_child(top)
 
 	var left_slot = Control.new()
+	left_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	left_slot.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
 	top.add_child(left_slot)
 
 	var center_slot = Control.new()
+	center_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_slot.custom_minimum_size = Vector2(0, TOPBAR_H)
 	top.add_child(center_slot)
 
 	var right_slot = Control.new()
+	right_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_slot.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
 	top.add_child(right_slot)
 
@@ -438,21 +443,34 @@ func _build_top_bar() -> void:
 	center_spacer.custom_minimum_size = Vector2(0, TOPBAR_H)
 	center_slot.add_child(center_spacer)
 
+	var right_row = HBoxContainer.new()
+	right_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	right_row.alignment = BoxContainer.ALIGNMENT_END
+	right_row.add_theme_constant_override("separation", 8)
+	right_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_slot.add_child(right_row)
+
+	if _is_debug_panel_visible():
+		var btn_debug = Button.new()
+		btn_debug.custom_minimum_size = Vector2(TOPBAR_H - 8, TOPBAR_H - 8)
+		btn_debug.expand_icon = true
+		btn_debug.add_theme_constant_override("icon_max_width", TOPBAR_H - 24)
+		btn_debug.text = "🧪"
+		btn_debug.tooltip_text = "Debug"
+		btn_debug.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+		btn_debug.pressed.connect(func(): _play_sfx("ui_click"))
+		btn_debug.pressed.connect(func(): _open_panel(debug_panel))
+		right_row.add_child(btn_debug)
+
 	var btn_settings = Button.new()
-	btn_settings.custom_minimum_size = Vector2(80, TOPBAR_H)
-	btn_settings.anchor_left = 1.0
-	btn_settings.anchor_top = 0.5
-	btn_settings.anchor_right = 1.0
-	btn_settings.anchor_bottom = 0.5
-	btn_settings.offset_left = -80
-	btn_settings.offset_top = -32
-	btn_settings.offset_right = 0
-	btn_settings.offset_bottom = 32
-	_set_button_icon(btn_settings, ICON_SETTINGS, "⚙", "Settings", UI_ICON_MAX_LARGE)
+	btn_settings.custom_minimum_size = Vector2(TOPBAR_H, TOPBAR_H)
+	_set_button_icon(btn_settings, ICON_SETTINGS, "⚙", "Settings", TOPBAR_H - 16)
+	btn_settings.expand_icon = true
+	btn_settings.add_theme_constant_override("icon_max_width", TOPBAR_H - 16)
 	btn_settings.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	btn_settings.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_settings.pressed.connect(func(): _open_panel(settings_panel))
-	right_slot.add_child(btn_settings)
+	right_row.add_child(btn_settings)
 
 
 func _build_play_card() -> void:
@@ -550,8 +568,8 @@ func _build_hero_title() -> void:
 	hero_title_zone.name = "HeroTitle"
 	hero_title_zone.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	hero_title_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hero_title_zone.offset_top = HERO_TITLE_Y
-	hero_title_zone.offset_bottom = HERO_TITLE_Y + HERO_TITLE_HEIGHT
+	hero_title_zone.offset_top = TOPBAR_H + 32
+	hero_title_zone.offset_bottom = TOPBAR_H + 32 + HERO_TITLE_HEIGHT
 	content_layer.add_child(hero_title_zone)
 
 	var center_container = CenterContainer.new()
@@ -570,6 +588,7 @@ func _build_hero_title() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(title)
+	hero_title_label = title
 
 	var subtitle = Label.new()
 	subtitle.text = "Classic block strategy"
@@ -578,15 +597,13 @@ func _build_hero_title() -> void:
 	subtitle.modulate = Color(0.9, 0.9, 0.95, 0.75)
 	subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(subtitle)
+	hero_subtitle_label = subtitle
 
 
 func _build_bottom_nav() -> void:
 	var bottom_bar = Control.new()
 	bottom_bar.name = "BottomBar"
-	bottom_bar.anchor_left = 0.0
-	bottom_bar.anchor_right = 1.0
-	bottom_bar.anchor_top = 1.0
-	bottom_bar.anchor_bottom = 1.0
+	bottom_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom_bar.offset_left = 0
 	bottom_bar.offset_right = 0
 	bottom_bar.offset_bottom = 0
@@ -618,8 +635,6 @@ func _build_bottom_nav() -> void:
 	_add_nav_button(nav_row, "Shop", ICON_SHOP, "🛍", func(): _open_panel(shop_panel))
 	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD, "🏆", func(): _open_panel(leaderboard_panel))
 	_add_nav_button(nav_row, "Quests", ICON_QUESTS, "📜", func(): _open_panel(quests_panel))
-	if _is_debug_panel_visible():
-		_add_nav_button(nav_row, "Debug", "", "🧪", func(): _open_panel(debug_panel))
 
 
 func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: String, fallback_glyph: String, callback: Callable) -> void:
@@ -630,6 +645,8 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 	b.size_flags_stretch_ratio = 1.0
 	b.expand_icon = true
 	b.add_theme_constant_override("icon_max_width", NAV_ICON_SIZE)
+	b.add_theme_constant_override("h_separation", 0)
+	b.add_theme_constant_override("icon_margin", 0)
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.text = ""
 	b.tooltip_text = label_text
@@ -936,6 +953,7 @@ func _refresh_all_ui() -> void:
 	_refresh_mode_description()
 	_refresh_rewards_panel()
 	_refresh_debug_cloud_status()
+	_update_menu_fx()
 
 
 func _refresh_level_chip() -> void:
@@ -949,18 +967,12 @@ func _refresh_level_chip() -> void:
 
 
 func _refresh_difficulty_chip() -> void:
-	if difficulty_chip_label == null:
-		return
 	var difficulty = Save.get_current_difficulty()
-	difficulty_chip_label.text = difficulty
 	var chip_color = _difficulty_color(difficulty)
-	difficulty_chip_label.modulate = chip_color
+	if difficulty_chip_label != null:
+		difficulty_chip_label.text = difficulty
+		difficulty_chip_label.modulate = chip_color
 	_update_difficulty_buttons(difficulty)
-	if difficulty_glow != null:
-		var alpha = 0.13
-		if difficulty == "Hard":
-			alpha = 0.20
-		difficulty_glow.color = Color(chip_color.r, chip_color.g, chip_color.b, alpha)
 	_update_no_mercy_visibility()
 
 
@@ -998,6 +1010,7 @@ func _apply_difficulty_selection(difficulty: String) -> void:
 	if core != null:
 		core.call("ApplyDifficultyFromSave")
 	_refresh_all_ui()
+	_update_menu_fx()
 
 
 func _on_no_mercy_toggled(enabled: bool) -> void:
@@ -1011,6 +1024,7 @@ func _on_no_mercy_toggled(enabled: bool) -> void:
 	if core != null:
 		core.call("ApplyDifficultyFromSave")
 	_refresh_all_ui()
+	_update_menu_fx()
 
 
 func _update_difficulty_buttons(selected: String) -> void:
@@ -1033,6 +1047,24 @@ func _update_no_mercy_visibility() -> void:
 		no_mercy_overlay.visible = is_hard and Save.get_no_mercy()
 
 
+func _update_menu_fx() -> void:
+	var difficulty = Save.get_current_difficulty()
+	if difficulty_glow != null:
+		difficulty_glow.visible = true
+		difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		match difficulty:
+			"Easy":
+				difficulty_glow.color = Color(0.32, 0.92, 0.56, 0.12)
+			"Hard":
+				difficulty_glow.color = Color(0.98, 0.35, 0.33, 0.20)
+			_:
+				difficulty_glow.color = Color(1.0, 0.76, 0.26, 0.13)
+
+	if no_mercy_overlay != null:
+		no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		no_mercy_overlay.visible = difficulty == "Hard" and Save.get_no_mercy()
+
+
 func _build_safe_rect() -> Rect2i:
 	var safe = DisplayServer.get_display_safe_area()
 	if safe.size.x <= 0 or safe.size.y <= 0:
@@ -1048,9 +1080,10 @@ func _apply_safe_area() -> void:
 	safe_left = float(max(0, safe.position.x))
 	safe_top = float(max(0, safe.position.y))
 	safe_right = float(max(0, int(vp.size.x) - (safe.position.x + safe.size.x)))
-	safe_bottom = float(max(0, int(vp.size.y) - (safe.position.y + safe.size.y)))
-	if OS.get_name() != "Android" and OS.get_name() != "iOS":
-		safe_bottom = 0.0
+	var computed_safe_bottom = max(0, int(vp.size.y) - (safe.position.y + safe.size.y))
+	safe_bottom = 0.0
+	if OS.get_name() == "Android" or OS.get_name() == "iOS":
+		safe_bottom = float(computed_safe_bottom)
 
 	var top_bar = content_layer.get_node_or_null("TopBar")
 	if top_bar != null:
@@ -1061,21 +1094,37 @@ func _apply_safe_area() -> void:
 
 	var hero_title = content_layer.get_node_or_null("HeroTitle")
 	if hero_title != null:
+		var top_reserved = safe_top + TOPBAR_H
+		var bottom_reserved = NAV_HEIGHT + safe_bottom
+		var play_card_center_y = (vp.size.y - bottom_reserved + top_reserved) * 0.5
+		var hero_title_center_y = top_reserved + (play_card_center_y - top_reserved) * 0.35
 		hero_title.offset_left = safe_left + 24.0
 		hero_title.offset_right = -safe_right - 24.0
-		hero_title.offset_top = safe_top + HERO_TITLE_Y
-		hero_title.offset_bottom = safe_top + HERO_TITLE_Y + HERO_TITLE_HEIGHT
+		hero_title.offset_top = hero_title_center_y - (HERO_TITLE_HEIGHT * 0.5)
+		hero_title.offset_bottom = hero_title_center_y + (HERO_TITLE_HEIGHT * 0.5)
+		if hero_title_label != null:
+			hero_title_label.text = "Tetris Sudoku"
+			hero_title_label.add_theme_font_size_override("font_size", TITLE_FONT)
+		if hero_subtitle_label != null:
+			hero_subtitle_label.add_theme_font_size_override("font_size", SUBTITLE_FONT)
 
 	var play_card = content_layer.get_node_or_null("PlayCard")
 	if play_card != null:
+		var top_reserved = safe_top + TOPBAR_H
+		var bottom_reserved = NAV_HEIGHT + safe_bottom
+		var play_card_center_y = (vp.size.y - bottom_reserved + top_reserved) * 0.5
+		var play_card_half_h = 180.0
 		var card_width = min(float(PLAYCARD_MAX_W), vp.size.x - (safe_left + safe_right + 32.0))
+		play_card.anchor_top = 0.0
+		play_card.anchor_bottom = 0.0
 		play_card.offset_left = -card_width * 0.5
 		play_card.offset_right = card_width * 0.5
-		play_card.offset_top = -210
-		play_card.offset_bottom = 150
+		play_card.offset_top = play_card_center_y - play_card_half_h
+		play_card.offset_bottom = play_card_center_y + play_card_half_h
 
 	var bottom_bar = bottom_nav_layer.get_node_or_null("BottomBar")
 	if bottom_bar != null:
+		bottom_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 		bottom_bar.offset_left = 0
 		bottom_bar.offset_right = 0
 		bottom_bar.offset_bottom = 0
