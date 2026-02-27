@@ -46,6 +46,7 @@ const PLAYCARD_CHIP_H = 60
 
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
 const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks"
+const MARBLE_BG_DIR = "res://Assets/UI/Background/marble"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
 const MENU_EDGE_FRAME_SHADER_PATH = "res://Assets/Shaders/Menu/ui_difficulty_edge_frame.gdshader"
 const MENU_BG_DEPTH_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_depth_voxel.gdshader"
@@ -97,6 +98,9 @@ var falling_blocks_right: GPUParticles2D
 var falling_block_textures: Array[Texture2D] = []
 var falling_texture_timer: Timer
 var menu_palette_cache: Dictionary = {}
+var _marble_bg_chosen_path: String = ""
+var _marble_bg_texture: Texture2D = null
+var _marble_bg_initialized: bool = false
 
 var rewards_panel: Panel
 var rewards_level_label: Label
@@ -295,32 +299,28 @@ func _build_ui() -> void:
 
 
 func _build_background_layer() -> void:
-	var bg = ColorRect.new()
-	bg.name = "bg_base"
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.95, 0.93, 0.90, 1.0)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	background_layer.add_child(bg)
+	_init_marble_background_once()
 
-	var marble_path = _find_existing_path([
-		"res://Assets/UI/Background/Marble.png",
-		"res://Assets/UI/Background/marble.png",
-		"res://Assets/UI/Background/Menu/marble.png",
-		"res://Assets/UI/Background/Menu/Marble.png"
-	])
-	if marble_path != "":
-		var bg_marble_tex = TextureRect.new()
-		bg_marble_tex.name = "bg_marble_tex"
-		bg_marble_tex.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		bg_marble_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bg_marble_tex.stretch_mode = TextureRect.STRETCH_SCALE
-		bg_marble_tex.texture = load(marble_path)
-		bg_marble_tex.modulate = Color(1, 1, 1, 0.30)
-		background_layer.add_child(bg_marble_tex)
+	var bg_base = ColorRect.new()
+	bg_base.name = "bg_base"
+	bg_base.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg_base.color = Color(0.96, 0.95, 0.93, 1.0)
+	bg_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background_layer.add_child(bg_base)
 
-	bg_depth_overlay = _build_bg_depth_overlay()
-	if bg_depth_overlay != null:
-		background_layer.add_child(bg_depth_overlay)
+	var bg_marble = TextureRect.new()
+	bg_marble.name = "bg_marble"
+	bg_marble.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg_marble.stretch_mode = TextureRect.STRETCH_SCALE
+	bg_marble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _marble_bg_texture != null:
+		bg_marble.texture = _marble_bg_texture
+		bg_marble.visible = true
+	else:
+		bg_marble.visible = false
+	background_layer.add_child(bg_marble)
+
+	bg_depth_overlay = null
 
 	var particles_holder = Control.new()
 	particles_holder.name = "FallingBlocksHolder"
@@ -382,6 +382,51 @@ func _build_bg_depth_overlay() -> TextureRect:
 			overlay.material = shader_material
 	overlay.modulate = Color(1, 1, 1, 0.12)
 	return overlay
+
+
+func _list_png_paths_in_dir(dir_path: String) -> Array[String]:
+	var out: Array[String] = []
+	# Prefer ResourceLoader.list_directory for exported builds if available.
+	# It knows about imported resources (.import/.remap). (Forum guidance)
+	if ResourceLoader.has_method("list_directory"):
+		var files = ResourceLoader.list_directory(dir_path)
+		if typeof(files) == TYPE_ARRAY or typeof(files) == TYPE_PACKED_STRING_ARRAY:
+			for f in files:
+				var s = String(f)
+				if s.to_lower().ends_with(".png"):
+					out.append(dir_path + "/" + s)
+		return out
+
+	# Fallback to DirAccess for editor/dev.
+	var dir = DirAccess.open(dir_path)
+	if dir == null:
+		return out
+	for f in dir.get_files():
+		var s = String(f)
+		if s.to_lower().ends_with(".png") and not s.to_lower().ends_with(".png.import"):
+			out.append(dir_path + "/" + s)
+	return out
+
+
+func _init_marble_background_once() -> void:
+	if _marble_bg_initialized:
+		return
+	_marble_bg_initialized = true
+
+	var candidates = _list_png_paths_in_dir(MARBLE_BG_DIR)
+	if candidates.is_empty():
+		_marble_bg_chosen_path = ""
+		_marble_bg_texture = null
+		return
+
+	randomize()
+	_marble_bg_chosen_path = candidates[randi() % candidates.size()]
+	if ResourceLoader.exists(_marble_bg_chosen_path):
+		var t = load(_marble_bg_chosen_path)
+		if t is Texture2D:
+			_marble_bg_texture = t as Texture2D
+		else:
+			_marble_bg_texture = null
 
 
 func _build_edge_frame_shader_material() -> ShaderMaterial:
