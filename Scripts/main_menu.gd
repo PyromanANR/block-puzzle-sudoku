@@ -843,7 +843,7 @@ func _build_hero_title() -> void:
 	hero_title_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero_title_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero_title_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	hero_title_texture.custom_minimum_size = Vector2(int(round(560.0 * 1.35)), int(round((HERO_TITLE_HEIGHT + 18.0) * 1.35)))
+	hero_title_texture.custom_minimum_size = Vector2(int(round(560.0 * 1.8)), int(round((HERO_TITLE_HEIGHT) * 1.8)))
 	hero_title_texture.visible = false
 	center.add_child(hero_title_texture)
 

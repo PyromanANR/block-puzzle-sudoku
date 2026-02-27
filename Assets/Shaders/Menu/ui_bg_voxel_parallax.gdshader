@@ -3,7 +3,7 @@ render_mode unshaded;
 
 // Tune per emitter (make 2 emitters for parallax: bg and fg).
 uniform float layer_depth : hint_range(0.0, 1.0) = 0.35; // 0=far, 1=near
-uniform float parallax_strength : hint_range(0.0, 0.05) = 0.015;
+uniform float parallax_strength : hint_range(0.0, 0.05) = 0.025;
 
 // "Voxel-ish" look
 uniform float pixel_snap : hint_range(0.0, 8.0) = 2.0;   // 0 disables, >0 snaps UV to texel grid
