@@ -99,6 +99,9 @@ var _marble_bg_chosen_path: String = ""
 var _marble_bg_texture: Texture2D = null
 var _marble_bg_initialized: bool = false
 var _no_mercy_sparks_missing_logged: bool = false
+var _play_idle_tween: Tween = null
+var current_nav: String = ""
+var nav_buttons: Dictionary = {}
 
 var rewards_panel: Panel
 var rewards_level_label: Label
@@ -351,6 +354,8 @@ func _build_background_layer() -> void:
 	spawner.name = "FallingBlocksSpawner"
 	particles_holder.add_child(spawner)
 
+	_ensure_ui_vignette()
+
 	difficulty_glow = ColorRect.new()
 	difficulty_glow.name = "difficulty_edge_frame"
 	difficulty_glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -479,7 +484,7 @@ func _build_top_bar() -> void:
 
 	var level_chip = Button.new()
 	level_chip.text = ""
-	level_chip.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
+	level_chip.custom_minimum_size = Vector2(int(TOPBAR_SIDE_W * 0.9), int(TOPBAR_H * 0.9))
 	level_chip.anchor_left = 0.0
 	level_chip.anchor_top = 0.0
 	level_chip.anchor_right = 0.0
@@ -620,6 +625,7 @@ func _build_top_bar() -> void:
 		btn_debug.custom_minimum_size = Vector2(TOPBAR_BTN, TOPBAR_BTN)
 		btn_debug.expand_icon = true
 		btn_debug.add_theme_constant_override("icon_max_width", TOPBAR_BTN - 12)
+		_apply_top_icon_button_style(btn_debug)
 		_set_button_icon(btn_debug, ICON_DEBUG_TRES, "🧪", "Debug", TOPBAR_BTN - 12)
 		btn_debug.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 		btn_debug.pressed.connect(func(): _play_sfx("ui_click"))
@@ -628,6 +634,7 @@ func _build_top_bar() -> void:
 
 	var btn_settings = Button.new()
 	btn_settings.custom_minimum_size = Vector2(TOPBAR_BTN, TOPBAR_BTN)
+	_apply_top_icon_button_style(btn_settings)
 	_set_button_icon(btn_settings, ICON_SETTINGS_TRES, "⚙", "Settings", TOPBAR_BTN - 12)
 	btn_settings.expand_icon = true
 	btn_settings.add_theme_constant_override("icon_max_width", TOPBAR_BTN - 12)
@@ -685,6 +692,7 @@ func _build_play_card() -> void:
 	play_button.pressed.connect(_on_start)
 	play_wrap.add_child(play_button)
 	_apply_button_style(play_button, "primary")
+	_start_play_idle_animation(play_button)
 
 	var after_play_spacer = Control.new()
 	after_play_spacer.custom_minimum_size = Vector2(0, 4)
@@ -693,7 +701,7 @@ func _build_play_card() -> void:
 	var difficulty_title = Label.new()
 	difficulty_title.text = "Select Difficulty"
 	difficulty_title.add_theme_font_size_override("font_size", 24)
-	_apply_playcard_text_style(difficulty_title)
+	_apply_label_readability(difficulty_title, "strong")
 	v.add_child(difficulty_title)
 
 	var chips = HBoxContainer.new()
@@ -745,7 +753,8 @@ func _build_play_card() -> void:
 	no_mercy_help.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	no_mercy_help.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	no_mercy_help.custom_minimum_size = Vector2(0, 28)
-	_apply_playcard_text_style(no_mercy_help)
+	no_mercy_help.add_theme_font_size_override("font_size", 22)
+	_apply_label_readability(no_mercy_help, "normal")
 	v.add_child(no_mercy_help)
 
 	mode_description_label = Label.new()
@@ -753,7 +762,8 @@ func _build_play_card() -> void:
 	mode_description_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mode_description_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	mode_description_label.custom_minimum_size = Vector2(0, 34)
-	_apply_playcard_text_style(mode_description_label)
+	mode_description_label.add_theme_font_size_override("font_size", 22)
+	_apply_label_readability(mode_description_label, "muted")
 	v.add_child(mode_description_label)
 
 func _build_hero_title() -> void:
@@ -816,6 +826,7 @@ func _build_hero_title() -> void:
 
 
 func _build_bottom_nav() -> void:
+	nav_buttons.clear()
 	var bottom_bar = Control.new()
 	bottom_bar.name = "BottomBar"
 	bottom_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
@@ -850,6 +861,10 @@ func _build_bottom_nav() -> void:
 	_add_nav_button(nav_row, "Rewards", ICON_REWARDS_PNG, "🎁", func(): _open_panel(rewards_panel))
 	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD_TRES, "🏆", func(): _open_panel(leaderboard_panel))
 	_add_nav_button(nav_row, "Quests", ICON_QUESTS_TRES, "📜", func(): _open_panel(quests_panel))
+	if current_nav == "":
+		_set_active_nav("Shop")
+	else:
+		_set_active_nav(current_nav)
 
 
 func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: String, fallback_glyph: String, callback: Callable) -> void:
@@ -868,6 +883,18 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	_apply_button_style(b, "small")
+	var active_underline = ColorRect.new()
+	active_underline.name = "ActiveUnderline"
+	active_underline.anchor_left = 0.2
+	active_underline.anchor_right = 0.8
+	active_underline.anchor_top = 1.0
+	active_underline.anchor_bottom = 1.0
+	active_underline.offset_top = -8
+	active_underline.offset_bottom = -3
+	active_underline.color = Color(1.0, 0.88, 0.50, 0.88)
+	active_underline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	active_underline.visible = false
+	b.add_child(active_underline)
 	if icon_path != "":
 		var tex = _load_icon_any(icon_path)
 		if tex != null:
@@ -883,8 +910,10 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 		b.add_child(fallback)
 	b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	b.pressed.connect(func(): _play_sfx("ui_click"))
+	b.pressed.connect(func(): _set_active_nav(label_text))
 	b.pressed.connect(callback)
 	parent.add_child(b)
+	nav_buttons[label_text] = b
 
 
 func _build_modal_layer() -> void:
@@ -1594,6 +1623,105 @@ func _apply_small_button_readability(button: Button) -> void:
 	button.add_theme_constant_override("content_margin_right", 18)
 	button.add_theme_constant_override("content_margin_top", 10)
 	button.add_theme_constant_override("content_margin_bottom", 10)
+
+
+func _apply_label_readability(label: Label, strength: String) -> void:
+	if label == null:
+		return
+	var font_size = int(label.get_theme_font_size("font_size"))
+	if font_size <= 0:
+		font_size = 20
+	var font_color = Color(0.11, 0.08, 0.06, 1.0)
+	var outline_color = Color(1.0, 1.0, 1.0, 0.22)
+	var outline_size = 1
+	if strength == "strong":
+		font_color = Color(0.08, 0.06, 0.04, 1.0)
+		outline_size = 2
+		font_size += 2
+	elif strength == "muted":
+		font_color = Color(0.19, 0.15, 0.12, 0.95)
+		outline_color = Color(1.0, 1.0, 1.0, 0.18)
+		outline_size = 1
+		font_size = max(12, font_size - 2)
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", font_color)
+	label.add_theme_constant_override("outline_size", outline_size)
+	label.add_theme_color_override("font_outline_color", outline_color)
+
+
+func _start_play_idle_animation(play_button: Button) -> void:
+	if play_button == null:
+		return
+	if _play_idle_tween != null and _play_idle_tween.is_valid():
+		_play_idle_tween.kill()
+	play_button.scale = Vector2.ONE
+	play_button.modulate = Color(1, 1, 1, 1)
+	_play_idle_tween = create_tween()
+	_play_idle_tween.set_loops()
+	_play_idle_tween.tween_interval(1.7)
+	_play_idle_tween.tween_property(play_button, "scale", Vector2(1.02, 1.02), 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_play_idle_tween.parallel().tween_property(play_button, "modulate", Color(1, 1, 1, 0.93), 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_play_idle_tween.tween_property(play_button, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_play_idle_tween.parallel().tween_property(play_button, "modulate", Color(1, 1, 1, 1), 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _set_active_nav(name: String) -> void:
+	current_nav = name
+	for key in nav_buttons.keys():
+		var btn = nav_buttons[key] as Button
+		if btn == null:
+			continue
+		var is_active = String(key) == name
+		btn.modulate = Color(1, 1, 1, 1) if is_active else Color(1, 1, 1, 0.92)
+		btn.add_theme_constant_override("outline_size", 8 if is_active else 6)
+		btn.add_theme_color_override("font_outline_color", Color(1.0, 0.96, 0.80, 0.42) if is_active else Color(1.0, 1.0, 1.0, 0.20))
+		var underline = btn.get_node_or_null("ActiveUnderline") as ColorRect
+		if underline != null:
+			underline.visible = is_active
+
+
+func _apply_top_icon_button_style(btn: Button) -> void:
+	if btn == null:
+		return
+	_apply_button_style(btn, "small")
+	btn.add_theme_constant_override("content_margin_left", 8)
+	btn.add_theme_constant_override("content_margin_right", 8)
+	btn.add_theme_constant_override("content_margin_top", 8)
+	btn.add_theme_constant_override("content_margin_bottom", 8)
+
+
+func _ensure_ui_vignette() -> void:
+	if background_layer == null:
+		return
+	var existing = background_layer.get_node_or_null("ui_vignette")
+	if existing != null:
+		existing.queue_free()
+	var ui_vignette = ColorRect.new()
+	ui_vignette.name = "ui_vignette"
+	ui_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ui_vignette.color = Color(1, 1, 1, 1)
+	ui_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shader = Shader.new()
+	shader.code = """
+shader_type canvas_item;
+
+uniform float dim_strength : hint_range(0.0, 1.0) = 0.14;
+uniform vec2 center = vec2(0.5, 0.52);
+uniform vec2 radius = vec2(0.25, 0.34);
+
+void fragment() {
+	vec2 uv = UV;
+	vec2 d = (uv - center) / max(radius, vec2(0.001));
+	float dist = length(d);
+	float mask = 1.0 - smoothstep(0.0, 1.0, dist);
+	float alpha = dim_strength * mask;
+	COLOR = vec4(0.0, 0.0, 0.0, alpha);
+}
+"""
+	var mat = ShaderMaterial.new()
+	mat.shader = shader
+	ui_vignette.material = mat
+	background_layer.add_child(ui_vignette)
 
 
 func _apply_playcard_text_style(label: Label) -> void:
