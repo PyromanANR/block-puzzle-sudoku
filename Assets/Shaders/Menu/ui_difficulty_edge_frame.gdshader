@@ -9,7 +9,7 @@ uniform float edge_w_sides = 0.012;
 uniform float edge_w_bottom = 0.010;
 
 uniform float softness = 0.45;
-uniform float intensity = 0.14;
+uniform float intensity = 0.07;
 
 uniform float core_boost = 1.9;
 uniform float core_power = 3.0;
@@ -21,7 +21,7 @@ uniform float halo_boost = 1.10;
 uniform float halo_power = 1.15;
 
 uniform float halo_tail_width = 0.22;   // long fade distance into center
-uniform float halo_tail_boost = 0.35;   // how strong the long fade is
+uniform float halo_tail_boost = 0.15;   // how strong the long fade is
 uniform float halo_tail_power = 1.8;    // higher = slower start, smoother tail
 
 // Extra: make TOP halo slightly weaker if you want (optional)
