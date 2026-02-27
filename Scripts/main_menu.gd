@@ -25,8 +25,8 @@ const TOPBAR_H = 96
 const TOPBAR_SIDE_W = 170
 const TOPBAR_PAD = 8
 const TOPBAR_BTN = 68
-const TITLE_FONT = 52
-const SUBTITLE_FONT = 18
+const TITLE_FONT = 68
+const SUBTITLE_FONT = 23
 const HERO_TITLE_HEIGHT = 140
 
 const NAV_HEIGHT = 120
@@ -34,11 +34,11 @@ const NAV_SIDE_MARGIN = 10
 const NAV_SEPARATION = 8
 const NAV_ICON_SIZE = 108
 
-const PLAYCARD_MAX_W = 560
-const PLAYCARD_PAD = 12
-const PLAYCARD_SEPARATION = 8
-const PLAYCARD_BUTTON_H = 60
-const PLAYCARD_CHIP_H = 46
+const PLAYCARD_MAX_W = 728
+const PLAYCARD_PAD = 16
+const PLAYCARD_SEPARATION = 10
+const PLAYCARD_BUTTON_H = 78
+const PLAYCARD_CHIP_H = 60
 
 const BG_FRAMES_DIR = "res://Assets/UI/Background/FallingBlocks/frames"
 const NO_MERCY_OVERLAY_PATH = "res://Assets/UI/Background/NoMercy/overlay.png"
@@ -594,7 +594,9 @@ func _build_hero_title() -> void:
 
 	var title = Label.new()
 	title.text = "Tetris Sudoku"
-	title.add_theme_font_size_override("font_size", TITLE_FONT)
+	var title_label_settings = LabelSettings.new()
+	title_label_settings.font_size = TITLE_FONT
+	title.label_settings = title_label_settings
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(title)
@@ -603,7 +605,9 @@ func _build_hero_title() -> void:
 	var subtitle = Label.new()
 	subtitle.text = "Classic block strategy"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_font_size_override("font_size", SUBTITLE_FONT)
+	var subtitle_label_settings = LabelSettings.new()
+	subtitle_label_settings.font_size = SUBTITLE_FONT
+	subtitle.label_settings = subtitle_label_settings
 	subtitle.modulate = Color(0.9, 0.9, 0.95, 0.75)
 	subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(subtitle)
@@ -1165,18 +1169,20 @@ func _apply_safe_area() -> void:
 		hero_title.offset_bottom = title_center_y + (HERO_TITLE_HEIGHT * 0.5)
 		if hero_title_label != null:
 			hero_title_label.text = "Tetris Sudoku"
-			hero_title_label.add_theme_font_size_override("font_size", TITLE_FONT)
+			if hero_title_label.label_settings != null:
+				hero_title_label.label_settings.font_size = TITLE_FONT
 		if hero_subtitle_label != null:
-			hero_subtitle_label.add_theme_font_size_override("font_size", SUBTITLE_FONT)
+			if hero_subtitle_label.label_settings != null:
+				hero_subtitle_label.label_settings.font_size = SUBTITLE_FONT
 
 	var play_card = content_layer.get_node_or_null("PlayCard")
 	if play_card != null:
 		var play_card_half_h = 200.0
-		var card_width = min(float(PLAYCARD_MAX_W), vp.size.x - (safe_left + safe_right + 32.0))
+		var max_w = min(float(PLAYCARD_MAX_W), vp.size.x - (safe_left + safe_right + 32.0))
 		play_card.anchor_top = 0.0
 		play_card.anchor_bottom = 0.0
-		play_card.offset_left = -card_width * 0.5
-		play_card.offset_right = card_width * 0.5
+		play_card.offset_left = -max_w * 0.5
+		play_card.offset_right = max_w * 0.5
 		play_card.offset_top = play_card_center_y - play_card_half_h
 		play_card.offset_bottom = play_card_center_y + play_card_half_h
 
