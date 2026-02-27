@@ -226,6 +226,8 @@ const TIME_SLOW_ATLAS_PNG_PATH = "res://Assets/UI/time_slow/time_slow_atlas.png"
 const SETTINGS_PATH = "user://settings.cfg"
 const MUSIC_ATTENUATION_LINEAR = 0.05
 const GAME_OVER_SFX_PATH = "res://Assets/Audio/SFX/game_over.ogg"
+const MENU_ICON_SETTINGS_TRES = "res://Assets/UI/icons/menu/icon_settings.tres"
+const MENU_ICON_CLOSE_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -834,7 +836,7 @@ func _build_ui() -> void:
 	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_exit.ignore_texture_size = true
 	btn_exit.mouse_filter = Control.MOUSE_FILTER_STOP
-	_apply_header_button_icon(btn_exit, "res://Assets/UI/icons/icon_close.png", "X", 34)
+	_apply_header_button_icon(btn_exit, MENU_ICON_CLOSE_TRES, "X", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
 	left_button_section.add_child(btn_exit)
@@ -916,7 +918,7 @@ func _build_ui() -> void:
 	btn_settings.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_settings.ignore_texture_size = true
 	btn_settings.mouse_filter = Control.MOUSE_FILTER_STOP
-	_apply_header_button_icon(btn_settings, "res://Assets/UI/icons/icon_settings.png", "⚙", 40)
+	_apply_header_button_icon(btn_settings, MENU_ICON_SETTINGS_TRES, "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
 	right_button_section.add_child(btn_settings)
@@ -1254,18 +1256,23 @@ func _add_icon_or_fallback(parent: Control, icon_key: String, fallback_size: int
 func _apply_header_button_icon(btn: TextureButton, icon_path: String, fallback_text: String, fallback_size: int) -> void:
 	for ch in btn.get_children():
 		ch.queue_free()
+	btn.texture_normal = null
+	btn.texture_pressed = null
+	btn.texture_hover = null
+	btn.texture_disabled = null
 	if ResourceLoader.exists(icon_path):
-		var tex = load(icon_path) as Texture2D
+		var icon_resource = load(icon_path)
+		var tex: Texture2D = null
+		if icon_resource is Texture2D:
+			tex = icon_resource as Texture2D
+		elif icon_resource is AtlasTexture:
+			tex = icon_resource as AtlasTexture
 		if tex != null:
 			btn.texture_normal = tex
 			btn.texture_pressed = tex
 			btn.texture_hover = tex
 			btn.texture_disabled = tex
 			return
-	btn.texture_normal = null
-	btn.texture_pressed = null
-	btn.texture_hover = null
-	btn.texture_disabled = null
 	var fallback = Label.new()
 	fallback.text = fallback_text
 	fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
