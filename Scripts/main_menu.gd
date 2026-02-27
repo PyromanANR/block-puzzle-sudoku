@@ -87,6 +87,7 @@ var hero_title_label: Label
 var hero_title_texture: TextureRect
 var hero_subtitle_label: Label
 var mode_description_label: Label
+var no_mercy_panel: Panel
 var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
@@ -504,58 +505,22 @@ func _build_top_bar() -> void:
 	chip_col.add_theme_constant_override("separation", 4)
 	chip_margin.add_child(chip_col)
 
-	var rank_top_row = HBoxContainer.new()
-	rank_top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rank_top_row.add_theme_constant_override("separation", 6)
-	chip_col.add_child(rank_top_row)
-
-	var badge_icon = TextureRect.new()
-	badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	badge_icon.custom_minimum_size = Vector2(18, 18)
-	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var badge_tex = _load_icon(ICON_BADGE_TRES)
-	if badge_tex != null:
-		badge_icon.texture = badge_tex
-	rank_top_row.add_child(badge_icon)
-	if badge_icon.texture == null:
-		var badge_fallback = Label.new()
-		badge_fallback.text = "🏅"
-		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		rank_top_row.add_child(badge_fallback)
-
-	var rank_label = Label.new()
-	rank_label.text = "RANK"
-	rank_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	rank_label.add_theme_font_size_override("font_size", 14)
-	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
-	rank_top_row.add_child(rank_label)
-
-	var rank_spacer = Control.new()
-	rank_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rank_top_row.add_child(rank_spacer)
-
 	level_chip_label = Label.new()
 	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	level_chip_label.add_theme_font_size_override("font_size", 15)
 	level_chip_label.clip_text = true
 	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
-	rank_top_row.add_child(level_chip_label)
-
-	var xp_wrap = CenterContainer.new()
-	xp_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	chip_col.add_child(xp_wrap)
+	chip_col.add_child(level_chip_label)
 
 	level_chip_progress = ProgressBar.new()
 	level_chip_progress.min_value = 0.0
 	level_chip_progress.max_value = 1.0
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
-	level_chip_progress.custom_minimum_size = Vector2(150, 10)
-	level_chip_progress.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	level_chip_progress.custom_minimum_size = Vector2(0, 10)
+	level_chip_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	level_chip_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if ResourceLoader.exists(XP_BAR_BG_PATH):
 		var xp_bg = load(XP_BAR_BG_PATH)
@@ -565,7 +530,40 @@ func _build_top_bar() -> void:
 		var xp_fill = load(XP_BAR_FILL_PATH)
 		if xp_fill is StyleBox:
 			level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
-	xp_wrap.add_child(level_chip_progress)
+	chip_col.add_child(level_chip_progress)
+
+	var bottom_row = HBoxContainer.new()
+	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	bottom_row.add_theme_constant_override("separation", 8)
+	chip_col.add_child(bottom_row)
+
+	var badge_icon = TextureRect.new()
+	badge_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH
+	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	badge_icon.custom_minimum_size = Vector2(56, 0)
+	badge_icon.size_flags_horizontal = Control.SIZE_FILL
+	badge_icon.size_flags_vertical = Control.SIZE_FILL
+	var badge_tex = _load_icon(ICON_BADGE_TRES)
+	if badge_tex != null:
+		badge_icon.texture = badge_tex
+	bottom_row.add_child(badge_icon)
+	if badge_icon.texture == null:
+		var badge_fallback = Label.new()
+		badge_fallback.text = "🏅"
+		badge_fallback.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		badge_fallback.add_theme_font_size_override("font_size", 28)
+		bottom_row.add_child(badge_fallback)
+
+	var rank_label = Label.new()
+	rank_label.text = "RANK"
+	rank_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rank_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rank_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	rank_label.add_theme_font_size_override("font_size", 16)
+	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
+	bottom_row.add_child(rank_label)
 
 	var center_spacer = Control.new()
 	center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -679,16 +677,57 @@ func _build_play_card() -> void:
 		_apply_button_style(chip, "small")
 		difficulty_chip_buttons[diff] = chip
 
+	no_mercy_panel = Panel.new()
+	no_mercy_panel.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
+	no_mercy_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	no_mercy_panel.focus_mode = Control.FOCUS_NONE
+	no_mercy_panel.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	v.add_child(no_mercy_panel)
+
+	var no_mercy_margin = MarginContainer.new()
+	no_mercy_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	no_mercy_margin.add_theme_constant_override("margin_left", 18)
+	no_mercy_margin.add_theme_constant_override("margin_right", 18)
+	no_mercy_margin.add_theme_constant_override("margin_top", 10)
+	no_mercy_margin.add_theme_constant_override("margin_bottom", 10)
+	no_mercy_panel.add_child(no_mercy_margin)
+
+	var no_mercy_row = HBoxContainer.new()
+	no_mercy_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	no_mercy_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	no_mercy_row.add_theme_constant_override("separation", 10)
+	no_mercy_margin.add_child(no_mercy_row)
+
+	var no_mercy_label = Label.new()
+	no_mercy_label.text = "No Mercy"
+	no_mercy_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	no_mercy_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	no_mercy_label.add_theme_font_size_override("font_size", 22)
+	no_mercy_row.add_child(no_mercy_label)
+
+	var no_mercy_spacer = Control.new()
+	no_mercy_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	no_mercy_row.add_child(no_mercy_spacer)
+
 	no_mercy_toggle = CheckBox.new()
 	no_mercy_toggle.button_pressed = Save.get_no_mercy()
-	no_mercy_toggle.text = "No Mercy"
-	no_mercy_toggle.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
-	no_mercy_toggle.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	no_mercy_toggle.text = ""
+	no_mercy_toggle.focus_mode = Control.FOCUS_NONE
 	no_mercy_toggle.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	no_mercy_toggle.pressed.connect(func(): _play_sfx("ui_click"))
 	no_mercy_toggle.toggled.connect(_on_no_mercy_toggled)
-	v.add_child(no_mercy_toggle)
-	_apply_no_mercy_checkbox_style(no_mercy_toggle)
+	no_mercy_row.add_child(no_mercy_toggle)
+
+	no_mercy_panel.gui_input.connect(func(event: InputEvent):
+		if event is InputEventMouseButton:
+			var mouse_event := event as InputEventMouseButton
+			if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
+				if no_mercy_toggle.get_global_rect().has_point(get_global_mouse_position()):
+					return
+				_play_sfx("ui_click")
+				no_mercy_toggle.button_pressed = not no_mercy_toggle.button_pressed
+	)
+	_apply_no_mercy_checkbox_style(no_mercy_toggle, no_mercy_panel, no_mercy_label)
 
 	no_mercy_help = Label.new()
 	no_mercy_help.text = "No Mercy removes reserve slots."
@@ -1230,7 +1269,10 @@ func _update_no_mercy_visibility() -> void:
 	if no_mercy_toggle == null:
 		return
 	var is_hard = Save.get_current_difficulty() == "Hard"
-	no_mercy_toggle.visible = is_hard
+	if no_mercy_panel != null:
+		no_mercy_panel.visible = is_hard
+	else:
+		no_mercy_toggle.visible = is_hard
 	no_mercy_help.visible = is_hard
 	if is_hard:
 		no_mercy_toggle.button_pressed = Save.get_no_mercy()
@@ -1493,29 +1535,33 @@ func _apply_playcard_text_style(label: Label) -> void:
 	label.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.20))
 
 
-func _apply_no_mercy_checkbox_style(checkbox: CheckBox) -> void:
+func _apply_no_mercy_checkbox_style(checkbox: CheckBox, panel: Panel = null, label: Label = null) -> void:
 	if checkbox == null:
 		return
-	var chip_style = _stylebox_9slice(NINEPATCH_TOP_CHIP_PATH)
-	if chip_style != null:
-		checkbox.add_theme_stylebox_override("normal", chip_style)
-		checkbox.add_theme_stylebox_override("hover", chip_style.duplicate())
-		checkbox.add_theme_stylebox_override("pressed", chip_style.duplicate())
-		checkbox.add_theme_stylebox_override("hover_pressed", chip_style.duplicate())
-		checkbox.add_theme_stylebox_override("disabled", chip_style.duplicate())
-		checkbox.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	checkbox.add_theme_color_override("font_color", Color(0.10, 0.07, 0.05, 1))
-	checkbox.add_theme_color_override("font_hover_color", Color(0.10, 0.07, 0.05, 1))
-	checkbox.add_theme_color_override("font_pressed_color", Color(0.10, 0.07, 0.05, 1))
-	checkbox.add_theme_constant_override("outline_size", 2)
-	checkbox.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.25))
-	checkbox.add_theme_font_size_override("font_size", 22)
-	checkbox.add_theme_constant_override("content_margin_left", 28)
-	checkbox.add_theme_constant_override("content_margin_right", 18)
-	checkbox.add_theme_constant_override("content_margin_top", 10)
-	checkbox.add_theme_constant_override("content_margin_bottom", 10)
+	if panel != null:
+		var chip_style = _stylebox_9slice(NINEPATCH_TOP_CHIP_PATH)
+		if chip_style != null:
+			panel.add_theme_stylebox_override("panel", chip_style)
+	var font_color = Color(0.10, 0.07, 0.05, 1)
+	checkbox.add_theme_color_override("font_color", font_color)
+	checkbox.add_theme_color_override("font_hover_color", font_color)
+	checkbox.add_theme_color_override("font_pressed_color", font_color)
+	checkbox.add_theme_color_override("font_hover_pressed_color", font_color)
+	checkbox.add_theme_color_override("font_focus_color", font_color)
+	checkbox.add_theme_color_override("font_disabled_color", font_color)
+	checkbox.add_theme_constant_override("outline_size", 0)
+	checkbox.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0))
+	checkbox.add_theme_constant_override("h_separation", 0)
 	checkbox.modulate = Color(1, 1, 1, 1)
 	checkbox.focus_mode = Control.FOCUS_NONE
+	if label != null:
+		label.add_theme_color_override("font_color", font_color)
+		label.add_theme_color_override("font_hover_color", font_color)
+		label.add_theme_color_override("font_pressed_color", font_color)
+		label.add_theme_color_override("font_hover_pressed_color", font_color)
+		label.add_theme_color_override("font_focus_color", font_color)
+		label.add_theme_constant_override("outline_size", 2)
+		label.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.25))
 
 
 func _apply_panel_style(panel: Panel) -> void:
