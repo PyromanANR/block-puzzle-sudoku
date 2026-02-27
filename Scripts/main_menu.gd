@@ -13,6 +13,7 @@ const ICON_SETTINGS_TRES = "res://Assets/UI/icons/menu/icon_settings.tres"
 const ICON_SHOP_TRES = "res://Assets/UI/icons/menu/icon_shop.tres"
 const ICON_LEADERBOARD_TRES = "res://Assets/UI/icons/menu/icon_leaderboard.tres"
 const ICON_QUESTS_TRES = "res://Assets/UI/icons/menu/icon_quests.tres"
+const ICON_REWARDS_PNG = "res://Assets/UI/icons/menu/rewards.png"
 const ICON_DEBUG_TRES = "res://Assets/UI/icons/menu/icon_debug.tres"
 const ICON_CLOSE_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
 const ICON_BADGE_TRES = "res://Assets/UI/icons/menu/icon_badge.tres"
@@ -40,6 +41,8 @@ const NAV_ICON_SIZE = 108
 
 const PLAYCARD_MAX_W = 728
 const PLAYCARD_INNER_PAD = 12
+const PLAYCARD_FRAME_PAD_X = 65
+const PLAYCARD_FRAME_PAD_Y = 46
 const PLAYCARD_GAP = 8
 const PLAYCARD_BUTTON_H = 78
 const PLAYCARD_CHIP_H = 60
@@ -474,6 +477,7 @@ func _build_top_bar() -> void:
 	row.add_child(right_slot)
 
 	var level_chip = Button.new()
+	level_chip.text = ""
 	level_chip.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
 	level_chip.anchor_left = 0.0
 	level_chip.anchor_top = 0.0
@@ -497,12 +501,14 @@ func _build_top_bar() -> void:
 	level_chip.add_child(chip_margin)
 
 	var chip_row = HBoxContainer.new()
+	chip_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	chip_row.add_theme_constant_override("separation", 8)
 	chip_margin.add_child(chip_row)
 
 	var badge_icon = TextureRect.new()
+	badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	badge_icon.custom_minimum_size = Vector2(34, 34)
+	badge_icon.custom_minimum_size = Vector2(28, 28)
 	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var badge_tex = _load_icon(ICON_BADGE_TRES)
@@ -524,6 +530,8 @@ func _build_top_bar() -> void:
 	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	level_chip_label.add_theme_font_size_override("font_size", 18)
+	level_chip_label.clip_text = true
 	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
 	level_stack.add_child(level_chip_label)
 
@@ -532,14 +540,17 @@ func _build_top_bar() -> void:
 	level_chip_progress.max_value = 1.0
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
-	level_chip_progress.custom_minimum_size = Vector2(0, 13)
+	level_chip_progress.custom_minimum_size = Vector2(0, 12)
 	level_chip_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var xp_bg = load(XP_BAR_BG_PATH)
-	if xp_bg is StyleBox:
-		level_chip_progress.add_theme_stylebox_override("background", xp_bg)
-	var xp_fill = load(XP_BAR_FILL_PATH)
-	if xp_fill is StyleBox:
-		level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
+	level_chip_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if ResourceLoader.exists(XP_BAR_BG_PATH):
+		var xp_bg = load(XP_BAR_BG_PATH)
+		if xp_bg is StyleBox:
+			level_chip_progress.add_theme_stylebox_override("background", xp_bg)
+	if ResourceLoader.exists(XP_BAR_FILL_PATH):
+		var xp_fill = load(XP_BAR_FILL_PATH)
+		if xp_fill is StyleBox:
+			level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
 	level_stack.add_child(level_chip_progress)
 
 	var center_spacer = Control.new()
@@ -599,25 +610,32 @@ func _build_play_card() -> void:
 	margin.add_theme_constant_override("margin_bottom", PLAYCARD_INNER_PAD)
 	card.add_child(margin)
 
+	var inner = MarginContainer.new()
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inner.add_theme_constant_override("margin_left", PLAYCARD_FRAME_PAD_X)
+	inner.add_theme_constant_override("margin_right", PLAYCARD_FRAME_PAD_X)
+	inner.add_theme_constant_override("margin_top", PLAYCARD_FRAME_PAD_Y)
+	inner.add_theme_constant_override("margin_bottom", PLAYCARD_FRAME_PAD_Y)
+	margin.add_child(inner)
+
 	var v = VBoxContainer.new()
 	v.add_theme_constant_override("separation", PLAYCARD_GAP)
-	margin.add_child(v)
+	inner.add_child(v)
+
+	var play_wrap = CenterContainer.new()
+	play_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_child(play_wrap)
 
 	var play_button = Button.new()
-	# Play button fix: clip text and keep banner text centered inside the 9-patch bounds.
-	play_button.text = "PLAY"
-	play_button.custom_minimum_size = Vector2(0, PLAYCARD_BUTTON_H)
+	play_button.text = ""
+	play_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	play_button.custom_minimum_size = Vector2(520, PLAYCARD_BUTTON_H)
 	play_button.clip_text = true
 	play_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	play_button.add_theme_font_size_override("font_size", 34)
-	play_button.add_theme_constant_override("content_margin_left", 24)
-	play_button.add_theme_constant_override("content_margin_right", 24)
-	play_button.add_theme_constant_override("content_margin_top", 12)
-	play_button.add_theme_constant_override("content_margin_bottom", 12)
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	play_button.pressed.connect(func(): _play_sfx("ui_click"))
 	play_button.pressed.connect(_on_start)
-	v.add_child(play_button)
+	play_wrap.add_child(play_button)
 	_apply_button_style(play_button, "primary")
 
 	var difficulty_title = Label.new()
@@ -665,31 +683,6 @@ func _build_play_card() -> void:
 	mode_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	mode_description_label.modulate = Color(0.9, 0.9, 1.0, 0.84)
 	v.add_child(mode_description_label)
-
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", PLAYCARD_GAP)
-	v.add_child(row)
-
-	var rewards_btn = Button.new()
-	rewards_btn.text = "Rewards"
-	rewards_btn.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
-	rewards_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rewards_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	rewards_btn.pressed.connect(func(): _play_sfx("ui_click"))
-	rewards_btn.pressed.connect(func(): _open_panel(rewards_panel))
-	row.add_child(rewards_btn)
-	_apply_button_style(rewards_btn, "small")
-
-	var exit_btn = Button.new()
-	exit_btn.text = "Exit"
-	exit_btn.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
-	exit_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	exit_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	exit_btn.pressed.connect(func(): _play_sfx("ui_click"))
-	exit_btn.pressed.connect(_on_exit)
-	row.add_child(exit_btn)
-	_apply_button_style(exit_btn, "small")
-
 
 func _build_hero_title() -> void:
 	hero_title_zone = Control.new()
@@ -782,6 +775,7 @@ func _build_bottom_nav() -> void:
 	safe_margin.add_child(nav_row)
 
 	_add_nav_button(nav_row, "Shop", ICON_SHOP_TRES, "🛍", func(): _open_panel(shop_panel))
+	_add_nav_button(nav_row, "Rewards", ICON_REWARDS_PNG, "🎁", func(): _open_panel(rewards_panel))
 	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD_TRES, "🏆", func(): _open_panel(leaderboard_panel))
 	_add_nav_button(nav_row, "Quests", ICON_QUESTS_TRES, "📜", func(): _open_panel(quests_panel))
 
@@ -803,7 +797,7 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	_apply_button_style(b, "small")
 	if icon_path != "":
-		var tex = _load_icon(icon_path)
+		var tex = _load_icon_any(icon_path)
 		if tex != null:
 			b.icon = tex
 	if b.icon == null:
@@ -1466,6 +1460,17 @@ func _load_icon(path_to_tres: String) -> Texture2D:
 	if not ResourceLoader.exists(path_to_tres):
 		return null
 	var resource = load(path_to_tres)
+	if resource is Texture2D:
+		return resource as Texture2D
+	if resource is AtlasTexture:
+		return resource as AtlasTexture
+	return null
+
+
+func _load_icon_any(path: String) -> Texture2D:
+	if not ResourceLoader.exists(path):
+		return null
+	var resource = load(path)
 	if resource is Texture2D:
 		return resource as Texture2D
 	if resource is AtlasTexture:
