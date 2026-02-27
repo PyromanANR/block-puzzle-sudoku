@@ -570,6 +570,8 @@ func _build_top_bar() -> void:
 	var badge_icon = TextureRect.new()
 	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	badge_icon.custom_minimum_size = Vector2(32, 32)
+	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var badge_tex = _load_icon(ICON_BADGE_TRES)
 	if badge_tex != null:
 		badge_icon.texture = badge_tex
@@ -591,15 +593,16 @@ func _build_top_bar() -> void:
 	level_chip_progress.max_value = 1.0
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
-	level_chip_progress.custom_minimum_size = Vector2(0, 10)
+	level_chip_progress.custom_minimum_size = Vector2(0, 11)
+	level_chip_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if ResourceLoader.exists(XP_BAR_BG_PATH):
-		var xp_background_style = load(XP_BAR_BG_PATH)
-		if xp_background_style is StyleBox:
-			level_chip_progress.add_theme_stylebox_override("background", xp_background_style)
+		var xp_bg = load(XP_BAR_BG_PATH)
+		if xp_bg is StyleBox:
+			level_chip_progress.add_theme_stylebox_override("background", xp_bg)
 	if ResourceLoader.exists(XP_BAR_FILL_PATH):
-		var xp_fill_style = load(XP_BAR_FILL_PATH)
-		if xp_fill_style is StyleBox:
-			level_chip_progress.add_theme_stylebox_override("fill", xp_fill_style)
+		var xp_fill = load(XP_BAR_FILL_PATH)
+		if xp_fill is StyleBox:
+			level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
 	chip_vbox.add_child(level_chip_progress)
 
 	var center_spacer = Control.new()
@@ -671,15 +674,6 @@ func _build_play_card() -> void:
 	play_button.pressed.connect(_on_start)
 	v.add_child(play_button)
 	_apply_button_style(play_button, "primary")
-
-	var play_label = Label.new()
-	play_label.text = "PLAY"
-	play_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	play_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	play_label.add_theme_font_size_override("font_size", 34)
-	play_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	play_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	play_button.add_child(play_label)
 
 	var difficulty_title = Label.new()
 	difficulty_title.text = "Select Difficulty"
@@ -771,7 +765,7 @@ func _build_hero_title() -> void:
 	hero_title_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero_title_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero_title_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	hero_title_texture.custom_minimum_size = Vector2(560, HERO_TITLE_HEIGHT + 18)
+	hero_title_texture.custom_minimum_size = Vector2(int(round(560.0 * 1.35)), int(round((HERO_TITLE_HEIGHT + 18.0) * 1.35)))
 	hero_title_texture.visible = false
 	center.add_child(hero_title_texture)
 
@@ -822,11 +816,7 @@ func _build_bottom_nav() -> void:
 	if bar_style != null:
 		background_panel.add_theme_stylebox_override("panel", bar_style)
 	else:
-		var fallback_bar_style = StyleBoxFlat.new()
-		fallback_bar_style.bg_color = Color(0.07, 0.09, 0.14, 0.86)
-		fallback_bar_style.corner_radius_top_left = 22
-		fallback_bar_style.corner_radius_top_right = 22
-		background_panel.add_theme_stylebox_override("panel", fallback_bar_style)
+		background_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	bottom_bar.add_child(background_panel)
 
 	var safe_margin = MarginContainer.new()
