@@ -45,9 +45,7 @@ const PLAYCARD_BUTTON_H = 78
 const PLAYCARD_CHIP_H = 60
 
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
-const BG_SHEET_A_PATH = "res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1.png"
-const BG_SHEET_B_PATH = "res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1.png"
-const BG_SHEET_C_PATH = "res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_C_6x1.png"
+const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
 const MENU_PARALLAX_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_voxel_parallax.gdshader"
 const NINEPATCH_BOTTOM_BAR_PATH = "res://Assets/UI/9patch/bottom_bar.png"
@@ -92,7 +90,8 @@ var difficulty_glow: ColorRect
 var no_mercy_overlay: TextureRect
 var falling_blocks_left: GPUParticles2D
 var falling_blocks_right: GPUParticles2D
-var falling_blocks_middle: GPUParticles2D
+var falling_block_textures: Array[Texture2D] = []
+var falling_texture_timer: Timer
 var menu_palette_cache: Dictionary = {}
 
 var rewards_panel: Panel
@@ -304,20 +303,27 @@ func _build_background_layer() -> void:
 	particles_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(particles_holder)
 
-	falling_blocks_left = _create_falling_particles(BG_SHEET_A_PATH, 20, 9.2, 35.0, 55.0, 0.24, 0.35, 0.55, 4.0, 140.0)
+	falling_block_textures = _load_falling_block_textures(FALLING_BLOCKS_DIR)
+	falling_blocks_left = _create_falling_particles(16, 10.8, 10.0, 22.0, 0.24, 0.42, 0.58, 4.0, 108.0)
 	if falling_blocks_left != null:
 		falling_blocks_left.name = "FallingBlocks_L"
+		falling_blocks_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		particles_holder.add_child(falling_blocks_left)
 
-	falling_blocks_right = _create_falling_particles(BG_SHEET_B_PATH, 20, 8.8, 45.0, 70.0, 0.30, 0.55, 0.85, 6.0, 160.0)
+	falling_blocks_right = _create_falling_particles(14, 11.4, 12.0, 24.0, 0.22, 0.56, 0.74, 5.0, 122.0)
 	if falling_blocks_right != null:
 		falling_blocks_right.name = "FallingBlocks_R"
+		falling_blocks_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		particles_holder.add_child(falling_blocks_right)
 
-	falling_blocks_middle = _create_falling_particles(BG_SHEET_C_PATH, 5, 10.5, 25.0, 40.0, 0.18, 0.40, 0.60, 3.0, 120.0)
-	if falling_blocks_middle != null:
-		falling_blocks_middle.name = "FallingBlocks_M"
-		particles_holder.add_child(falling_blocks_middle)
+	_reroll_falling_block_textures()
+	if falling_texture_timer != null:
+		falling_texture_timer.queue_free()
+	falling_texture_timer = Timer.new()
+	falling_texture_timer.one_shot = false
+	falling_texture_timer.timeout.connect(_on_falling_texture_timer_timeout)
+	background_layer.add_child(falling_texture_timer)
+	_schedule_falling_texture_timer()
 
 	_try_add_bg_soften_overlay()
 
@@ -370,30 +376,34 @@ func _try_add_bg_soften_overlay() -> void:
 	background_layer.add_child(overlay)
 
 
-func _create_falling_particles(sheet_path: String, amount: int, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float, spread_amount: float, gravity_y: float) -> GPUParticles2D:
-	if not ResourceLoader.exists(sheet_path):
-		return null
-	var sheet = load(sheet_path)
-	if sheet == null:
-		return null
+func _load_falling_block_textures(dir_path: String) -> Array[Texture2D]:
+	var textures: Array[Texture2D] = []
+	var dir = DirAccess.open(dir_path)
+	if dir == null:
+		return textures
+	for file_name in dir.get_files():
+		if not file_name.to_lower().ends_with(".png"):
+			continue
+		var texture_path = dir_path + "/" + file_name
+		if not ResourceLoader.exists(texture_path):
+			continue
+		var texture = load(texture_path)
+		if texture is Texture2D:
+			textures.append(texture as Texture2D)
+	return textures
 
+
+func _create_falling_particles(amount: int, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float, spread_amount: float, gravity_y: float) -> GPUParticles2D:
 	var particles = GPUParticles2D.new()
 	particles.amount = amount
 	particles.lifetime = lifetime
 	particles.one_shot = false
 	particles.explosiveness = 0.0
-	particles.randomness = 0.22
+	particles.randomness = 0.18
 	particles.emitting = true
-	particles.texture = sheet
 	particles.position = Vector2.ZERO
 	particles.modulate = Color(1, 1, 1, alpha)
-
-	var canvas_material = CanvasItemMaterial.new()
-	canvas_material.particles_animation = true
-	canvas_material.particles_anim_h_frames = 6
-	canvas_material.particles_anim_v_frames = 1
-	canvas_material.particles_anim_loop = true
-	particles.material = canvas_material
+	particles.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var process_material = ParticleProcessMaterial.new()
 	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
@@ -404,34 +414,48 @@ func _create_falling_particles(sheet_path: String, amount: int, lifetime: float,
 	process_material.gravity = Vector3(0.0, gravity_y, 0.0)
 	process_material.scale_min = scale_min
 	process_material.scale_max = scale_max
-	process_material.angular_velocity_min = -3.0
-	process_material.angular_velocity_max = 3.0
+	process_material.angular_velocity_min = -2.0
+	process_material.angular_velocity_max = 2.0
 	process_material.angle_min = -4.0
 	process_material.angle_max = 4.0
-	process_material.anim_speed_min = 0.7
-	process_material.anim_speed_max = 1.2
 	particles.process_material = process_material
 
 	return particles
 
 
+func _reroll_falling_block_textures() -> void:
+	if falling_block_textures.is_empty():
+		return
+	if falling_blocks_left != null:
+		falling_blocks_left.texture = falling_block_textures[randi() % falling_block_textures.size()]
+	if falling_blocks_right != null:
+		falling_blocks_right.texture = falling_block_textures[randi() % falling_block_textures.size()]
+
+
+func _schedule_falling_texture_timer() -> void:
+	if falling_texture_timer == null:
+		return
+	falling_texture_timer.wait_time = randf_range(1.5, 2.5)
+	falling_texture_timer.start()
+
+
+func _on_falling_texture_timer_timeout() -> void:
+	_reroll_falling_block_textures()
+	_schedule_falling_texture_timer()
+
+
 func _sync_particles_to_viewport() -> void:
 	var viewport_size = get_viewport_rect().size
 	if falling_blocks_left != null:
-		falling_blocks_left.position = Vector2(viewport_size.x * 0.18, -20)
+		falling_blocks_left.position = Vector2(viewport_size.x * 0.14, -20)
 		if falling_blocks_left.process_material is ParticleProcessMaterial:
 			var left_process_material = falling_blocks_left.process_material as ParticleProcessMaterial
-			left_process_material.emission_box_extents = Vector3(viewport_size.x * 0.18, 10.0, 0.0)
+			left_process_material.emission_box_extents = Vector3(viewport_size.x * 0.13, 12.0, 0.0)
 	if falling_blocks_right != null:
-		falling_blocks_right.position = Vector2(viewport_size.x * 0.82, -20)
+		falling_blocks_right.position = Vector2(viewport_size.x * 0.86, -20)
 		if falling_blocks_right.process_material is ParticleProcessMaterial:
 			var right_process_material = falling_blocks_right.process_material as ParticleProcessMaterial
-			right_process_material.emission_box_extents = Vector3(viewport_size.x * 0.18, 10.0, 0.0)
-	if falling_blocks_middle != null:
-		falling_blocks_middle.position = Vector2(viewport_size.x * 0.5, -20)
-		if falling_blocks_middle.process_material is ParticleProcessMaterial:
-			var middle_process_material = falling_blocks_middle.process_material as ParticleProcessMaterial
-			middle_process_material.emission_box_extents = Vector3(viewport_size.x * 0.10, 10.0, 0.0)
+			right_process_material.emission_box_extents = Vector3(viewport_size.x * 0.13, 12.0, 0.0)
 
 func _build_top_bar() -> void:
 	var top = Control.new()
@@ -498,7 +522,7 @@ func _build_top_bar() -> void:
 
 	var badge_icon = TextureRect.new()
 	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	badge_icon.custom_minimum_size = Vector2(UI_ICON_MAX, UI_ICON_MAX)
+	badge_icon.custom_minimum_size = Vector2(32, 32)
 	var badge_tex = _load_icon(ICON_BADGE_TRES)
 	if badge_tex != null:
 		badge_icon.texture = badge_tex
@@ -521,12 +545,14 @@ func _build_top_bar() -> void:
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
 	level_chip_progress.custom_minimum_size = Vector2(0, 10)
-	var xp_background_style = _stylebox_9slice(XP_BAR_BG_PATH)
-	if xp_background_style != null:
-		level_chip_progress.add_theme_stylebox_override("background", xp_background_style)
-	var xp_fill_style = _stylebox_9slice(XP_BAR_FILL_PATH)
-	if xp_fill_style != null:
-		level_chip_progress.add_theme_stylebox_override("fill", xp_fill_style)
+	if ResourceLoader.exists(XP_BAR_BG_PATH):
+		var xp_background_style = load(XP_BAR_BG_PATH)
+		if xp_background_style is StyleBox:
+			level_chip_progress.add_theme_stylebox_override("background", xp_background_style)
+	if ResourceLoader.exists(XP_BAR_FILL_PATH):
+		var xp_fill_style = load(XP_BAR_FILL_PATH)
+		if xp_fill_style is StyleBox:
+			level_chip_progress.add_theme_stylebox_override("fill", xp_fill_style)
 	chip_vbox.add_child(level_chip_progress)
 
 	var center_spacer = Control.new()
@@ -582,7 +608,7 @@ func _build_play_card() -> void:
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", PLAYCARD_INNER_PAD)
 	margin.add_theme_constant_override("margin_right", PLAYCARD_INNER_PAD)
-	margin.add_theme_constant_override("margin_top", PLAYCARD_INNER_PAD)
+	margin.add_theme_constant_override("margin_top", PLAYCARD_INNER_PAD + 12)
 	margin.add_theme_constant_override("margin_bottom", PLAYCARD_INNER_PAD)
 	card.add_child(margin)
 
@@ -602,6 +628,8 @@ func _build_play_card() -> void:
 
 	var difficulty_title = Label.new()
 	difficulty_title.text = "Select Difficulty"
+	difficulty_title.add_theme_font_size_override("font_size", 24)
+	difficulty_title.modulate = _palette_color("text_primary", Color(0.96, 0.96, 1.0, 1.0))
 	v.add_child(difficulty_title)
 
 	var chips = HBoxContainer.new()
@@ -612,6 +640,7 @@ func _build_play_card() -> void:
 		chip.text = diff
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		chip.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
+		chip.add_theme_font_size_override("font_size", 24)
 		chip.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 		chip.pressed.connect(func(): _play_sfx("ui_click"))
 		chip.pressed.connect(func(): _apply_difficulty_selection(diff))
@@ -681,21 +710,13 @@ func _build_hero_title() -> void:
 	center.add_theme_constant_override("separation", UI_GAP)
 	center_container.add_child(center)
 
-	var title = Label.new()
-	title.text = "Tetris Sudoku"
-	var title_label_settings = LabelSettings.new()
-	title_label_settings.font_size = TITLE_FONT
-	title.label_settings = title_label_settings
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	center.add_child(title)
-	hero_title_label = title
+	hero_title_label = null
 
 	hero_title_texture = TextureRect.new()
 	hero_title_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero_title_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero_title_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	hero_title_texture.custom_minimum_size = Vector2(520, HERO_TITLE_HEIGHT + 24)
+	hero_title_texture.custom_minimum_size = Vector2(560, HERO_TITLE_HEIGHT + 18)
 	hero_title_texture.visible = false
 	center.add_child(hero_title_texture)
 	if ResourceLoader.exists(TITLE_IMAGE_PATH):
@@ -703,7 +724,6 @@ func _build_hero_title() -> void:
 		if title_texture != null:
 			hero_title_texture.texture = title_texture
 			hero_title_texture.visible = true
-			title.visible = false
 
 	var subtitle = Label.new()
 	subtitle.text = "Classic block strategy"
@@ -853,6 +873,7 @@ func _create_modal_panel(title_text: String) -> Panel:
 	var title = Label.new()
 	title.text = title_text
 	title.add_theme_font_size_override("font_size", 30)
+	title.modulate = _palette_color("text_primary", Color(0.96, 0.96, 1.0, 1.0))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 
@@ -870,20 +891,6 @@ func _create_modal_panel(title_text: String) -> Panel:
 	var content = _ensure_panel_content(panel)
 	if content == null:
 		push_error("Menu panel content is null: " + panel.name)
-
-	var footer = HBoxContainer.new()
-	footer.name = "Footer"
-	footer.alignment = BoxContainer.ALIGNMENT_END
-	footer.add_theme_constant_override("separation", 8)
-	v.add_child(footer)
-
-	var close_footer = Button.new()
-	close_footer.text = "Close"
-	close_footer.custom_minimum_size = Vector2(140, 52)
-	close_footer.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	close_footer.pressed.connect(func(): _play_sfx("ui_click"))
-	close_footer.pressed.connect(func(): _close_all_panels())
-	footer.add_child(close_footer)
 
 	return panel
 
@@ -1294,10 +1301,6 @@ func _apply_safe_area() -> void:
 		hero_title.offset_right = title_zone_w * 0.5
 		hero_title.offset_top = title_center_y - title_half_h
 		hero_title.offset_bottom = title_center_y + title_half_h
-		if hero_title_label != null:
-			hero_title_label.text = "Tetris Sudoku"
-			if hero_title_label.label_settings != null:
-				hero_title_label.label_settings.font_size = TITLE_FONT
 		if hero_subtitle_label != null:
 			if hero_subtitle_label.label_settings != null:
 				hero_subtitle_label.label_settings.font_size = SUBTITLE_FONT
