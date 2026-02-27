@@ -26,9 +26,9 @@ const UI_ICON_MAX_LARGE = 36
 
 const UI_MARGIN = 16
 const UI_GAP = 8
-const TOPBAR_H = 120
-const BOTTOMBAR_H = 120
-const TOPBAR_SIDE_W = 200
+const TOPBAR_H = 140
+const BOTTOMBAR_H = 140
+const TOPBAR_SIDE_W = 280
 const TOPBAR_BTN = 80
 const TITLE_FONT = 68
 const SUBTITLE_FONT = 23
@@ -494,34 +494,78 @@ func _build_top_bar() -> void:
 
 	var chip_margin = MarginContainer.new()
 	chip_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	chip_margin.add_theme_constant_override("margin_left", 9)
-	chip_margin.add_theme_constant_override("margin_right", 9)
-	chip_margin.add_theme_constant_override("margin_top", 9)
-	chip_margin.add_theme_constant_override("margin_bottom", 9)
+	chip_margin.add_theme_constant_override("margin_left", 10)
+	chip_margin.add_theme_constant_override("margin_right", 10)
+	chip_margin.add_theme_constant_override("margin_top", 6)
+	chip_margin.add_theme_constant_override("margin_bottom", 6)
 	level_chip.add_child(chip_margin)
 
-	var chip_col = VBoxContainer.new()
-	chip_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	chip_col.add_theme_constant_override("separation", 4)
-	chip_margin.add_child(chip_col)
+		# Replace the old chip_col layout with a 2-column layout: 40% badge / 60% info.
+	var cols = HBoxContainer.new()
+	cols.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cols.add_theme_constant_override("separation", 4)
+	chip_margin.add_child(cols)
 
+	# --- Left column (badge) 40% ---
+	var left_col = Control.new()
+	left_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_col.size_flags_stretch_ratio = 0.40
+	cols.add_child(left_col)
+
+	var badge_icon = TextureRect.new()
+	badge_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH
+	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	badge_icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	badge_icon.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	badge_icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var badge_tex = _load_icon(ICON_BADGE_TRES)
+	if badge_tex != null:
+		badge_icon.texture = badge_tex
+	left_col.add_child(badge_icon)
+
+	# --- Right column (Level + XP + Rank) 60% ---
+	var right_col = VBoxContainer.new()
+	var top_spacer = Control.new()
+	top_spacer.custom_minimum_size = Vector2(0, 22)
+	right_col.add_child(top_spacer)
+	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_col.size_flags_stretch_ratio = 0.60
+	right_col.add_theme_constant_override("separation", 1)
+	cols.add_child(right_col)
+
+	# Row 1: Level (centered)
 	level_chip_label = Label.new()
 	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	level_chip_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	level_chip_label.add_theme_font_size_override("font_size", 15)
+	level_chip_label.add_theme_font_size_override("font_size", 14)
 	level_chip_label.clip_text = true
 	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
-	chip_col.add_child(level_chip_label)
+	right_col.add_child(level_chip_label)
+
+	# Shared horizontal padding for XP + RANK so they align perfectly
+	var bar_pad_l = 15
+	var bar_pad_r = 15
+
+	# Row 2: XP bar (shorter, never touches edges)
+	var xp_margin = MarginContainer.new()
+	xp_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	xp_margin.add_theme_constant_override("margin_left", bar_pad_l)
+	xp_margin.add_theme_constant_override("margin_right", bar_pad_r)
+	right_col.add_child(xp_margin)
 
 	level_chip_progress = ProgressBar.new()
 	level_chip_progress.min_value = 0.0
 	level_chip_progress.max_value = 1.0
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
-	level_chip_progress.custom_minimum_size = Vector2(0, 10)
+	level_chip_progress.custom_minimum_size = Vector2(0, 12) # thickness; try 12-14
 	level_chip_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	level_chip_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	level_chip_progress.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	if ResourceLoader.exists(XP_BAR_BG_PATH):
 		var xp_bg = load(XP_BAR_BG_PATH)
 		if xp_bg is StyleBox:
@@ -530,40 +574,30 @@ func _build_top_bar() -> void:
 		var xp_fill = load(XP_BAR_FILL_PATH)
 		if xp_fill is StyleBox:
 			level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
-	chip_col.add_child(level_chip_progress)
+	xp_margin.add_child(level_chip_progress)
 
-	var bottom_row = HBoxContainer.new()
-	bottom_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bottom_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	bottom_row.add_theme_constant_override("separation", 8)
-	chip_col.add_child(bottom_row)
+	# Row 3: RANK (centered to the same width as XP bar)
+	var rank_margin = MarginContainer.new()
+	rank_margin.add_theme_constant_override("margin_bottom", 25) 
+	rank_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rank_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rank_margin.add_theme_constant_override("margin_left", bar_pad_l)
+	rank_margin.add_theme_constant_override("margin_right", bar_pad_r)
+	right_col.add_child(rank_margin)
 
-	var badge_icon = TextureRect.new()
-	badge_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH
-	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	badge_icon.custom_minimum_size = Vector2(56, 0)
-	badge_icon.size_flags_horizontal = Control.SIZE_FILL
-	badge_icon.size_flags_vertical = Control.SIZE_FILL
-	var badge_tex = _load_icon(ICON_BADGE_TRES)
-	if badge_tex != null:
-		badge_icon.texture = badge_tex
-	bottom_row.add_child(badge_icon)
-	if badge_icon.texture == null:
-		var badge_fallback = Label.new()
-		badge_fallback.text = "🏅"
-		badge_fallback.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		badge_fallback.add_theme_font_size_override("font_size", 28)
-		bottom_row.add_child(badge_fallback)
+	var rank_center = CenterContainer.new()
+	rank_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rank_center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rank_margin.add_child(rank_center)
 
 	var rank_label = Label.new()
 	rank_label.text = "RANK"
-	rank_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rank_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rank_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	rank_label.add_theme_font_size_override("font_size", 16)
 	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
-	bottom_row.add_child(rank_label)
+	rank_center.add_child(rank_label)
+
 
 	var center_spacer = Control.new()
 	center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -618,7 +652,7 @@ func _build_play_card() -> void:
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", PLAYCARD_INNER_PAD)
 	margin.add_theme_constant_override("margin_right", PLAYCARD_INNER_PAD)
-	margin.add_theme_constant_override("margin_top", PLAYCARD_INNER_PAD + 4)
+	margin.add_theme_constant_override("margin_top", PLAYCARD_INNER_PAD - 10)
 	margin.add_theme_constant_override("margin_bottom", PLAYCARD_INNER_PAD)
 	card.add_child(margin)
 
@@ -635,6 +669,7 @@ func _build_play_card() -> void:
 	v.add_theme_constant_override("separation", PLAYCARD_GAP)
 	inner.add_child(v)
 
+
 	var play_wrap = CenterContainer.new()
 	play_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(play_wrap)
@@ -642,7 +677,7 @@ func _build_play_card() -> void:
 	var play_button = Button.new()
 	play_button.text = ""  # texture already has PLAY
 	play_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	play_button.custom_minimum_size = Vector2(560, PLAYCARD_BUTTON_H + 15)
+	play_button.custom_minimum_size = Vector2(560, PLAYCARD_BUTTON_H + 45)
 	play_button.clip_text = true
 	play_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
@@ -730,7 +765,7 @@ func _build_play_card() -> void:
 	_apply_no_mercy_checkbox_style(no_mercy_toggle, no_mercy_panel, no_mercy_label)
 
 	no_mercy_help = Label.new()
-	no_mercy_help.text = "No Mercy removes reserve slots."
+	no_mercy_help.text = " No Mercy removes reserve slots."
 	no_mercy_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	no_mercy_help.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	no_mercy_help.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -1197,9 +1232,9 @@ func _refresh_mode_description() -> void:
 	elif difficulty == "Medium":
 		mode_description_label.text = "Balanced mode with classic challenge."
 	elif no_mercy:
-		mode_description_label.text = "Hard + No Mercy: no reserve slots, constant pressure."
+		mode_description_label.text = " Hard + No Mercy: no reserve slots, constant pressure."
 	else:
-		mode_description_label.text = "Hard mode with faster pressure and tighter decisions."
+		mode_description_label.text = " Hard mode with faster pressure and tighter decisions."
 
 
 func _refresh_rewards_panel() -> void:
