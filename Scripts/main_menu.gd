@@ -26,9 +26,9 @@ const UI_ICON_MAX_LARGE = 36
 
 const UI_MARGIN = 16
 const UI_GAP = 8
-const TOPBAR_H = 96
+const TOPBAR_H = 120
 const BOTTOMBAR_H = 120
-const TOPBAR_SIDE_W = 170
+const TOPBAR_SIDE_W = 200
 const TOPBAR_BTN = 68
 const TITLE_FONT = 68
 const SUBTITLE_FONT = 23
@@ -508,7 +508,7 @@ func _build_top_bar() -> void:
 	var badge_icon = TextureRect.new()
 	badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	badge_icon.custom_minimum_size = Vector2(26, 26)
+	badge_icon.custom_minimum_size = Vector2(24, 24)
 	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var badge_tex = _load_icon(ICON_BADGE_TRES)
@@ -523,14 +523,14 @@ func _build_top_bar() -> void:
 
 	var level_stack = VBoxContainer.new()
 	level_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	level_stack.add_theme_constant_override("separation", 4)
+	level_stack.add_theme_constant_override("separation", 6)
 	chip_row.add_child(level_stack)
 
 	level_chip_label = Label.new()
 	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	level_chip_label.add_theme_font_size_override("font_size", 17)
+	level_chip_label.add_theme_font_size_override("font_size", 15)
 	level_chip_label.clip_text = true
 	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
 	level_stack.add_child(level_chip_label)
@@ -540,7 +540,7 @@ func _build_top_bar() -> void:
 	level_chip_progress.max_value = 1.0
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
-	level_chip_progress.custom_minimum_size = Vector2(0, 11)
+	level_chip_progress.custom_minimum_size = Vector2(0, 10)
 	level_chip_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	level_chip_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if ResourceLoader.exists(XP_BAR_BG_PATH):
@@ -624,26 +624,25 @@ func _build_play_card() -> void:
 	inner.add_child(v)
 
 	var play_wrap = CenterContainer.new()
-	play_wrap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	play_wrap.custom_minimum_size = Vector2(620, 0)
+	play_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(play_wrap)
 
-	var play_limit = Control.new()
-	play_limit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	play_limit.custom_minimum_size = Vector2(620, 0)
-	play_wrap.add_child(play_limit)
-
 	var play_button = Button.new()
-	play_button.text = ""
-	play_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	play_button.custom_minimum_size = Vector2(0, PLAYCARD_BUTTON_H + 6)
+	play_button.text = ""  # texture already has PLAY
+	play_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	play_button.custom_minimum_size = Vector2(600, PLAYCARD_BUTTON_H) # KEEP HEIGHT EXACT
 	play_button.clip_text = true
 	play_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	play_button.pressed.connect(func(): _play_sfx("ui_click"))
 	play_button.pressed.connect(_on_start)
-	play_limit.add_child(play_button)
+	play_wrap.add_child(play_button)
 	_apply_button_style(play_button, "primary")
+
+	# If you need more breathing room under the banner, add a spacer:
+	var after_play_spacer = Control.new()
+	after_play_spacer.custom_minimum_size = Vector2(0, 10)
+	v.add_child(after_play_spacer)
 
 	var difficulty_title = Label.new()
 	difficulty_title.text = "Select Difficulty"
@@ -1451,12 +1450,12 @@ func _apply_small_button_readability(button: Button) -> void:
 	if button == null:
 		return
 	# Small button readability fix: dark text + subtle outline + safe inner padding.
-	button.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1))
+	button.add_theme_color_override("font_color", Color(0.08, 0.06, 0.04, 1))
 	button.add_theme_color_override("font_hover_color", Color(0.18, 0.12, 0.08, 1))
 	button.add_theme_color_override("font_pressed_color", Color(0.10, 0.07, 0.05, 1))
 	button.add_theme_color_override("font_disabled_color", Color(0.40, 0.32, 0.22, 0.9))
 	button.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.20))
-	button.add_theme_constant_override("outline_size", 3)
+	button.add_theme_constant_override("outline_size", 6)
 	button.add_theme_constant_override("content_margin_left", 18)
 	button.add_theme_constant_override("content_margin_right", 18)
 	button.add_theme_constant_override("content_margin_top", 10)
@@ -1469,7 +1468,7 @@ func _apply_playcard_text_style(label: Label) -> void:
 	var current_size = int(label.get_theme_font_size("font_size"))
 	if current_size <= 0:
 		current_size = 18
-	label.add_theme_font_size_override("font_size", current_size + 2)
+	label.add_theme_font_size_override("font_size", current_size + 4)
 	label.add_theme_color_override("font_color", Color(0.10, 0.07, 0.05, 1.0))
 	label.add_theme_constant_override("outline_size", 2)
 	label.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.20))
