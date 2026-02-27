@@ -46,10 +46,9 @@ const PLAYCARD_CHIP_H = 60
 
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
 const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks"
-const MARBLE_BG_DIR = "res://Assets/UI/Background/marble"
+const MARBLE_BG_PATH = "res://Assets/UI/Background/marble/Marble.png"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
 const MENU_EDGE_FRAME_SHADER_PATH = "res://Assets/Shaders/Menu/ui_difficulty_edge_frame.gdshader"
-const MENU_BG_DEPTH_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_depth_voxel.gdshader"
 const NINEPATCH_BOTTOM_BAR_PATH = "res://Assets/UI/9patch/bottom_bar.png"
 const NINEPATCH_BUTTON_PRIMARY_PATH = "res://Assets/UI/9patch/button_primary.png"
 const NINEPATCH_BUTTON_SMALL_PATH = "res://Assets/UI/9patch/button_small.png"
@@ -89,7 +88,6 @@ var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
 var difficulty_glow: ColorRect
-var bg_depth_overlay: TextureRect
 var no_mercy_edge_sparks_holder: Node2D
 var no_mercy_sparks_left: GPUParticles2D
 var no_mercy_sparks_right: GPUParticles2D
@@ -299,8 +297,6 @@ func _build_ui() -> void:
 
 
 func _build_background_layer() -> void:
-	_init_marble_background_once()
-
 	var bg_base = ColorRect.new()
 	bg_base.name = "bg_base"
 	bg_base.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -313,14 +309,16 @@ func _build_background_layer() -> void:
 	bg_marble.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg_marble.stretch_mode = TextureRect.STRETCH_SCALE
 	bg_marble.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if _marble_bg_texture != null:
-		bg_marble.texture = _marble_bg_texture
-		bg_marble.visible = true
+	if ResourceLoader.exists(MARBLE_BG_PATH):
+		var t = load(MARBLE_BG_PATH)
+		if t is Texture2D:
+			bg_marble.texture = t
+			bg_marble.visible = true
+		else:
+			bg_marble.visible = false
 	else:
 		bg_marble.visible = false
 	background_layer.add_child(bg_marble)
-
-	bg_depth_overlay = null
 
 	var particles_holder = Control.new()
 	particles_holder.name = "FallingBlocksHolder"
@@ -365,70 +363,6 @@ func _build_background_layer() -> void:
 	_sync_particles_to_viewport()
 
 
-func _build_bg_depth_overlay() -> TextureRect:
-	var overlay = TextureRect.new()
-	overlay.name = "bg_depth_overlay"
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.stretch_mode = TextureRect.STRETCH_SCALE
-	var img = Image.create(1, 1, false, Image.FORMAT_RGBA8)
-	img.fill(Color(1, 1, 1, 1))
-	overlay.texture = ImageTexture.create_from_image(img)
-	if ResourceLoader.exists(MENU_BG_DEPTH_SHADER_PATH):
-		var shader = load(MENU_BG_DEPTH_SHADER_PATH)
-		if shader is Shader:
-			var shader_material = ShaderMaterial.new()
-			shader_material.shader = shader
-			overlay.material = shader_material
-	overlay.modulate = Color(1, 1, 1, 0.12)
-	return overlay
-
-
-func _list_png_paths_in_dir(dir_path: String) -> Array[String]:
-	var out: Array[String] = []
-	# Prefer ResourceLoader.list_directory for exported builds if available.
-	# It knows about imported resources (.import/.remap). (Forum guidance)
-	if ResourceLoader.has_method("list_directory"):
-		var files = ResourceLoader.list_directory(dir_path)
-		if typeof(files) == TYPE_ARRAY or typeof(files) == TYPE_PACKED_STRING_ARRAY:
-			for f in files:
-				var s = String(f)
-				if s.to_lower().ends_with(".png"):
-					out.append(dir_path + "/" + s)
-		return out
-
-	# Fallback to DirAccess for editor/dev.
-	var dir = DirAccess.open(dir_path)
-	if dir == null:
-		return out
-	for f in dir.get_files():
-		var s = String(f)
-		if s.to_lower().ends_with(".png") and not s.to_lower().ends_with(".png.import"):
-			out.append(dir_path + "/" + s)
-	return out
-
-
-func _init_marble_background_once() -> void:
-	if _marble_bg_initialized:
-		return
-	_marble_bg_initialized = true
-
-	var candidates = _list_png_paths_in_dir(MARBLE_BG_DIR)
-	if candidates.is_empty():
-		_marble_bg_chosen_path = ""
-		_marble_bg_texture = null
-		return
-
-	randomize()
-	_marble_bg_chosen_path = candidates[randi() % candidates.size()]
-	if ResourceLoader.exists(_marble_bg_chosen_path):
-		var t = load(_marble_bg_chosen_path)
-		if t is Texture2D:
-			_marble_bg_texture = t as Texture2D
-		else:
-			_marble_bg_texture = null
-
-
 func _build_edge_frame_shader_material() -> ShaderMaterial:
 	if not ResourceLoader.exists(MENU_EDGE_FRAME_SHADER_PATH):
 		return null
@@ -438,13 +372,6 @@ func _build_edge_frame_shader_material() -> ShaderMaterial:
 	var shader_material = ShaderMaterial.new()
 	shader_material.shader = shader
 	return shader_material
-
-
-func _find_existing_path(candidates: Array) -> String:
-	for path in candidates:
-		if ResourceLoader.exists(String(path)):
-			return String(path)
-	return ""
 
 
 func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUParticles2D:
@@ -1398,9 +1325,6 @@ func _update_menu_fx() -> void:
 					glow_shader_material.set_shader_parameter("glow_color", Color(1.00, 0.78, 0.26, 1.0))
 					glow_shader_material.set_shader_parameter("intensity", 0.14)
 
-	if bg_depth_overlay != null:
-		bg_depth_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bg_depth_overlay.modulate = Color(1, 1, 1, 0.12)
 
 	var show_no_mercy_sparks = difficulty == "Hard" and Save.get_no_mercy()
 	if no_mercy_sparks_left != null:
