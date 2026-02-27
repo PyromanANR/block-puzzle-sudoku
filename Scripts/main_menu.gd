@@ -96,6 +96,9 @@ var falling_blocks_right: GPUParticles2D
 var falling_block_textures: Array[Texture2D] = []
 var falling_texture_timer: Timer
 var menu_palette_cache: Dictionary = {}
+var _marble_bg_chosen_path: String = ""
+var _marble_bg_texture: Texture2D = null
+var _marble_bg_initialized: bool = false
 
 var rewards_panel: Panel
 var rewards_level_label: Label
@@ -812,7 +815,7 @@ func _build_hero_title() -> void:
 	hero_title_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero_title_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero_title_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	hero_title_texture.custom_minimum_size = Vector2(int(round(560.0 * 1.35)), int(round((HERO_TITLE_HEIGHT + 18.0) * 1.35)))
+	hero_title_texture.custom_minimum_size = Vector2(int(round(560.0 * 1.8)), int(round((HERO_TITLE_HEIGHT) * 1.8)))
 	hero_title_texture.visible = false
 	center.add_child(hero_title_texture)
 
