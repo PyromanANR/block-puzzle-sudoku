@@ -307,13 +307,11 @@ func _build_background_layer() -> void:
 	falling_blocks_left = _create_falling_particles(16, 10.8, 10.0, 22.0, 0.24, 0.42, 0.58, 4.0, 108.0)
 	if falling_blocks_left != null:
 		falling_blocks_left.name = "FallingBlocks_L"
-		falling_blocks_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		particles_holder.add_child(falling_blocks_left)
 
 	falling_blocks_right = _create_falling_particles(14, 11.4, 12.0, 24.0, 0.22, 0.56, 0.74, 5.0, 122.0)
 	if falling_blocks_right != null:
 		falling_blocks_right.name = "FallingBlocks_R"
-		falling_blocks_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		particles_holder.add_child(falling_blocks_right)
 
 	_reroll_falling_block_textures()
@@ -403,7 +401,6 @@ func _create_falling_particles(amount: int, lifetime: float, speed_min: float, s
 	particles.emitting = true
 	particles.position = Vector2.ZERO
 	particles.modulate = Color(1, 1, 1, alpha)
-	particles.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var process_material = ParticleProcessMaterial.new()
 	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
