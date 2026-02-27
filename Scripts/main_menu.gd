@@ -29,7 +29,7 @@ const UI_GAP = 8
 const TOPBAR_H = 120
 const BOTTOMBAR_H = 120
 const TOPBAR_SIDE_W = 200
-const TOPBAR_BTN = 68
+const TOPBAR_BTN = 80
 const TITLE_FONT = 68
 const SUBTITLE_FONT = 23
 const HERO_TITLE_HEIGHT = 140
@@ -43,7 +43,7 @@ const PLAYCARD_MAX_W = 728
 const PLAYCARD_INNER_PAD = 12
 const PLAYCARD_FRAME_PAD_X = 65
 const PLAYCARD_FRAME_PAD_Y = 40
-const PLAYCARD_GAP = 6
+const PLAYCARD_GAP = 2
 const PLAYCARD_BUTTON_H = 78
 const PLAYCARD_CHIP_H = 60
 
@@ -636,7 +636,7 @@ func _build_play_card() -> void:
 	var play_button = Button.new()
 	play_button.text = ""  # texture already has PLAY
 	play_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	play_button.custom_minimum_size = Vector2(560, PLAYCARD_BUTTON_H)
+	play_button.custom_minimum_size = Vector2(560, PLAYCARD_BUTTON_H + 15)
 	play_button.clip_text = true
 	play_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
