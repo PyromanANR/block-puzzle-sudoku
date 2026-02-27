@@ -45,8 +45,8 @@ const PLAYCARD_BUTTON_H = 78
 const PLAYCARD_CHIP_H = 60
 
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
-const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks"
 const MARBLE_BG_PATH = "res://Assets/UI/Background/marble/Marble.png"
+const MARBLE_BG_DIR = "res://Assets/UI/Background/marble"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
 const MENU_EDGE_FRAME_SHADER_PATH = "res://Assets/Shaders/Menu/ui_difficulty_edge_frame.gdshader"
 const NINEPATCH_BOTTOM_BAR_PATH = "res://Assets/UI/9patch/bottom_bar.png"
@@ -91,10 +91,6 @@ var difficulty_glow: ColorRect
 var no_mercy_edge_sparks_holder: Node2D
 var no_mercy_sparks_left: GPUParticles2D
 var no_mercy_sparks_right: GPUParticles2D
-var falling_blocks_left: GPUParticles2D
-var falling_blocks_right: GPUParticles2D
-var falling_block_textures: Array[Texture2D] = []
-var falling_texture_timer: Timer
 var menu_palette_cache: Dictionary = {}
 var _marble_bg_chosen_path: String = ""
 var _marble_bg_texture: Texture2D = null
@@ -314,10 +310,30 @@ func _build_background_layer() -> void:
 		if t is Texture2D:
 			bg_marble.texture = t
 			bg_marble.visible = true
-		else:
+	if bg_marble.texture == null:
+		var marble_dir = DirAccess.open(MARBLE_BG_DIR)
+		if marble_dir == null:
 			bg_marble.visible = false
-	else:
+			push_error("[MainMenu] Marble dir open failed: " + MARBLE_BG_DIR)
+			background_layer.add_child(bg_marble)
+			return
+		for file_name in marble_dir.get_files():
+			var lowered = file_name.to_lower()
+			if lowered.ends_with(".import"):
+				continue
+			if not (lowered.ends_with(".png") or lowered.ends_with(".webp") or lowered.ends_with(".jpg")):
+				continue
+			var marble_path = MARBLE_BG_DIR + "/" + file_name
+			if not ResourceLoader.exists(marble_path):
+				continue
+			var marble_texture = load(marble_path)
+			if marble_texture is Texture2D:
+				bg_marble.texture = marble_texture
+				bg_marble.visible = true
+				break
+	if bg_marble.texture == null:
 		bg_marble.visible = false
+		push_error("[MainMenu] Marble background not found in: " + MARBLE_BG_DIR)
 	background_layer.add_child(bg_marble)
 
 	var particles_holder = Control.new()
@@ -326,19 +342,10 @@ func _build_background_layer() -> void:
 	particles_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(particles_holder)
 
-	falling_block_textures = _load_falling_block_textures(FALLING_BLOCKS_DIR)
-	falling_blocks_left = _create_falling_particles(16, 10.8, 10.0, 22.0, 0.24, 0.42, 0.58, 4.0, 108.0)
-	if falling_blocks_left != null:
-		falling_blocks_left.name = "FallingBlocks_L"
-		particles_holder.add_child(falling_blocks_left)
-
-	falling_blocks_right = _create_falling_particles(14, 11.4, 12.0, 24.0, 0.22, 0.56, 0.74, 5.0, 122.0)
-	if falling_blocks_right != null:
-		falling_blocks_right.name = "FallingBlocks_R"
-		particles_holder.add_child(falling_blocks_right)
-
-	_reroll_falling_block_textures()
-	_ensure_falling_texture_timer_started()
+	var spawner_script = preload("res://Scripts/Modules/UI/MainMenu/FallingBlocksSpawner.gd")
+	var spawner = spawner_script.new()
+	spawner.name = "FallingBlocksSpawner"
+	particles_holder.add_child(spawner)
 
 	difficulty_glow = ColorRect.new()
 	difficulty_glow.name = "difficulty_edge_frame"
@@ -408,141 +415,8 @@ func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUPartic
 	return particles
 
 
-func _append_textures_from_dir(textures: Array[Texture2D], dir_path: String) -> void:
-	if not DirAccess.dir_exists_absolute(dir_path):
-		return
-	var dir = DirAccess.open(dir_path)
-	if dir == null:
-		return
-	for file_name in dir.get_files():
-		var lowered = file_name.to_lower()
-		if lowered.ends_with(".import"):
-			continue
-		if not lowered.ends_with(".png"):
-			continue
-		var texture_path = dir_path + "/" + file_name
-		if not ResourceLoader.exists(texture_path):
-			continue
-		var texture = load(texture_path)
-		if texture is Texture2D:
-			textures.append(texture as Texture2D)
-
-
-func _load_falling_block_textures(dir_path: String) -> Array[Texture2D]:
-	var textures: Array[Texture2D] = []
-	_append_textures_from_dir(textures, dir_path)
-	_append_textures_from_dir(textures, dir_path + "/frames")
-
-	var deduplicated: Array[Texture2D] = []
-	var seen_paths = {}
-	for texture in textures:
-		var texture_path = texture.resource_path
-		if texture_path != "" and seen_paths.has(texture_path):
-			continue
-		if texture_path != "":
-			seen_paths[texture_path] = true
-		deduplicated.append(texture)
-	return deduplicated
-
-
-func _create_falling_particles(amount: int, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float, spread_amount: float, gravity_y: float) -> GPUParticles2D:
-	var particles = GPUParticles2D.new()
-	particles.amount = amount
-	particles.lifetime = lifetime
-	particles.one_shot = false
-	particles.explosiveness = 0.0
-	particles.randomness = 0.18
-	particles.emitting = true
-	particles.position = Vector2.ZERO
-	particles.modulate = Color(1, 1, 1, alpha)
-
-	var process_material = ParticleProcessMaterial.new()
-	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	process_material.direction = Vector3(0.0, 1.0, 0.0)
-	process_material.spread = spread_amount
-	process_material.initial_velocity_min = speed_min
-	process_material.initial_velocity_max = speed_max
-	process_material.gravity = Vector3(0.0, gravity_y, 0.0)
-	process_material.scale_min = scale_min
-	process_material.scale_max = scale_max
-	process_material.angular_velocity_min = -2.0
-	process_material.angular_velocity_max = 2.0
-	process_material.angle_min = -4.0
-	process_material.angle_max = 4.0
-	particles.process_material = process_material
-
-	return particles
-
-
-func _reroll_falling_block_textures() -> void:
-	if falling_block_textures.is_empty():
-		if falling_blocks_left != null:
-			falling_blocks_left.emitting = false
-			falling_blocks_left.visible = false
-		if falling_blocks_right != null:
-			falling_blocks_right.emitting = false
-			falling_blocks_right.visible = false
-		return
-
-	if falling_blocks_left != null:
-		falling_blocks_left.visible = true
-		falling_blocks_left.emitting = true
-	if falling_blocks_right != null:
-		falling_blocks_right.visible = true
-		falling_blocks_right.emitting = true
-
-	if falling_block_textures.size() == 1:
-		var shared = falling_block_textures[0]
-		if falling_blocks_left != null:
-			falling_blocks_left.texture = shared
-		if falling_blocks_right != null:
-			falling_blocks_right.texture = shared
-		return
-
-	if falling_blocks_left != null:
-		falling_blocks_left.texture = falling_block_textures[randi() % falling_block_textures.size()]
-	if falling_blocks_right != null:
-		var right_index = randi() % falling_block_textures.size()
-		if falling_blocks_left != null and falling_blocks_left.texture != null and falling_block_textures.size() >= 2:
-			var left_path = falling_blocks_left.texture.resource_path
-			var guard = 0
-			while guard < 4 and falling_block_textures[right_index].resource_path == left_path:
-				right_index = randi() % falling_block_textures.size()
-				guard += 1
-		falling_blocks_right.texture = falling_block_textures[right_index]
-
-
-func _ensure_falling_texture_timer_started() -> void:
-	if falling_texture_timer == null:
-		falling_texture_timer = Timer.new()
-		falling_texture_timer.one_shot = true
-		if not falling_texture_timer.timeout.is_connected(_on_falling_texture_timer_timeout):
-			falling_texture_timer.timeout.connect(_on_falling_texture_timer_timeout)
-		background_layer.add_child(falling_texture_timer)
-	else:
-		if not falling_texture_timer.timeout.is_connected(_on_falling_texture_timer_timeout):
-			falling_texture_timer.timeout.connect(_on_falling_texture_timer_timeout)
-	falling_texture_timer.wait_time = randf_range(1.5, 2.5)
-	falling_texture_timer.start()
-
-
-func _on_falling_texture_timer_timeout() -> void:
-	_reroll_falling_block_textures()
-	_ensure_falling_texture_timer_started()
-
-
 func _sync_particles_to_viewport() -> void:
 	var viewport_size = get_viewport_rect().size
-	if falling_blocks_left != null:
-		falling_blocks_left.position = Vector2(viewport_size.x * 0.14, -20)
-		if falling_blocks_left.process_material is ParticleProcessMaterial:
-			var left_process_material = falling_blocks_left.process_material as ParticleProcessMaterial
-			left_process_material.emission_box_extents = Vector3(viewport_size.x * 0.13, 12.0, 0.0)
-	if falling_blocks_right != null:
-		falling_blocks_right.position = Vector2(viewport_size.x * 0.86, -20)
-		if falling_blocks_right.process_material is ParticleProcessMaterial:
-			var right_process_material = falling_blocks_right.process_material as ParticleProcessMaterial
-			right_process_material.emission_box_extents = Vector3(viewport_size.x * 0.13, 12.0, 0.0)
 	if no_mercy_sparks_left != null:
 		no_mercy_sparks_left.position = Vector2(8.0, viewport_size.y * 0.5)
 		if no_mercy_sparks_left.process_material is ParticleProcessMaterial:
