@@ -89,12 +89,12 @@ var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
 var difficulty_glow: ColorRect
 var no_mercy_edge_sparks_holder: Node2D
-var no_mercy_sparks_left: GPUParticles2D
-var no_mercy_sparks_right: GPUParticles2D
+var no_mercy_sparks_pollen: GPUParticles2D
 var menu_palette_cache: Dictionary = {}
 var _marble_bg_chosen_path: String = ""
 var _marble_bg_texture: Texture2D = null
 var _marble_bg_initialized: bool = false
+var _no_mercy_sparks_missing_logged: bool = false
 
 var rewards_panel: Panel
 var rewards_level_label: Label
@@ -360,12 +360,9 @@ func _build_background_layer() -> void:
 	no_mercy_edge_sparks_holder.name = "no_mercy_edge_sparks_holder"
 	background_layer.add_child(no_mercy_edge_sparks_holder)
 
-	no_mercy_sparks_left = _create_no_mercy_edge_sparks("NoMercySparks_L", true)
-	if no_mercy_sparks_left != null:
-		no_mercy_edge_sparks_holder.add_child(no_mercy_sparks_left)
-	no_mercy_sparks_right = _create_no_mercy_edge_sparks("NoMercySparks_R", false)
-	if no_mercy_sparks_right != null:
-		no_mercy_edge_sparks_holder.add_child(no_mercy_sparks_right)
+	no_mercy_sparks_pollen = _create_no_mercy_pollen_sparks("NoMercySparks_Pollen")
+	if no_mercy_sparks_pollen != null:
+		no_mercy_edge_sparks_holder.add_child(no_mercy_sparks_pollen)
 
 	_sync_particles_to_viewport()
 
@@ -393,33 +390,41 @@ func _build_edge_frame_shader_material() -> ShaderMaterial:
 	return mat
 
 
-func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUParticles2D:
+func _create_no_mercy_pollen_sparks(node_name: String) -> GPUParticles2D:
 	if not ResourceLoader.exists(NO_MERCY_SPARKS_PATH):
+		if not _no_mercy_sparks_missing_logged:
+			_no_mercy_sparks_missing_logged = true
+			push_error("[MainMenu] Missing No Mercy sparks texture: " + NO_MERCY_SPARKS_PATH)
 		return null
 	var spark_texture = load(NO_MERCY_SPARKS_PATH)
 	if not (spark_texture is Texture2D):
+		if not _no_mercy_sparks_missing_logged:
+			_no_mercy_sparks_missing_logged = true
+			push_error("[MainMenu] Invalid No Mercy sparks texture: " + NO_MERCY_SPARKS_PATH)
 		return null
 	var particles = GPUParticles2D.new()
 	particles.name = node_name
 	particles.texture = spark_texture
-	particles.amount = 7
-	particles.lifetime = 3
+	particles.amount = 160
+	particles.lifetime = 3.0
 	particles.one_shot = false
 	particles.explosiveness = 0.0
-	particles.randomness = 0.2
+	particles.randomness = 0.35
 	particles.emitting = false
 	particles.visible = false
-	particles.modulate = Color(1, 1, 1, 0.35)
+	particles.modulate = Color(1, 1, 1, 0.3)
 
 	var process_material = ParticleProcessMaterial.new()
 	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	process_material.spread = 9.0
-	process_material.direction = Vector3(0.15 if is_left else -0.15, 1.0, 0.0)
-	process_material.initial_velocity_min = 35.0
-	process_material.initial_velocity_max = 85.0
-	process_material.gravity = Vector3(0.0, 22.0, 0.0)
-	process_material.scale_min = 0.25
-	process_material.scale_max = 0.55
+	process_material.direction = Vector3(0.0, 1.0, 0.0)
+	process_material.spread = 25.0
+	process_material.initial_velocity_min = 8.0
+	process_material.initial_velocity_max = 28.0
+	process_material.gravity = Vector3(0.0, 2.0, 0.0)
+	process_material.scale_min = 0.18
+	process_material.scale_max = 0.45
+	process_material.angular_velocity_min = -1.2
+	process_material.angular_velocity_max = 1.2
 	particles.process_material = process_material
 	var spark_canvas_material = CanvasItemMaterial.new()
 	spark_canvas_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -429,17 +434,11 @@ func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUPartic
 
 func _sync_particles_to_viewport() -> void:
 	var viewport_size = get_viewport_rect().size
-	if no_mercy_sparks_left != null:
-		no_mercy_sparks_left.position = Vector2(8.0, viewport_size.y * 0.5)
-		if no_mercy_sparks_left.process_material is ParticleProcessMaterial:
-			var m = no_mercy_sparks_left.process_material as ParticleProcessMaterial
-			m.emission_box_extents = Vector3(10.0, viewport_size.y * 0.5 + 40.0, 0.0) 
-
-	if no_mercy_sparks_right != null:
-		no_mercy_sparks_right.position = Vector2(viewport_size.x - 8.0, viewport_size.y * 0.5)
-		if no_mercy_sparks_right.process_material is ParticleProcessMaterial:
-			var m = no_mercy_sparks_right.process_material as ParticleProcessMaterial
-			m.emission_box_extents = Vector3(10.0, viewport_size.y * 0.5 + 40.0, 0.0)
+	if no_mercy_sparks_pollen != null:
+		no_mercy_sparks_pollen.position = viewport_size * 0.5
+		if no_mercy_sparks_pollen.process_material is ParticleProcessMaterial:
+			var pollen_material = no_mercy_sparks_pollen.process_material as ParticleProcessMaterial
+			pollen_material.emission_box_extents = Vector3(viewport_size.x * 0.5, viewport_size.y * 0.5, 0.0)
 
 func _build_top_bar() -> void:
 	var top = Control.new()
@@ -1186,12 +1185,9 @@ func _update_no_mercy_visibility() -> void:
 	if is_hard:
 		no_mercy_toggle.button_pressed = Save.get_no_mercy()
 	var show_no_mercy_sparks = is_hard and Save.get_no_mercy()
-	if no_mercy_sparks_left != null:
-		no_mercy_sparks_left.visible = show_no_mercy_sparks
-		no_mercy_sparks_left.emitting = show_no_mercy_sparks
-	if no_mercy_sparks_right != null:
-		no_mercy_sparks_right.visible = show_no_mercy_sparks
-		no_mercy_sparks_right.emitting = show_no_mercy_sparks
+	if no_mercy_sparks_pollen != null:
+		no_mercy_sparks_pollen.visible = show_no_mercy_sparks
+		no_mercy_sparks_pollen.emitting = show_no_mercy_sparks
 
 
 func _update_menu_fx() -> void:
@@ -1214,12 +1210,9 @@ func _update_menu_fx() -> void:
 
 
 	var show_no_mercy_sparks = difficulty == "Hard" and Save.get_no_mercy()
-	if no_mercy_sparks_left != null:
-		no_mercy_sparks_left.visible = show_no_mercy_sparks
-		no_mercy_sparks_left.emitting = show_no_mercy_sparks
-	if no_mercy_sparks_right != null:
-		no_mercy_sparks_right.visible = show_no_mercy_sparks
-		no_mercy_sparks_right.emitting = show_no_mercy_sparks
+	if no_mercy_sparks_pollen != null:
+		no_mercy_sparks_pollen.visible = show_no_mercy_sparks
+		no_mercy_sparks_pollen.emitting = show_no_mercy_sparks
 
 
 func _build_safe_rect() -> Rect2i:
