@@ -55,6 +55,8 @@ const NINEPATCH_BUTTON_PRIMARY_PATH = "res://Assets/UI/9patch/button_primary.png
 const NINEPATCH_BUTTON_SMALL_PATH = "res://Assets/UI/9patch/button_small.png"
 const NINEPATCH_PANEL_DEFAULT_PATH = "res://Assets/UI/9patch/panel_default.png"
 const NINEPATCH_TOP_CHIP_PATH = "res://Assets/UI/9patch/top_chip.png"
+const XP_BAR_BG_PATH = "res://Assets/UI/9patch/xp_bar_bg.tres"
+const XP_BAR_FILL_PATH = "res://Assets/UI/9patch/xp_bar_fill.tres"
 
 var music_manager: MusicManager = null
 var sfx_players = {}
@@ -302,17 +304,17 @@ func _build_background_layer() -> void:
 	particles_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(particles_holder)
 
-	falling_blocks_left = _create_falling_particles(BG_SHEET_A_PATH, 22, 8.6, 58.0, 84.0, 0.24, 0.24, 0.50)
+	falling_blocks_left = _create_falling_particles(BG_SHEET_A_PATH, 20, 9.2, 35.0, 55.0, 0.24, 0.35, 0.55, 4.0, 140.0)
 	if falling_blocks_left != null:
 		falling_blocks_left.name = "FallingBlocks_L"
 		particles_holder.add_child(falling_blocks_left)
 
-	falling_blocks_right = _create_falling_particles(BG_SHEET_B_PATH, 24, 7.8, 64.0, 92.0, 0.32, 0.30, 0.62)
+	falling_blocks_right = _create_falling_particles(BG_SHEET_B_PATH, 20, 8.8, 45.0, 70.0, 0.30, 0.55, 0.85, 6.0, 160.0)
 	if falling_blocks_right != null:
 		falling_blocks_right.name = "FallingBlocks_R"
 		particles_holder.add_child(falling_blocks_right)
 
-	falling_blocks_middle = _create_falling_particles(BG_SHEET_C_PATH, 6, 9.8, 46.0, 68.0, 0.16, 0.22, 0.40)
+	falling_blocks_middle = _create_falling_particles(BG_SHEET_C_PATH, 5, 10.5, 25.0, 40.0, 0.18, 0.40, 0.60, 3.0, 120.0)
 	if falling_blocks_middle != null:
 		falling_blocks_middle.name = "FallingBlocks_M"
 		particles_holder.add_child(falling_blocks_middle)
@@ -368,7 +370,7 @@ func _try_add_bg_soften_overlay() -> void:
 	background_layer.add_child(overlay)
 
 
-func _create_falling_particles(sheet_path: String, amount: int, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float) -> GPUParticles2D:
+func _create_falling_particles(sheet_path: String, amount: int, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float, spread_amount: float, gravity_y: float) -> GPUParticles2D:
 	if not ResourceLoader.exists(sheet_path):
 		return null
 	var sheet = load(sheet_path)
@@ -394,16 +396,16 @@ func _create_falling_particles(sheet_path: String, amount: int, lifetime: float,
 	particles.material = canvas_material
 
 	var process_material = ParticleProcessMaterial.new()
-	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RECTANGLE
+	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	process_material.direction = Vector3(0.0, 1.0, 0.0)
-	process_material.spread = 6.0
+	process_material.spread = spread_amount
 	process_material.initial_velocity_min = speed_min
 	process_material.initial_velocity_max = speed_max
-	process_material.gravity = Vector3(0.0, 115.0, 0.0)
+	process_material.gravity = Vector3(0.0, gravity_y, 0.0)
 	process_material.scale_min = scale_min
 	process_material.scale_max = scale_max
-	process_material.angular_velocity_min = -6.0
-	process_material.angular_velocity_max = 6.0
+	process_material.angular_velocity_min = -3.0
+	process_material.angular_velocity_max = 3.0
 	process_material.angle_min = -4.0
 	process_material.angle_max = 4.0
 	process_material.anim_speed_min = 0.7
@@ -416,20 +418,20 @@ func _create_falling_particles(sheet_path: String, amount: int, lifetime: float,
 func _sync_particles_to_viewport() -> void:
 	var viewport_size = get_viewport_rect().size
 	if falling_blocks_left != null:
-		falling_blocks_left.position = Vector2(viewport_size.x * 0.12, -32)
+		falling_blocks_left.position = Vector2(viewport_size.x * 0.18, -20)
 		if falling_blocks_left.process_material is ParticleProcessMaterial:
 			var left_process_material = falling_blocks_left.process_material as ParticleProcessMaterial
-			left_process_material.emission_rect_extents = Vector3(viewport_size.x * 0.12, 16.0, 0.0)
+			left_process_material.emission_box_extents = Vector3(viewport_size.x * 0.18, 10.0, 0.0)
 	if falling_blocks_right != null:
-		falling_blocks_right.position = Vector2(viewport_size.x * 0.88, -32)
+		falling_blocks_right.position = Vector2(viewport_size.x * 0.82, -20)
 		if falling_blocks_right.process_material is ParticleProcessMaterial:
 			var right_process_material = falling_blocks_right.process_material as ParticleProcessMaterial
-			right_process_material.emission_rect_extents = Vector3(viewport_size.x * 0.12, 16.0, 0.0)
+			right_process_material.emission_box_extents = Vector3(viewport_size.x * 0.18, 10.0, 0.0)
 	if falling_blocks_middle != null:
-		falling_blocks_middle.position = Vector2(viewport_size.x * 0.5, -32)
+		falling_blocks_middle.position = Vector2(viewport_size.x * 0.5, -20)
 		if falling_blocks_middle.process_material is ParticleProcessMaterial:
 			var middle_process_material = falling_blocks_middle.process_material as ParticleProcessMaterial
-			middle_process_material.emission_rect_extents = Vector3(viewport_size.x * 0.08, 16.0, 0.0)
+			middle_process_material.emission_box_extents = Vector3(viewport_size.x * 0.10, 10.0, 0.0)
 
 func _build_top_bar() -> void:
 	var top = Control.new()
@@ -497,7 +499,7 @@ func _build_top_bar() -> void:
 	var badge_icon = TextureRect.new()
 	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	badge_icon.custom_minimum_size = Vector2(UI_ICON_MAX, UI_ICON_MAX)
-	var badge_tex = _load_icon_tex(ICON_BADGE_TRES)
+	var badge_tex = _load_icon(ICON_BADGE_TRES)
 	if badge_tex != null:
 		badge_icon.texture = badge_tex
 	chip_row.add_child(badge_icon)
@@ -519,6 +521,12 @@ func _build_top_bar() -> void:
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
 	level_chip_progress.custom_minimum_size = Vector2(0, 10)
+	var xp_background_style = _stylebox_9slice(XP_BAR_BG_PATH)
+	if xp_background_style != null:
+		level_chip_progress.add_theme_stylebox_override("background", xp_background_style)
+	var xp_fill_style = _stylebox_9slice(XP_BAR_FILL_PATH)
+	if xp_fill_style != null:
+		level_chip_progress.add_theme_stylebox_override("fill", xp_fill_style)
 	chip_vbox.add_child(level_chip_progress)
 
 	var center_spacer = Control.new()
@@ -687,7 +695,7 @@ func _build_hero_title() -> void:
 	hero_title_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero_title_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero_title_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	hero_title_texture.custom_minimum_size = Vector2(480, HERO_TITLE_HEIGHT)
+	hero_title_texture.custom_minimum_size = Vector2(520, HERO_TITLE_HEIGHT + 24)
 	hero_title_texture.visible = false
 	center.add_child(hero_title_texture)
 	if ResourceLoader.exists(TITLE_IMAGE_PATH):
@@ -722,7 +730,7 @@ func _build_bottom_nav() -> void:
 	var background_panel = Panel.new()
 	background_panel.name = "BackgroundPanel"
 	background_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var bar_style = _load_stylebox_9slice(NINEPATCH_BOTTOM_BAR_PATH)
+	var bar_style = _stylebox_9slice(NINEPATCH_BOTTOM_BAR_PATH)
 	if bar_style != null:
 		background_panel.add_theme_stylebox_override("panel", bar_style)
 	else:
@@ -763,7 +771,7 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 	b.text = ""
 	b.tooltip_text = label_text
 	if icon_path != "":
-		var tex = _load_icon_tex(icon_path)
+		var tex = _load_icon(icon_path)
 		if tex != null:
 			b.icon = tex
 	if b.icon == null:
@@ -1215,11 +1223,11 @@ func _update_menu_fx() -> void:
 		difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		match difficulty:
 			"Easy":
-				difficulty_glow.color = Color(0.31, 0.92, 0.46, 0.12)
+				difficulty_glow.color = Color(0.36, 0.85, 0.55, 0.12)
 			"Hard":
-				difficulty_glow.color = Color(0.95, 0.18, 0.18, 0.18)
+				difficulty_glow.color = Color(0.96, 0.28, 0.26, 0.18)
 			_:
-				difficulty_glow.color = Color(0.96, 0.78, 0.22, 0.14)
+				difficulty_glow.color = Color(1.00, 0.78, 0.26, 0.14)
 
 	if no_mercy_overlay != null:
 		no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1376,10 +1384,15 @@ func _palette_float(key: String, fallback: float) -> float:
 	return fallback
 
 
-func _load_stylebox_9slice(path: String) -> StyleBoxTexture:
+func _stylebox_9slice(path: String) -> StyleBoxTexture:
 	if not ResourceLoader.exists(path):
 		return null
-	var tex = load(path)
+	var resource = load(path)
+	if resource is StyleBoxTexture:
+		return resource as StyleBoxTexture
+	if resource is StyleBox:
+		return null
+	var tex = resource
 	if not (tex is Texture2D):
 		return null
 	var style = StyleBoxTexture.new()
@@ -1399,7 +1412,7 @@ func _apply_button_style(button: Button, kind: String) -> void:
 	var path = NINEPATCH_BUTTON_PRIMARY_PATH
 	if kind == "small":
 		path = NINEPATCH_BUTTON_SMALL_PATH
-	var style = _load_stylebox_9slice(path)
+	var style = _stylebox_9slice(path)
 	if style == null:
 		return
 	button.add_theme_stylebox_override("normal", style)
@@ -1411,7 +1424,7 @@ func _apply_button_style(button: Button, kind: String) -> void:
 func _apply_panel_style(panel: Panel) -> void:
 	if panel == null:
 		return
-	var style = _load_stylebox_9slice(NINEPATCH_PANEL_DEFAULT_PATH)
+	var style = _stylebox_9slice(NINEPATCH_PANEL_DEFAULT_PATH)
 	if style == null:
 		return
 	panel.add_theme_stylebox_override("panel", style)
@@ -1420,7 +1433,7 @@ func _apply_panel_style(panel: Panel) -> void:
 func _apply_top_chip_style(button: Button) -> void:
 	if button == null:
 		return
-	var style = _load_stylebox_9slice(NINEPATCH_TOP_CHIP_PATH)
+	var style = _stylebox_9slice(NINEPATCH_TOP_CHIP_PATH)
 	if style == null:
 		return
 	button.add_theme_stylebox_override("normal", style)
@@ -1428,7 +1441,7 @@ func _apply_top_chip_style(button: Button) -> void:
 	button.add_theme_stylebox_override("pressed", style.duplicate())
 
 
-func _load_icon_tex(path_to_tres: String) -> Texture2D:
+func _load_icon(path_to_tres: String) -> Texture2D:
 	if not ResourceLoader.exists(path_to_tres):
 		return null
 	var resource = load(path_to_tres)
@@ -1444,7 +1457,7 @@ func _set_button_icon(button: Button, path: String, fallback: String, label_text
 	button.add_theme_constant_override("icon_max_width", icon_max)
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.custom_minimum_size = Vector2(max(button.custom_minimum_size.x, 64.0), max(button.custom_minimum_size.y, 64.0))
-	var tex = _load_icon_tex(path)
+	var tex = _load_icon(path)
 	if tex != null:
 		button.icon = tex
 		button.text = ""
