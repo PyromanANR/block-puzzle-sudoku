@@ -47,7 +47,8 @@ const PLAYCARD_CHIP_H = 60
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
 const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
-const MENU_PARALLAX_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_voxel_parallax.gdshader"
+const MENU_EDGE_FRAME_SHADER_PATH = "res://Assets/Shaders/Menu/ui_difficulty_edge_frame.gdshader"
+const MENU_BG_DEPTH_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_depth_voxel.gdshader"
 const NINEPATCH_BOTTOM_BAR_PATH = "res://Assets/UI/9patch/bottom_bar.png"
 const NINEPATCH_BUTTON_PRIMARY_PATH = "res://Assets/UI/9patch/button_primary.png"
 const NINEPATCH_BUTTON_SMALL_PATH = "res://Assets/UI/9patch/button_small.png"
@@ -87,7 +88,10 @@ var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
 var difficulty_glow: ColorRect
-var no_mercy_overlay: TextureRect
+var bg_depth_overlay: TextureRect
+var no_mercy_edge_sparks_holder: Node2D
+var no_mercy_sparks_left: GPUParticles2D
+var no_mercy_sparks_right: GPUParticles2D
 var falling_blocks_left: GPUParticles2D
 var falling_blocks_right: GPUParticles2D
 var falling_block_textures: Array[Texture2D] = []
@@ -292,10 +296,31 @@ func _build_ui() -> void:
 
 func _build_background_layer() -> void:
 	var bg = ColorRect.new()
+	bg.name = "bg_base"
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = _palette_color("bg", Color(0.07, 0.08, 0.11, 1.0))
+	bg.color = Color(0.95, 0.93, 0.90, 1.0)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(bg)
+
+	var marble_path = _find_existing_path([
+		"res://Assets/UI/Background/Marble.png",
+		"res://Assets/UI/Background/marble.png",
+		"res://Assets/UI/Background/Menu/marble.png",
+		"res://Assets/UI/Background/Menu/Marble.png"
+	])
+	if marble_path != "":
+		var bg_marble_tex = TextureRect.new()
+		bg_marble_tex.name = "bg_marble_tex"
+		bg_marble_tex.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		bg_marble_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bg_marble_tex.stretch_mode = TextureRect.STRETCH_SCALE
+		bg_marble_tex.texture = load(marble_path)
+		bg_marble_tex.modulate = Color(1, 1, 1, 0.30)
+		background_layer.add_child(bg_marble_tex)
+
+	bg_depth_overlay = _build_bg_depth_overlay()
+	if bg_depth_overlay != null:
+		background_layer.add_child(bg_depth_overlay)
 
 	var particles_holder = Control.new()
 	particles_holder.name = "FallingBlocksHolder"
@@ -317,55 +342,98 @@ func _build_background_layer() -> void:
 	_reroll_falling_block_textures()
 	_ensure_falling_texture_timer_started()
 
-	_try_add_bg_soften_overlay()
-
 	difficulty_glow = ColorRect.new()
-	difficulty_glow.name = "difficulty_glow"
+	difficulty_glow.name = "difficulty_edge_frame"
 	difficulty_glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var glow_material = CanvasItemMaterial.new()
-	glow_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	difficulty_glow.material = glow_material
+	var edge_shader_material = _build_edge_frame_shader_material()
+	if edge_shader_material != null:
+		difficulty_glow.material = edge_shader_material
 	background_layer.add_child(difficulty_glow)
 
-	no_mercy_overlay = TextureRect.new()
-	no_mercy_overlay.name = "no_mercy_overlay"
-	no_mercy_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	no_mercy_overlay.stretch_mode = TextureRect.STRETCH_SCALE
-	if ResourceLoader.exists(NO_MERCY_SPARKS_PATH):
-		var sparks = load(NO_MERCY_SPARKS_PATH)
-		if sparks != null:
-			no_mercy_overlay.texture = sparks
-	var sparks_material = CanvasItemMaterial.new()
-	sparks_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	no_mercy_overlay.material = sparks_material
-	no_mercy_overlay.modulate = Color(1, 1, 1, 0.30)
-	background_layer.add_child(no_mercy_overlay)
+	no_mercy_edge_sparks_holder = Node2D.new()
+	no_mercy_edge_sparks_holder.name = "no_mercy_edge_sparks_holder"
+	background_layer.add_child(no_mercy_edge_sparks_holder)
+
+	no_mercy_sparks_left = _create_no_mercy_edge_sparks("NoMercySparks_L", true)
+	if no_mercy_sparks_left != null:
+		no_mercy_edge_sparks_holder.add_child(no_mercy_sparks_left)
+	no_mercy_sparks_right = _create_no_mercy_edge_sparks("NoMercySparks_R", false)
+	if no_mercy_sparks_right != null:
+		no_mercy_edge_sparks_holder.add_child(no_mercy_sparks_right)
 
 	_sync_particles_to_viewport()
 
 
-func _try_add_bg_soften_overlay() -> void:
-	if not ResourceLoader.exists(MENU_PARALLAX_SHADER_PATH):
-		return
-	var shader = load(MENU_PARALLAX_SHADER_PATH)
-	if not (shader is Shader):
-		return
+func _build_bg_depth_overlay() -> TextureRect:
 	var overlay = TextureRect.new()
-	overlay.name = "bg_soften"
+	overlay.name = "bg_depth_overlay"
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.stretch_mode = TextureRect.STRETCH_SCALE
-	if overlay.texture == null:
-		var img = Image.create(1, 1, false, Image.FORMAT_RGBA8)
-		img.fill(Color(1, 1, 1, 1))
-		overlay.texture = ImageTexture.create_from_image(img)
+	var img = Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 1, 1, 1))
+	overlay.texture = ImageTexture.create_from_image(img)
+	if ResourceLoader.exists(MENU_BG_DEPTH_SHADER_PATH):
+		var shader = load(MENU_BG_DEPTH_SHADER_PATH)
+		if shader is Shader:
+			var shader_material = ShaderMaterial.new()
+			shader_material.shader = shader
+			overlay.material = shader_material
+	overlay.modulate = Color(1, 1, 1, 0.12)
+	return overlay
+
+
+func _build_edge_frame_shader_material() -> ShaderMaterial:
+	if not ResourceLoader.exists(MENU_EDGE_FRAME_SHADER_PATH):
+		return null
+	var shader = load(MENU_EDGE_FRAME_SHADER_PATH)
+	if not (shader is Shader):
+		return null
 	var shader_material = ShaderMaterial.new()
 	shader_material.shader = shader
-	overlay.material = shader_material
-	overlay.modulate = Color(1, 1, 1, 0.1)
-	background_layer.add_child(overlay)
+	return shader_material
+
+
+func _find_existing_path(candidates: Array) -> String:
+	for path in candidates:
+		if ResourceLoader.exists(String(path)):
+			return String(path)
+	return ""
+
+
+func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUParticles2D:
+	if not ResourceLoader.exists(NO_MERCY_SPARKS_PATH):
+		return null
+	var spark_texture = load(NO_MERCY_SPARKS_PATH)
+	if not (spark_texture is Texture2D):
+		return null
+	var particles = GPUParticles2D.new()
+	particles.name = node_name
+	particles.texture = spark_texture
+	particles.amount = 24
+	particles.lifetime = 1.2
+	particles.one_shot = false
+	particles.explosiveness = 0.0
+	particles.randomness = 0.2
+	particles.emitting = false
+	particles.visible = false
+	particles.modulate = Color(1, 1, 1, 0.35)
+
+	var process_material = ParticleProcessMaterial.new()
+	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process_material.spread = 9.0
+	process_material.direction = Vector3(0.15 if is_left else -0.15, 1.0, 0.0)
+	process_material.initial_velocity_min = 35.0
+	process_material.initial_velocity_max = 85.0
+	process_material.gravity = Vector3(0.0, 20.0, 0.0)
+	process_material.scale_min = 0.25
+	process_material.scale_max = 0.55
+	particles.process_material = process_material
+	var spark_canvas_material = CanvasItemMaterial.new()
+	spark_canvas_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	particles.material = spark_canvas_material
+	return particles
 
 
 func _append_textures_from_dir(textures: Array[Texture2D], dir_path: String) -> void:
@@ -503,6 +571,16 @@ func _sync_particles_to_viewport() -> void:
 		if falling_blocks_right.process_material is ParticleProcessMaterial:
 			var right_process_material = falling_blocks_right.process_material as ParticleProcessMaterial
 			right_process_material.emission_box_extents = Vector3(viewport_size.x * 0.13, 12.0, 0.0)
+	if no_mercy_sparks_left != null:
+		no_mercy_sparks_left.position = Vector2(8.0, viewport_size.y * 0.5)
+		if no_mercy_sparks_left.process_material is ParticleProcessMaterial:
+			var spark_left_material = no_mercy_sparks_left.process_material as ParticleProcessMaterial
+			spark_left_material.emission_box_extents = Vector3(8.0, viewport_size.y * 0.5, 0.0)
+	if no_mercy_sparks_right != null:
+		no_mercy_sparks_right.position = Vector2(viewport_size.x - 8.0, viewport_size.y * 0.5)
+		if no_mercy_sparks_right.process_material is ParticleProcessMaterial:
+			var spark_right_material = no_mercy_sparks_right.process_material as ParticleProcessMaterial
+			spark_right_material.emission_box_extents = Vector3(8.0, viewport_size.y * 0.5, 0.0)
 
 func _build_top_bar() -> void:
 	var top = Control.new()
@@ -1248,8 +1326,13 @@ func _update_no_mercy_visibility() -> void:
 	no_mercy_help.visible = is_hard
 	if is_hard:
 		no_mercy_toggle.button_pressed = Save.get_no_mercy()
-	if no_mercy_overlay != null:
-		no_mercy_overlay.visible = is_hard and Save.get_no_mercy() and no_mercy_overlay.texture != null
+	var show_no_mercy_sparks = is_hard and Save.get_no_mercy()
+	if no_mercy_sparks_left != null:
+		no_mercy_sparks_left.visible = show_no_mercy_sparks
+		no_mercy_sparks_left.emitting = show_no_mercy_sparks
+	if no_mercy_sparks_right != null:
+		no_mercy_sparks_right.visible = show_no_mercy_sparks
+		no_mercy_sparks_right.emitting = show_no_mercy_sparks
 
 
 func _update_menu_fx() -> void:
@@ -1257,18 +1340,30 @@ func _update_menu_fx() -> void:
 	if difficulty_glow != null:
 		difficulty_glow.visible = true
 		difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		match difficulty:
-			"Easy":
-				difficulty_glow.color = Color(0.36, 0.85, 0.55, 0.12)
-			"Hard":
-				difficulty_glow.color = Color(0.96, 0.28, 0.26, 0.18)
-			_:
-				difficulty_glow.color = Color(1.00, 0.78, 0.26, 0.14)
+		if difficulty_glow.material is ShaderMaterial:
+			var glow_shader_material = difficulty_glow.material as ShaderMaterial
+			match difficulty:
+				"Easy":
+					glow_shader_material.set_shader_parameter("glow_color", Color(0.36, 0.85, 0.55, 1.0))
+					glow_shader_material.set_shader_parameter("intensity", 0.12)
+				"Hard":
+					glow_shader_material.set_shader_parameter("glow_color", Color(0.96, 0.28, 0.26, 1.0))
+					glow_shader_material.set_shader_parameter("intensity", 0.18)
+				_:
+					glow_shader_material.set_shader_parameter("glow_color", Color(1.00, 0.78, 0.26, 1.0))
+					glow_shader_material.set_shader_parameter("intensity", 0.14)
 
-	if no_mercy_overlay != null:
-		no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		no_mercy_overlay.modulate = Color(1, 1, 1, 0.30)
-		no_mercy_overlay.visible = difficulty == "Hard" and Save.get_no_mercy() and no_mercy_overlay.texture != null
+	if bg_depth_overlay != null:
+		bg_depth_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bg_depth_overlay.modulate = Color(1, 1, 1, 0.12)
+
+	var show_no_mercy_sparks = difficulty == "Hard" and Save.get_no_mercy()
+	if no_mercy_sparks_left != null:
+		no_mercy_sparks_left.visible = show_no_mercy_sparks
+		no_mercy_sparks_left.emitting = show_no_mercy_sparks
+	if no_mercy_sparks_right != null:
+		no_mercy_sparks_right.visible = show_no_mercy_sparks
+		no_mercy_sparks_right.emitting = show_no_mercy_sparks
 
 
 func _build_safe_rect() -> Rect2i:
