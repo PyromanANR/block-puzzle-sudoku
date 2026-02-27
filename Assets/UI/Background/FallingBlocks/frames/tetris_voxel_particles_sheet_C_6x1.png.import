@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dp2hjg710fc4t"
-path="res://.godot/imported/icon_close.png-ee4b1ea495dfe2809d072ea9b6286992.ctex"
+uid="uid://yabpnmvrov4k"
+path="res://.godot/imported/tetris_voxel_particles_sheet_C_6x1.png-7aa192d0a5121df3023f8f1675a0af62.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/UI/icons/icon_close.png"
-dest_files=["res://.godot/imported/icon_close.png-ee4b1ea495dfe2809d072ea9b6286992.ctex"]
+source_file="res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_C_6x1.png"
+dest_files=["res://.godot/imported/tetris_voxel_particles_sheet_C_6x1.png-7aa192d0a5121df3023f8f1675a0af62.ctex"]
 
 [params]
 

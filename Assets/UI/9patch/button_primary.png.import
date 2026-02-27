@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://botj76w6iendq"
-path="res://.godot/imported/skill_clear_board.png-19ed18b0862a75632e08d58e0080191c.ctex"
+uid="uid://jw832sfgi53y"
+path="res://.godot/imported/button_primary.png-127be85bb9419166e18ad9a1f19ecc28.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/UI/icons/skill_clear_board.png"
-dest_files=["res://.godot/imported/skill_clear_board.png-19ed18b0862a75632e08d58e0080191c.ctex"]
+source_file="res://Assets/UI/9patch/button_primary.png"
+dest_files=["res://.godot/imported/button_primary.png-127be85bb9419166e18ad9a1f19ecc28.ctex"]
 
 [params]
 

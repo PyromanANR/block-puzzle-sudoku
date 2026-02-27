@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://daqn5wutiayqg"
-path="res://.godot/imported/skill_safe_well.png-c85a0f8113bcafa2a201fb8487d5373f.ctex"
+uid="uid://diyayoayuvpwo"
+path="res://.godot/imported/top_chip.png-6788b72a6d5945fecc051037697d4e1d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/UI/icons/skill_safe_well.png"
-dest_files=["res://.godot/imported/skill_safe_well.png-c85a0f8113bcafa2a201fb8487d5373f.ctex"]
+source_file="res://Assets/UI/9patch/top_chip.png"
+dest_files=["res://.godot/imported/top_chip.png-6788b72a6d5945fecc051037697d4e1d.ctex"]
 
 [params]
 
