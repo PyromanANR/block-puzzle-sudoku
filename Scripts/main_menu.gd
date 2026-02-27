@@ -7,7 +7,6 @@ const MainMenuTopBar = preload("res://Scripts/Modules/UI/MainMenu/TopBar.gd")
 const MainMenuPrimaryButtons = preload("res://Scripts/Modules/UI/MainMenu/PrimaryButtons.gd")
 const MainMenuPopups = preload("res://Scripts/Modules/UI/MainMenu/Popups.gd")
 const DialogFactory = preload("res://Scripts/Modules/UI/Common/DialogFactory.gd")
-const SettingsPanel = preload("res://Scripts/Modules/UI/Common/SettingsPanel.gd")
 const DebugMenu = preload("res://Scripts/Modules/Debug/DebugMenu.gd")
 
 const ICON_SETTINGS = "res://Assets/UI/Icons/icon_settings.png"
@@ -25,20 +24,21 @@ const UI_ICON_MAX_LARGE = 36
 const TOPBAR_H = 96
 const TOPBAR_SIDE_W = 170
 const TOPBAR_PAD = 8
-const TITLE_FONT = 48
+const TOPBAR_BTN = 68
+const TITLE_FONT = 52
 const SUBTITLE_FONT = 18
 const HERO_TITLE_HEIGHT = 140
 
-const NAV_HEIGHT = 110
+const NAV_HEIGHT = 120
 const NAV_SIDE_MARGIN = 10
 const NAV_SEPARATION = 8
-const NAV_ICON_SIZE = 90
+const NAV_ICON_SIZE = 108
 
-const PLAYCARD_MAX_W = 500
+const PLAYCARD_MAX_W = 560
 const PLAYCARD_PAD = 12
 const PLAYCARD_SEPARATION = 8
-const PLAYCARD_BUTTON_H = 52
-const PLAYCARD_CHIP_H = 40
+const PLAYCARD_BUTTON_H = 60
+const PLAYCARD_CHIP_H = 46
 
 const BG_FRAMES_DIR = "res://Assets/UI/Background/FallingBlocks/frames"
 const NO_MERCY_OVERLAY_PATH = "res://Assets/UI/Background/NoMercy/overlay.png"
@@ -355,7 +355,7 @@ func _build_background_frames() -> SpriteFrames:
 
 
 func _build_top_bar() -> void:
-	var top = HBoxContainer.new()
+	var top = Control.new()
 	top.name = "TopBar"
 	top.anchor_left = 0.0
 	top.anchor_top = 0.0
@@ -365,21 +365,27 @@ func _build_top_bar() -> void:
 	top.offset_bottom = TOPBAR_H
 	content_layer.add_child(top)
 
+	var row = HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.add_theme_constant_override("separation", 0)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_child(row)
+
 	var left_slot = Control.new()
 	left_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	left_slot.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
-	top.add_child(left_slot)
+	row.add_child(left_slot)
 
 	var center_slot = Control.new()
 	center_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_slot.custom_minimum_size = Vector2(0, TOPBAR_H)
-	top.add_child(center_slot)
+	row.add_child(center_slot)
 
 	var right_slot = Control.new()
 	right_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_slot.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
-	top.add_child(right_slot)
+	row.add_child(right_slot)
 
 	var level_chip = Button.new()
 	level_chip.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
@@ -443,18 +449,22 @@ func _build_top_bar() -> void:
 	center_spacer.custom_minimum_size = Vector2(0, TOPBAR_H)
 	center_slot.add_child(center_spacer)
 
+	var right_center = CenterContainer.new()
+	right_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	right_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_slot.add_child(right_center)
+
 	var right_row = HBoxContainer.new()
-	right_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	right_row.alignment = BoxContainer.ALIGNMENT_END
 	right_row.add_theme_constant_override("separation", 8)
 	right_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_slot.add_child(right_row)
+	right_center.add_child(right_row)
 
 	if _is_debug_panel_visible():
 		var btn_debug = Button.new()
-		btn_debug.custom_minimum_size = Vector2(TOPBAR_H - 8, TOPBAR_H - 8)
+		btn_debug.custom_minimum_size = Vector2(TOPBAR_BTN, TOPBAR_BTN)
 		btn_debug.expand_icon = true
-		btn_debug.add_theme_constant_override("icon_max_width", TOPBAR_H - 24)
+		btn_debug.add_theme_constant_override("icon_max_width", TOPBAR_BTN - 12)
 		btn_debug.text = "🧪"
 		btn_debug.tooltip_text = "Debug"
 		btn_debug.mouse_entered.connect(func(): _play_sfx("ui_hover"))
@@ -463,10 +473,10 @@ func _build_top_bar() -> void:
 		right_row.add_child(btn_debug)
 
 	var btn_settings = Button.new()
-	btn_settings.custom_minimum_size = Vector2(TOPBAR_H, TOPBAR_H)
-	_set_button_icon(btn_settings, ICON_SETTINGS, "⚙", "Settings", TOPBAR_H - 16)
+	btn_settings.custom_minimum_size = Vector2(TOPBAR_BTN, TOPBAR_BTN)
+	_set_button_icon(btn_settings, ICON_SETTINGS, "⚙", "Settings", TOPBAR_BTN - 12)
 	btn_settings.expand_icon = true
-	btn_settings.add_theme_constant_override("icon_max_width", TOPBAR_H - 16)
+	btn_settings.add_theme_constant_override("icon_max_width", TOPBAR_BTN - 12)
 	btn_settings.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	btn_settings.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_settings.pressed.connect(func(): _open_panel(settings_panel))
@@ -477,9 +487,9 @@ func _build_play_card() -> void:
 	var card = Panel.new()
 	card.name = "PlayCard"
 	card.anchor_left = 0.5
-	card.anchor_top = 0.5
+	card.anchor_top = 0.0
 	card.anchor_right = 0.5
-	card.anchor_bottom = 0.5
+	card.anchor_bottom = 0.0
 	card.custom_minimum_size = Vector2(PLAYCARD_MAX_W, 0)
 	content_layer.add_child(card)
 
@@ -655,8 +665,14 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 		if tex != null:
 			b.icon = tex
 	if b.icon == null:
-		b.expand_icon = false
-		b.text = fallback_glyph
+		var fallback = Label.new()
+		fallback.text = fallback_glyph
+		fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		fallback.add_theme_font_size_override("font_size", 48)
+		fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(fallback)
 	b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	b.pressed.connect(func(): _play_sfx("ui_click"))
 	b.pressed.connect(callback)
@@ -683,19 +699,14 @@ func _build_modal_layer() -> void:
 	shop_panel = _create_modal_panel("Shop")
 	debug_panel = _create_modal_panel("Debug")
 
-	settings_panel = SettingsPanel.build(modal_layer, Callable(self, "_close_all_panels"), {
-		"state_getter": Callable(self, "_get_audio_settings_state"),
-		"on_music_enabled": Callable(self, "_on_music_enabled_toggled"),
-		"on_sfx_enabled": Callable(self, "_on_sfx_enabled_toggled"),
-		"on_music_volume": Callable(self, "_on_music_volume_changed"),
-		"on_sfx_volume": Callable(self, "_on_sfx_volume_changed")
-	})
+	settings_panel = _create_modal_panel("Audio Settings")
 
 	_build_rewards_content(rewards_panel)
 	_build_leaderboard_content(leaderboard_panel)
 	_build_quests_content(quests_panel)
 	_build_shop_content(shop_panel)
 	_build_debug_content(debug_panel)
+	_build_settings_content(settings_panel)
 
 
 func _create_modal_panel(title_text: String) -> Panel:
@@ -704,10 +715,15 @@ func _create_modal_panel(title_text: String) -> Panel:
 	panel.anchor_top = 0.5
 	panel.anchor_right = 0.5
 	panel.anchor_bottom = 0.5
-	panel.offset_left = -460
-	panel.offset_top = -520
-	panel.offset_right = 460
-	panel.offset_bottom = 520
+	var vp = get_viewport_rect().size
+	var max_w = min(920.0, vp.x - (safe_left + safe_right + 32.0))
+	var max_h = min(980.0, vp.y - (safe_top + safe_bottom + 32.0))
+	max_w = max(max_w, 320.0)
+	max_h = max(max_h, 320.0)
+	panel.offset_left = -max_w * 0.5
+	panel.offset_top = -max_h * 0.5
+	panel.offset_right = max_w * 0.5
+	panel.offset_bottom = max_h * 0.5
 	panel.visible = false
 	modal_layer.add_child(panel)
 
@@ -908,7 +924,46 @@ func _build_shop_content(panel: Panel) -> void:
 
 
 func _build_settings_content(panel: Panel) -> void:
-	pass
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
+
+	var music_toggle = CheckBox.new()
+	music_toggle.text = "Music"
+	music_toggle.button_pressed = music_enabled
+	music_toggle.toggled.connect(_on_music_enabled_toggled)
+	content.add_child(music_toggle)
+
+	var music_slider_label = Label.new()
+	music_slider_label.text = "Music Volume"
+	content.add_child(music_slider_label)
+
+	var music_slider = HSlider.new()
+	music_slider.min_value = 0
+	music_slider.max_value = 100
+	music_slider.step = 1
+	music_slider.value = music_volume * 100.0
+	music_slider.value_changed.connect(_on_music_volume_changed)
+	content.add_child(music_slider)
+
+	var sfx_toggle = CheckBox.new()
+	sfx_toggle.text = "SFX"
+	sfx_toggle.button_pressed = sfx_enabled
+	sfx_toggle.toggled.connect(_on_sfx_enabled_toggled)
+	content.add_child(sfx_toggle)
+
+	var sfx_slider_label = Label.new()
+	sfx_slider_label.text = "SFX Volume"
+	content.add_child(sfx_slider_label)
+
+	var sfx_slider = HSlider.new()
+	sfx_slider.min_value = 0
+	sfx_slider.max_value = 100
+	sfx_slider.step = 1
+	sfx_slider.value = sfx_volume * 100.0
+	sfx_slider.value_changed.connect(_on_sfx_volume_changed)
+	content.add_child(sfx_slider)
 
 
 func _build_debug_content(panel: Panel) -> void:
@@ -974,6 +1029,7 @@ func _refresh_difficulty_chip() -> void:
 		difficulty_chip_label.modulate = chip_color
 	_update_difficulty_buttons(difficulty)
 	_update_no_mercy_visibility()
+	_update_menu_fx()
 
 
 func _refresh_mode_description() -> void:
@@ -1017,6 +1073,7 @@ func _on_no_mercy_toggled(enabled: bool) -> void:
 	var is_hard = Save.get_current_difficulty() == "Hard"
 	if not is_hard:
 		no_mercy_toggle.button_pressed = false
+		_update_menu_fx()
 		return
 	Save.set_no_mercy(enabled)
 	Save.save()
@@ -1052,13 +1109,9 @@ func _update_menu_fx() -> void:
 	if difficulty_glow != null:
 		difficulty_glow.visible = true
 		difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		match difficulty:
-			"Easy":
-				difficulty_glow.color = Color(0.32, 0.92, 0.56, 0.12)
-			"Hard":
-				difficulty_glow.color = Color(0.98, 0.35, 0.33, 0.20)
-			_:
-				difficulty_glow.color = Color(1.0, 0.76, 0.26, 0.13)
+		var chip_color = _difficulty_color(difficulty)
+		var alpha = 0.22 if difficulty == "Hard" else 0.14
+		difficulty_glow.color = Color(chip_color.r, chip_color.g, chip_color.b, alpha)
 
 	if no_mercy_overlay != null:
 		no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1085,23 +1138,31 @@ func _apply_safe_area() -> void:
 	if OS.get_name() == "Android" or OS.get_name() == "iOS":
 		safe_bottom = float(computed_safe_bottom)
 
+	var top_reserved = safe_top + TOPBAR_H + 12.0
+	var bottom_reserved = NAV_HEIGHT + safe_bottom + 8.0
+	var usable_top = top_reserved
+	var usable_bottom = vp.size.y - bottom_reserved
+	var play_card_center_y = lerp(usable_top, usable_bottom, 0.58)
+	var title_center_y = lerp(usable_top, play_card_center_y, 0.40)
+	var dist_top = title_center_y
+	var dist_bottom = (vp.size.y - bottom_reserved) - play_card_center_y
+	var delta = (dist_top - dist_bottom) * 0.5
+	title_center_y -= delta
+	play_card_center_y += delta
+
 	var top_bar = content_layer.get_node_or_null("TopBar")
 	if top_bar != null:
-		top_bar.offset_left = safe_left
-		top_bar.offset_right = -safe_right
-		top_bar.offset_top = safe_top + TOPBAR_PAD
-		top_bar.offset_bottom = safe_top + TOPBAR_PAD + TOPBAR_H
+		top_bar.offset_left = 16.0 + safe_left
+		top_bar.offset_right = -16.0 - safe_right
+		top_bar.offset_top = 12.0 + safe_top
+		top_bar.offset_bottom = top_bar.offset_top + TOPBAR_H
 
 	var hero_title = content_layer.get_node_or_null("HeroTitle")
 	if hero_title != null:
-		var top_reserved = safe_top + TOPBAR_H
-		var bottom_reserved = NAV_HEIGHT + safe_bottom
-		var play_card_center_y = (vp.size.y - bottom_reserved + top_reserved) * 0.5
-		var hero_title_center_y = top_reserved + (play_card_center_y - top_reserved) * 0.35
 		hero_title.offset_left = safe_left + 24.0
 		hero_title.offset_right = -safe_right - 24.0
-		hero_title.offset_top = hero_title_center_y - (HERO_TITLE_HEIGHT * 0.5)
-		hero_title.offset_bottom = hero_title_center_y + (HERO_TITLE_HEIGHT * 0.5)
+		hero_title.offset_top = title_center_y - (HERO_TITLE_HEIGHT * 0.5)
+		hero_title.offset_bottom = title_center_y + (HERO_TITLE_HEIGHT * 0.5)
 		if hero_title_label != null:
 			hero_title_label.text = "Tetris Sudoku"
 			hero_title_label.add_theme_font_size_override("font_size", TITLE_FONT)
@@ -1110,10 +1171,7 @@ func _apply_safe_area() -> void:
 
 	var play_card = content_layer.get_node_or_null("PlayCard")
 	if play_card != null:
-		var top_reserved = safe_top + TOPBAR_H
-		var bottom_reserved = NAV_HEIGHT + safe_bottom
-		var play_card_center_y = (vp.size.y - bottom_reserved + top_reserved) * 0.5
-		var play_card_half_h = 180.0
+		var play_card_half_h = 200.0
 		var card_width = min(float(PLAYCARD_MAX_W), vp.size.x - (safe_left + safe_right + 32.0))
 		play_card.anchor_top = 0.0
 		play_card.anchor_bottom = 0.0
@@ -1134,6 +1192,17 @@ func _apply_safe_area() -> void:
 			safe_margin.add_theme_constant_override("margin_bottom", int(safe_bottom))
 			safe_margin.add_theme_constant_override("margin_left", int(NAV_SIDE_MARGIN + safe_left))
 			safe_margin.add_theme_constant_override("margin_right", int(NAV_SIDE_MARGIN + safe_right))
+
+	for panel in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel, settings_panel]:
+		if panel != null:
+			var max_w = min(920.0, vp.size.x - (safe_left + safe_right + 32.0))
+			var max_h = min(980.0, vp.size.y - (safe_top + safe_bottom + 32.0))
+			max_w = max(max_w, 320.0)
+			max_h = max(max_h, 320.0)
+			panel.offset_left = -max_w * 0.5
+			panel.offset_right = max_w * 0.5
+			panel.offset_top = -max_h * 0.5
+			panel.offset_bottom = max_h * 0.5
 
 
 func _difficulty_color(difficulty: String) -> Color:
