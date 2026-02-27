@@ -376,9 +376,21 @@ func _build_edge_frame_shader_material() -> ShaderMaterial:
 	var shader = load(MENU_EDGE_FRAME_SHADER_PATH)
 	if not (shader is Shader):
 		return null
-	var shader_material = ShaderMaterial.new()
-	shader_material.shader = shader
-	return shader_material
+
+	var mat = ShaderMaterial.new()
+	mat.shader = shader
+
+	# Default "thin glass glow" settings (can be overridden later)
+	mat.set_shader_parameter("edge_width", 0.075)
+	mat.set_shader_parameter("softness", 0.50)
+	mat.set_shader_parameter("intensity", 0.26)
+	mat.set_shader_parameter("core_boost", 1.55)
+	mat.set_shader_parameter("core_power", 2.8)
+	mat.set_shader_parameter("halo_boost", 0.95)
+	mat.set_shader_parameter("halo_width_mul", 2.8)
+	mat.set_shader_parameter("halo_power", 1.15)
+
+	return mat
 
 
 func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUParticles2D:
@@ -390,8 +402,8 @@ func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUPartic
 	var particles = GPUParticles2D.new()
 	particles.name = node_name
 	particles.texture = spark_texture
-	particles.amount = 24
-	particles.lifetime = 1.2
+	particles.amount = 7
+	particles.lifetime = 3
 	particles.one_shot = false
 	particles.explosiveness = 0.0
 	particles.randomness = 0.2
@@ -405,7 +417,7 @@ func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUPartic
 	process_material.direction = Vector3(0.15 if is_left else -0.15, 1.0, 0.0)
 	process_material.initial_velocity_min = 35.0
 	process_material.initial_velocity_max = 85.0
-	process_material.gravity = Vector3(0.0, 20.0, 0.0)
+	process_material.gravity = Vector3(0.0, 22.0, 0.0)
 	process_material.scale_min = 0.25
 	process_material.scale_max = 0.55
 	particles.process_material = process_material
@@ -420,13 +432,14 @@ func _sync_particles_to_viewport() -> void:
 	if no_mercy_sparks_left != null:
 		no_mercy_sparks_left.position = Vector2(8.0, viewport_size.y * 0.5)
 		if no_mercy_sparks_left.process_material is ParticleProcessMaterial:
-			var spark_left_material = no_mercy_sparks_left.process_material as ParticleProcessMaterial
-			spark_left_material.emission_box_extents = Vector3(8.0, viewport_size.y * 0.5, 0.0)
+			var m = no_mercy_sparks_left.process_material as ParticleProcessMaterial
+			m.emission_box_extents = Vector3(10.0, viewport_size.y * 0.5 + 40.0, 0.0) 
+
 	if no_mercy_sparks_right != null:
 		no_mercy_sparks_right.position = Vector2(viewport_size.x - 8.0, viewport_size.y * 0.5)
 		if no_mercy_sparks_right.process_material is ParticleProcessMaterial:
-			var spark_right_material = no_mercy_sparks_right.process_material as ParticleProcessMaterial
-			spark_right_material.emission_box_extents = Vector3(8.0, viewport_size.y * 0.5, 0.0)
+			var m = no_mercy_sparks_right.process_material as ParticleProcessMaterial
+			m.emission_box_extents = Vector3(10.0, viewport_size.y * 0.5 + 40.0, 0.0)
 
 func _build_top_bar() -> void:
 	var top = Control.new()
@@ -1190,14 +1203,14 @@ func _update_menu_fx() -> void:
 			var glow_shader_material = difficulty_glow.material as ShaderMaterial
 			match difficulty:
 				"Easy":
-					glow_shader_material.set_shader_parameter("glow_color", Color(0.36, 0.85, 0.55, 1.0))
-					glow_shader_material.set_shader_parameter("intensity", 0.12)
+					glow_shader_material.set_shader_parameter("glow_color", Color(0.22, 1.00, 0.55, 1.0))
+					glow_shader_material.set_shader_parameter("intensity", 0.24)
 				"Hard":
-					glow_shader_material.set_shader_parameter("glow_color", Color(0.96, 0.28, 0.26, 1.0))
-					glow_shader_material.set_shader_parameter("intensity", 0.18)
+					glow_shader_material.set_shader_parameter("glow_color", Color(1.00, 0.22, 0.20, 1.0))
+					glow_shader_material.set_shader_parameter("intensity", 0.28)
 				_:
-					glow_shader_material.set_shader_parameter("glow_color", Color(1.00, 0.78, 0.26, 1.0))
-					glow_shader_material.set_shader_parameter("intensity", 0.14)
+					glow_shader_material.set_shader_parameter("glow_color", Color(1.00, 0.84, 0.18, 1.0))
+					glow_shader_material.set_shader_parameter("intensity", 0.26)
 
 
 	var show_no_mercy_sparks = difficulty == "Hard" and Save.get_no_mercy()
