@@ -46,9 +46,9 @@ const PLAYCARD_CHIP_H = 60
 
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
 const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks"
+const MARBLE_BG_PATH = "res://Assets/UI/Background/marble/Marble.png"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
 const MENU_EDGE_FRAME_SHADER_PATH = "res://Assets/Shaders/Menu/ui_difficulty_edge_frame.gdshader"
-const MENU_BG_DEPTH_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_depth_voxel.gdshader"
 const NINEPATCH_BOTTOM_BAR_PATH = "res://Assets/UI/9patch/bottom_bar.png"
 const NINEPATCH_BUTTON_PRIMARY_PATH = "res://Assets/UI/9patch/button_primary.png"
 const NINEPATCH_BUTTON_SMALL_PATH = "res://Assets/UI/9patch/button_small.png"
@@ -88,7 +88,6 @@ var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
 var difficulty_glow: ColorRect
-var bg_depth_overlay: TextureRect
 var no_mercy_edge_sparks_holder: Node2D
 var no_mercy_sparks_left: GPUParticles2D
 var no_mercy_sparks_right: GPUParticles2D
@@ -295,32 +294,28 @@ func _build_ui() -> void:
 
 
 func _build_background_layer() -> void:
-	var bg = ColorRect.new()
-	bg.name = "bg_base"
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.95, 0.93, 0.90, 1.0)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	background_layer.add_child(bg)
+	var bg_base = ColorRect.new()
+	bg_base.name = "bg_base"
+	bg_base.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg_base.color = Color(0.96, 0.95, 0.93, 1.0)
+	bg_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background_layer.add_child(bg_base)
 
-	var marble_path = _find_existing_path([
-		"res://Assets/UI/Background/Marble.png",
-		"res://Assets/UI/Background/marble.png",
-		"res://Assets/UI/Background/Menu/marble.png",
-		"res://Assets/UI/Background/Menu/Marble.png"
-	])
-	if marble_path != "":
-		var bg_marble_tex = TextureRect.new()
-		bg_marble_tex.name = "bg_marble_tex"
-		bg_marble_tex.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		bg_marble_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bg_marble_tex.stretch_mode = TextureRect.STRETCH_SCALE
-		bg_marble_tex.texture = load(marble_path)
-		bg_marble_tex.modulate = Color(1, 1, 1, 0.30)
-		background_layer.add_child(bg_marble_tex)
-
-	bg_depth_overlay = _build_bg_depth_overlay()
-	if bg_depth_overlay != null:
-		background_layer.add_child(bg_depth_overlay)
+	var bg_marble = TextureRect.new()
+	bg_marble.name = "bg_marble"
+	bg_marble.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg_marble.stretch_mode = TextureRect.STRETCH_SCALE
+	bg_marble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if ResourceLoader.exists(MARBLE_BG_PATH):
+		var t = load(MARBLE_BG_PATH)
+		if t is Texture2D:
+			bg_marble.texture = t
+			bg_marble.visible = true
+		else:
+			bg_marble.visible = false
+	else:
+		bg_marble.visible = false
+	background_layer.add_child(bg_marble)
 
 	var particles_holder = Control.new()
 	particles_holder.name = "FallingBlocksHolder"
@@ -365,25 +360,6 @@ func _build_background_layer() -> void:
 	_sync_particles_to_viewport()
 
 
-func _build_bg_depth_overlay() -> TextureRect:
-	var overlay = TextureRect.new()
-	overlay.name = "bg_depth_overlay"
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.stretch_mode = TextureRect.STRETCH_SCALE
-	var img = Image.create(1, 1, false, Image.FORMAT_RGBA8)
-	img.fill(Color(1, 1, 1, 1))
-	overlay.texture = ImageTexture.create_from_image(img)
-	if ResourceLoader.exists(MENU_BG_DEPTH_SHADER_PATH):
-		var shader = load(MENU_BG_DEPTH_SHADER_PATH)
-		if shader is Shader:
-			var shader_material = ShaderMaterial.new()
-			shader_material.shader = shader
-			overlay.material = shader_material
-	overlay.modulate = Color(1, 1, 1, 0.12)
-	return overlay
-
-
 func _build_edge_frame_shader_material() -> ShaderMaterial:
 	if not ResourceLoader.exists(MENU_EDGE_FRAME_SHADER_PATH):
 		return null
@@ -393,13 +369,6 @@ func _build_edge_frame_shader_material() -> ShaderMaterial:
 	var shader_material = ShaderMaterial.new()
 	shader_material.shader = shader
 	return shader_material
-
-
-func _find_existing_path(candidates: Array) -> String:
-	for path in candidates:
-		if ResourceLoader.exists(String(path)):
-			return String(path)
-	return ""
 
 
 func _create_no_mercy_edge_sparks(node_name: String, is_left: bool) -> GPUParticles2D:
@@ -1353,9 +1322,6 @@ func _update_menu_fx() -> void:
 					glow_shader_material.set_shader_parameter("glow_color", Color(1.00, 0.78, 0.26, 1.0))
 					glow_shader_material.set_shader_parameter("intensity", 0.14)
 
-	if bg_depth_overlay != null:
-		bg_depth_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bg_depth_overlay.modulate = Color(1, 1, 1, 0.12)
 
 	var show_no_mercy_sparks = difficulty == "Hard" and Save.get_no_mercy()
 	if no_mercy_sparks_left != null:
