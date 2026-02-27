@@ -45,7 +45,7 @@ const PLAYCARD_BUTTON_H = 78
 const PLAYCARD_CHIP_H = 60
 
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
-const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks/frames"
+const FALLING_BLOCKS_DIR = "res://Assets/UI/Background/FallingBlocks"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
 const MENU_PARALLAX_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_voxel_parallax.gdshader"
 const NINEPATCH_BOTTOM_BAR_PATH = "res://Assets/UI/9patch/bottom_bar.png"
@@ -315,13 +315,7 @@ func _build_background_layer() -> void:
 		particles_holder.add_child(falling_blocks_right)
 
 	_reroll_falling_block_textures()
-	if falling_texture_timer != null:
-		falling_texture_timer.queue_free()
-	falling_texture_timer = Timer.new()
-	falling_texture_timer.one_shot = false
-	falling_texture_timer.timeout.connect(_on_falling_texture_timer_timeout)
-	background_layer.add_child(falling_texture_timer)
-	_schedule_falling_texture_timer()
+	_ensure_falling_texture_timer_started()
 
 	_try_add_bg_soften_overlay()
 
@@ -363,10 +357,10 @@ func _try_add_bg_soften_overlay() -> void:
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.stretch_mode = TextureRect.STRETCH_SCALE
-	if ResourceLoader.exists("res://icon.svg"):
-		var fallback_tex = load("res://icon.svg")
-		if fallback_tex is Texture2D:
-			overlay.texture = fallback_tex
+	if overlay.texture == null:
+		var img = Image.create(1, 1, false, Image.FORMAT_RGBA8)
+		img.fill(Color(1, 1, 1, 1))
+		overlay.texture = ImageTexture.create_from_image(img)
 	var shader_material = ShaderMaterial.new()
 	shader_material.shader = shader
 	overlay.material = shader_material
@@ -374,16 +368,17 @@ func _try_add_bg_soften_overlay() -> void:
 	background_layer.add_child(overlay)
 
 
-func _load_falling_block_textures(dir_path: String) -> Array[Texture2D]:
-	var textures: Array[Texture2D] = []
+func _append_textures_from_dir(textures: Array[Texture2D], dir_path: String) -> void:
 	if not DirAccess.dir_exists_absolute(dir_path):
-		return textures
+		return
 	var dir = DirAccess.open(dir_path)
 	if dir == null:
-		return textures
+		return
 	for file_name in dir.get_files():
 		var lowered = file_name.to_lower()
-		if not lowered.ends_with(".png") and not lowered.ends_with(".webp"):
+		if lowered.ends_with(".import"):
+			continue
+		if not lowered.ends_with(".png"):
 			continue
 		var texture_path = dir_path + "/" + file_name
 		if not ResourceLoader.exists(texture_path):
@@ -391,7 +386,23 @@ func _load_falling_block_textures(dir_path: String) -> Array[Texture2D]:
 		var texture = load(texture_path)
 		if texture is Texture2D:
 			textures.append(texture as Texture2D)
-	return textures
+
+
+func _load_falling_block_textures(dir_path: String) -> Array[Texture2D]:
+	var textures: Array[Texture2D] = []
+	_append_textures_from_dir(textures, dir_path)
+	_append_textures_from_dir(textures, dir_path + "/frames")
+
+	var deduplicated: Array[Texture2D] = []
+	var seen_paths = {}
+	for texture in textures:
+		var texture_path = texture.resource_path
+		if texture_path != "" and seen_paths.has(texture_path):
+			continue
+		if texture_path != "":
+			seen_paths[texture_path] = true
+		deduplicated.append(texture)
+	return deduplicated
 
 
 func _create_falling_particles(amount: int, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float, spread_amount: float, gravity_y: float) -> GPUParticles2D:
@@ -425,23 +436,59 @@ func _create_falling_particles(amount: int, lifetime: float, speed_min: float, s
 
 func _reroll_falling_block_textures() -> void:
 	if falling_block_textures.is_empty():
+		if falling_blocks_left != null:
+			falling_blocks_left.emitting = false
+			falling_blocks_left.visible = false
+		if falling_blocks_right != null:
+			falling_blocks_right.emitting = false
+			falling_blocks_right.visible = false
 		return
+
+	if falling_blocks_left != null:
+		falling_blocks_left.visible = true
+		falling_blocks_left.emitting = true
+	if falling_blocks_right != null:
+		falling_blocks_right.visible = true
+		falling_blocks_right.emitting = true
+
+	if falling_block_textures.size() == 1:
+		var shared = falling_block_textures[0]
+		if falling_blocks_left != null:
+			falling_blocks_left.texture = shared
+		if falling_blocks_right != null:
+			falling_blocks_right.texture = shared
+		return
+
 	if falling_blocks_left != null:
 		falling_blocks_left.texture = falling_block_textures[randi() % falling_block_textures.size()]
 	if falling_blocks_right != null:
-		falling_blocks_right.texture = falling_block_textures[randi() % falling_block_textures.size()]
+		var right_index = randi() % falling_block_textures.size()
+		if falling_blocks_left != null and falling_blocks_left.texture != null and falling_block_textures.size() >= 2:
+			var left_path = falling_blocks_left.texture.resource_path
+			var guard = 0
+			while guard < 4 and falling_block_textures[right_index].resource_path == left_path:
+				right_index = randi() % falling_block_textures.size()
+				guard += 1
+		falling_blocks_right.texture = falling_block_textures[right_index]
 
 
-func _schedule_falling_texture_timer() -> void:
+func _ensure_falling_texture_timer_started() -> void:
 	if falling_texture_timer == null:
-		return
+		falling_texture_timer = Timer.new()
+		falling_texture_timer.one_shot = true
+		if not falling_texture_timer.timeout.is_connected(_on_falling_texture_timer_timeout):
+			falling_texture_timer.timeout.connect(_on_falling_texture_timer_timeout)
+		background_layer.add_child(falling_texture_timer)
+	else:
+		if not falling_texture_timer.timeout.is_connected(_on_falling_texture_timer_timeout):
+			falling_texture_timer.timeout.connect(_on_falling_texture_timer_timeout)
 	falling_texture_timer.wait_time = randf_range(1.5, 2.5)
 	falling_texture_timer.start()
 
 
 func _on_falling_texture_timer_timeout() -> void:
 	_reroll_falling_block_textures()
-	_schedule_falling_texture_timer()
+	_ensure_falling_texture_timer_started()
 
 
 func _sync_particles_to_viewport() -> void:
