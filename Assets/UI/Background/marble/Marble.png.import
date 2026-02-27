@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://yabpnmvrov4k"
-path="res://.godot/imported/tetris_voxel_particles_sheet_C_6x1.png-7aa192d0a5121df3023f8f1675a0af62.ctex"
+uid="uid://3yscxttjclxm"
+path="res://.godot/imported/Marble.png-b6e697ebe538eb376d5529019e26f93c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_C_6x1.png"
-dest_files=["res://.godot/imported/tetris_voxel_particles_sheet_C_6x1.png-7aa192d0a5121df3023f8f1675a0af62.ctex"]
+source_file="res://Assets/UI/Background/marble/Marble.png"
+dest_files=["res://.godot/imported/Marble.png-b6e697ebe538eb376d5529019e26f93c.ctex"]
 
 [params]
 
