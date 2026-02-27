@@ -5,7 +5,7 @@ uniform vec4 glow_color : source_color = vec4(1.0, 0.78, 0.26, 1.0);
 
 // Per-side core thickness (top thinner)
 uniform float edge_w_top = 0.006;
-uniform float edge_w_sides = 0.012;
+uniform float edge_w_sides = 0.006;
 uniform float edge_w_bottom = 0.010;
 
 uniform float softness = 0.45;

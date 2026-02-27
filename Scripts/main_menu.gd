@@ -608,11 +608,12 @@ func _build_play_card() -> void:
 	play_button.text = "PLAY"
 	play_button.custom_minimum_size = Vector2(0, PLAYCARD_BUTTON_H)
 	play_button.clip_text = true
-	play_button.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	play_button.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	var play_label_settings = LabelSettings.new()
-	play_label_settings.font_size = 34
-	play_button.label_settings = play_label_settings
+	play_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	play_button.add_theme_font_size_override("font_size", 34)
+	play_button.add_theme_constant_override("content_margin_left", 24)
+	play_button.add_theme_constant_override("content_margin_right", 24)
+	play_button.add_theme_constant_override("content_margin_top", 12)
+	play_button.add_theme_constant_override("content_margin_bottom", 12)
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	play_button.pressed.connect(func(): _play_sfx("ui_click"))
 	play_button.pressed.connect(_on_start)
@@ -647,8 +648,7 @@ func _build_play_card() -> void:
 	no_mercy_toggle.button_pressed = Save.get_no_mercy()
 	no_mercy_toggle.text = "No Mercy"
 	no_mercy_toggle.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
-	no_mercy_toggle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	no_mercy_toggle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	no_mercy_toggle.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	no_mercy_toggle.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	no_mercy_toggle.pressed.connect(func(): _play_sfx("ui_click"))
 	no_mercy_toggle.toggled.connect(_on_no_mercy_toggled)
@@ -1411,8 +1411,7 @@ func _apply_button_style(button: Button, kind: String) -> void:
 	button.add_theme_stylebox_override("pressed", style.duplicate())
 	button.add_theme_stylebox_override("disabled", style.duplicate())
 	button.clip_text = true
-	button.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	button.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if kind == "primary":
 		button.add_theme_constant_override("content_margin_left", 26)
 		button.add_theme_constant_override("content_margin_right", 26)
