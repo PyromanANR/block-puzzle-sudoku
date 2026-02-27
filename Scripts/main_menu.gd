@@ -21,22 +21,24 @@ const MUSIC_ATTENUATION_LINEAR = 0.05
 const UI_ICON_MAX = 28
 const UI_ICON_MAX_LARGE = 36
 
+const UI_MARGIN = 16
+const UI_GAP = 8
 const TOPBAR_H = 96
+const BOTTOMBAR_H = 120
 const TOPBAR_SIDE_W = 170
-const TOPBAR_PAD = 8
 const TOPBAR_BTN = 68
 const TITLE_FONT = 68
 const SUBTITLE_FONT = 23
 const HERO_TITLE_HEIGHT = 140
 
-const NAV_HEIGHT = 120
-const NAV_SIDE_MARGIN = 10
-const NAV_SEPARATION = 8
+const NAV_HEIGHT = BOTTOMBAR_H
+const NAV_SIDE_MARGIN = UI_MARGIN
+const NAV_SEPARATION = UI_GAP
 const NAV_ICON_SIZE = 108
 
 const PLAYCARD_MAX_W = 728
-const PLAYCARD_PAD = 16
-const PLAYCARD_SEPARATION = 10
+const PLAYCARD_INNER_PAD = 12
+const PLAYCARD_GAP = 8
 const PLAYCARD_BUTTON_H = 78
 const PLAYCARD_CHIP_H = 60
 
@@ -290,12 +292,14 @@ func _build_background_layer() -> void:
 	particles_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(particles_holder)
 
-	falling_blocks_bg = _create_falling_particles(BG_SHEET_A_PATH, 12.0, 6.4, 90.0, 130.0, 0.34, 0.65)
+	falling_blocks_bg = _create_falling_particles(BG_SHEET_A_PATH, 11.0, 6.8, 82.0, 120.0, 0.28, 0.22, 0.55)
 	if falling_blocks_bg != null:
+		falling_blocks_bg.name = "FallingBlocks_L"
 		particles_holder.add_child(falling_blocks_bg)
 
-	falling_blocks_fg = _create_falling_particles(BG_SHEET_B_PATH, 20.0, 4.2, 130.0, 190.0, 0.62, 0.95)
+	falling_blocks_fg = _create_falling_particles(BG_SHEET_B_PATH, 16.0, 4.9, 115.0, 165.0, 0.46, 0.30, 0.75)
 	if falling_blocks_fg != null:
+		falling_blocks_fg.name = "FallingBlocks_R"
 		particles_holder.add_child(falling_blocks_fg)
 
 	difficulty_glow = ColorRect.new()
@@ -317,7 +321,7 @@ func _build_background_layer() -> void:
 	_sync_particles_to_viewport()
 
 
-func _create_falling_particles(sheet_path: String, amount: float, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_max: float) -> GPUParticles2D:
+func _create_falling_particles(sheet_path: String, amount: float, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float) -> GPUParticles2D:
 	if not ResourceLoader.exists(sheet_path):
 		return null
 	var sheet = load(sheet_path)
@@ -349,7 +353,7 @@ func _create_falling_particles(sheet_path: String, amount: float, lifetime: floa
 	process_material.initial_velocity_min = speed_min
 	process_material.initial_velocity_max = speed_max
 	process_material.gravity = Vector3(0.0, 80.0, 0.0)
-	process_material.scale_min = 0.28
+	process_material.scale_min = scale_min
 	process_material.scale_max = scale_max
 	process_material.angular_velocity_min = -18.0
 	process_material.angular_velocity_max = 18.0
@@ -360,13 +364,17 @@ func _create_falling_particles(sheet_path: String, amount: float, lifetime: floa
 
 func _sync_particles_to_viewport() -> void:
 	var viewport_size = get_viewport_rect().size
-	for emitter in [falling_blocks_bg, falling_blocks_fg]:
-		if emitter == null:
-			continue
-		emitter.position = Vector2(viewport_size.x * 0.5, -40)
-		if emitter.process_material is ParticleProcessMaterial:
-			var process_material = emitter.process_material as ParticleProcessMaterial
-			process_material.emission_box_extents = Vector3(viewport_size.x * 0.55, 20.0, 0.0)
+	if falling_blocks_bg != null:
+		falling_blocks_bg.position = Vector2(viewport_size.x * 0.15, -40)
+		if falling_blocks_bg.process_material is ParticleProcessMaterial:
+			var left_process_material = falling_blocks_bg.process_material as ParticleProcessMaterial
+			left_process_material.emission_box_extents = Vector3(viewport_size.x * 0.15, 20.0, 0.0)
+	if falling_blocks_fg != null:
+		falling_blocks_fg.position = Vector2(viewport_size.x * 0.85, -40)
+		if falling_blocks_fg.process_material is ParticleProcessMaterial:
+			var right_process_material = falling_blocks_fg.process_material as ParticleProcessMaterial
+			right_process_material.emission_box_extents = Vector3(viewport_size.x * 0.15, 20.0, 0.0)
+
 func _build_top_bar() -> void:
 	var top = Control.new()
 	top.name = "TopBar"
@@ -508,14 +516,14 @@ func _build_play_card() -> void:
 
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", PLAYCARD_PAD)
-	margin.add_theme_constant_override("margin_right", PLAYCARD_PAD)
-	margin.add_theme_constant_override("margin_top", PLAYCARD_PAD)
-	margin.add_theme_constant_override("margin_bottom", PLAYCARD_PAD)
+	margin.add_theme_constant_override("margin_left", PLAYCARD_INNER_PAD)
+	margin.add_theme_constant_override("margin_right", PLAYCARD_INNER_PAD)
+	margin.add_theme_constant_override("margin_top", PLAYCARD_INNER_PAD)
+	margin.add_theme_constant_override("margin_bottom", PLAYCARD_INNER_PAD)
 	card.add_child(margin)
 
 	var v = VBoxContainer.new()
-	v.add_theme_constant_override("separation", PLAYCARD_SEPARATION)
+	v.add_theme_constant_override("separation", PLAYCARD_GAP)
 	margin.add_child(v)
 
 	var play_button = Button.new()
@@ -532,7 +540,7 @@ func _build_play_card() -> void:
 	v.add_child(difficulty_title)
 
 	var chips = HBoxContainer.new()
-	chips.add_theme_constant_override("separation", PLAYCARD_SEPARATION)
+	chips.add_theme_constant_override("separation", PLAYCARD_GAP)
 	v.add_child(chips)
 	for diff in ["Easy", "Medium", "Hard"]:
 		var chip = Button.new()
@@ -564,7 +572,7 @@ func _build_play_card() -> void:
 	v.add_child(mode_description_label)
 
 	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", PLAYCARD_SEPARATION)
+	row.add_theme_constant_override("separation", PLAYCARD_GAP)
 	v.add_child(row)
 
 	var rewards_btn = Button.new()
@@ -602,7 +610,7 @@ func _build_hero_title() -> void:
 
 	var center = VBoxContainer.new()
 	center.alignment = BoxContainer.ALIGNMENT_CENTER
-	center.add_theme_constant_override("separation", 8)
+	center.add_theme_constant_override("separation", UI_GAP)
 	center_container.add_child(center)
 
 	var title = Label.new()
@@ -645,10 +653,10 @@ func _build_bottom_nav() -> void:
 	var bottom_bar = Control.new()
 	bottom_bar.name = "BottomBar"
 	bottom_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	bottom_bar.offset_left = 0
-	bottom_bar.offset_right = 0
+	bottom_bar.offset_left = UI_MARGIN + safe_left
+	bottom_bar.offset_right = -UI_MARGIN - safe_right
 	bottom_bar.offset_bottom = 0
-	bottom_bar.offset_top = -NAV_HEIGHT
+	bottom_bar.offset_top = -BOTTOMBAR_H
 	bottom_nav_layer.add_child(bottom_bar)
 
 	var background_panel = Panel.new()
@@ -1169,13 +1177,13 @@ func _apply_safe_area() -> void:
 	if OS.get_name() == "Android" or OS.get_name() == "iOS":
 		safe_bottom = float(computed_safe_bottom)
 
-	var top_reserved = safe_top + TOPBAR_H + 12.0
-	var bottom_reserved = NAV_HEIGHT + safe_bottom + 8.0
+	var top_reserved = safe_top + TOPBAR_H + UI_MARGIN
+	var bottom_reserved = BOTTOMBAR_H + safe_bottom + UI_MARGIN
 	var usable_top = top_reserved
 	var usable_bottom = vp.size.y - bottom_reserved
 	var play_card_center_y = lerp(usable_top, usable_bottom, 0.58)
-	var title_center_y = lerp(usable_top, play_card_center_y, 0.40)
-	var dist_top = title_center_y
+	var title_center_y = lerp(usable_top, play_card_center_y, 0.38)
+	var dist_top = title_center_y - 0.0
 	var dist_bottom = (vp.size.y - bottom_reserved) - play_card_center_y
 	var delta = (dist_top - dist_bottom) * 0.5
 	title_center_y -= delta
@@ -1183,17 +1191,31 @@ func _apply_safe_area() -> void:
 
 	var top_bar = content_layer.get_node_or_null("TopBar")
 	if top_bar != null:
-		top_bar.offset_left = 16.0 + safe_left
-		top_bar.offset_right = -16.0 - safe_right
-		top_bar.offset_top = 12.0 + safe_top
+		top_bar.offset_left = UI_MARGIN + safe_left
+		top_bar.offset_right = -UI_MARGIN - safe_right
+		top_bar.offset_top = UI_MARGIN + safe_top
 		top_bar.offset_bottom = top_bar.offset_top + TOPBAR_H
 
 	var hero_title = content_layer.get_node_or_null("HeroTitle")
+	var title_to_play_gap = 3.0 * UI_GAP
+	var play_card_half_h = 200.0
+	var title_half_h = HERO_TITLE_HEIGHT * 0.5
+	var min_play_center = usable_top + play_card_half_h
+	var max_play_center = usable_bottom - play_card_half_h
+	play_card_center_y = clamp(play_card_center_y, min_play_center, max_play_center)
+	var max_title_center = play_card_center_y - (title_half_h + play_card_half_h + title_to_play_gap)
+	title_center_y = min(title_center_y, max_title_center)
+
 	if hero_title != null:
-		hero_title.offset_left = safe_left + 24.0
-		hero_title.offset_right = -safe_right - 24.0
-		hero_title.offset_top = title_center_y - (HERO_TITLE_HEIGHT * 0.5)
-		hero_title.offset_bottom = title_center_y + (HERO_TITLE_HEIGHT * 0.5)
+		hero_title.anchor_left = 0.5
+		hero_title.anchor_right = 0.5
+		hero_title.anchor_top = 0.0
+		hero_title.anchor_bottom = 0.0
+		var title_zone_w = max(320.0, vp.size.x - (safe_left + safe_right + (UI_MARGIN * 2.0)))
+		hero_title.offset_left = -title_zone_w * 0.5
+		hero_title.offset_right = title_zone_w * 0.5
+		hero_title.offset_top = title_center_y - title_half_h
+		hero_title.offset_bottom = title_center_y + title_half_h
 		if hero_title_label != null:
 			hero_title_label.text = "Tetris Sudoku"
 			if hero_title_label.label_settings != null:
@@ -1204,8 +1226,9 @@ func _apply_safe_area() -> void:
 
 	var play_card = content_layer.get_node_or_null("PlayCard")
 	if play_card != null:
-		var play_card_half_h = 200.0
-		var max_w = min(float(PLAYCARD_MAX_W), vp.size.x - (safe_left + safe_right + 32.0))
+		var max_w = min(float(PLAYCARD_MAX_W), vp.size.x - (safe_left + safe_right + (UI_MARGIN * 2.0)))
+		play_card.anchor_left = 0.5
+		play_card.anchor_right = 0.5
 		play_card.anchor_top = 0.0
 		play_card.anchor_bottom = 0.0
 		play_card.offset_left = -max_w * 0.5
@@ -1216,15 +1239,15 @@ func _apply_safe_area() -> void:
 	var bottom_bar = bottom_nav_layer.get_node_or_null("BottomBar")
 	if bottom_bar != null:
 		bottom_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		bottom_bar.offset_left = 0
-		bottom_bar.offset_right = 0
+		bottom_bar.offset_left = UI_MARGIN + safe_left
+		bottom_bar.offset_right = -UI_MARGIN - safe_right
 		bottom_bar.offset_bottom = 0
-		bottom_bar.offset_top = -NAV_HEIGHT
+		bottom_bar.offset_top = -BOTTOMBAR_H
 		var safe_margin = bottom_bar.get_node_or_null("BackgroundPanel/SafeMargin")
 		if safe_margin != null:
 			safe_margin.add_theme_constant_override("margin_bottom", int(safe_bottom))
-			safe_margin.add_theme_constant_override("margin_left", int(NAV_SIDE_MARGIN + safe_left))
-			safe_margin.add_theme_constant_override("margin_right", int(NAV_SIDE_MARGIN + safe_right))
+			safe_margin.add_theme_constant_override("margin_left", int(NAV_SIDE_MARGIN))
+			safe_margin.add_theme_constant_override("margin_right", int(NAV_SIDE_MARGIN))
 
 	for panel in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel, settings_panel]:
 		if panel != null:
