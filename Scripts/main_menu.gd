@@ -493,55 +493,24 @@ func _build_top_bar() -> void:
 
 	var chip_margin = MarginContainer.new()
 	chip_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# Level chip fix: keep icon + text + XP bar aligned with consistent inner padding.
 	chip_margin.add_theme_constant_override("margin_left", 9)
 	chip_margin.add_theme_constant_override("margin_right", 9)
 	chip_margin.add_theme_constant_override("margin_top", 9)
 	chip_margin.add_theme_constant_override("margin_bottom", 9)
 	level_chip.add_child(chip_margin)
 
-	var chip_row = HBoxContainer.new()
-	chip_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	chip_row.add_theme_constant_override("separation", 6)
-	chip_margin.add_child(chip_row)
-
-	var badge_icon = TextureRect.new()
-	badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	badge_icon.custom_minimum_size = Vector2(24, 24)
-	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var badge_tex = _load_icon(ICON_BADGE_TRES)
-	if badge_tex != null:
-		badge_icon.texture = badge_tex
-	chip_row.add_child(badge_icon)
-	if badge_icon.texture == null:
-		var badge_fallback = Label.new()
-		badge_fallback.text = "🏅"
-		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		chip_row.add_child(badge_fallback)
-
-	var level_stack = VBoxContainer.new()
-	level_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	level_stack.add_theme_constant_override("separation", 6)
-	chip_row.add_child(level_stack)
-
-	level_chip_label = Label.new()
-	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	level_chip_label.add_theme_font_size_override("font_size", 15)
-	level_chip_label.clip_text = true
-	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
-	level_stack.add_child(level_chip_label)
+	var chip_col = VBoxContainer.new()
+	chip_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chip_col.add_theme_constant_override("separation", 4)
+	chip_margin.add_child(chip_col)
 
 	level_chip_progress = ProgressBar.new()
 	level_chip_progress.min_value = 0.0
 	level_chip_progress.max_value = 1.0
 	level_chip_progress.value = 0.35
 	level_chip_progress.show_percentage = false
-	level_chip_progress.custom_minimum_size = Vector2(0, 10)
-	level_chip_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	level_chip_progress.custom_minimum_size = Vector2(140, 10)
+	level_chip_progress.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	level_chip_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if ResourceLoader.exists(XP_BAR_BG_PATH):
 		var xp_bg = load(XP_BAR_BG_PATH)
@@ -551,7 +520,44 @@ func _build_top_bar() -> void:
 		var xp_fill = load(XP_BAR_FILL_PATH)
 		if xp_fill is StyleBox:
 			level_chip_progress.add_theme_stylebox_override("fill", xp_fill)
-	level_stack.add_child(level_chip_progress)
+	chip_col.add_child(level_chip_progress)
+
+	var rank_row = HBoxContainer.new()
+	rank_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rank_row.add_theme_constant_override("separation", 6)
+	chip_col.add_child(rank_row)
+
+	var badge_icon = TextureRect.new()
+	badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	badge_icon.custom_minimum_size = Vector2(22, 22)
+	badge_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	badge_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var badge_tex = _load_icon(ICON_BADGE_TRES)
+	if badge_tex != null:
+		badge_icon.texture = badge_tex
+	rank_row.add_child(badge_icon)
+	if badge_icon.texture == null:
+		var badge_fallback = Label.new()
+		badge_fallback.text = "🏅"
+		badge_fallback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		rank_row.add_child(badge_fallback)
+
+	var rank_label = Label.new()
+	rank_label.text = "RANK"
+	rank_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	rank_label.add_theme_font_size_override("font_size", 15)
+	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
+	rank_row.add_child(rank_label)
+
+	level_chip_label = Label.new()
+	level_chip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	level_chip_label.add_theme_font_size_override("font_size", 15)
+	level_chip_label.clip_text = true
+	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
+	rank_row.add_child(level_chip_label)
 
 	var center_spacer = Control.new()
 	center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -630,7 +636,7 @@ func _build_play_card() -> void:
 	var play_button = Button.new()
 	play_button.text = ""  # texture already has PLAY
 	play_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	play_button.custom_minimum_size = Vector2(600, PLAYCARD_BUTTON_H) # KEEP HEIGHT EXACT
+	play_button.custom_minimum_size = Vector2(560, PLAYCARD_BUTTON_H)
 	play_button.clip_text = true
 	play_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))
@@ -639,9 +645,8 @@ func _build_play_card() -> void:
 	play_wrap.add_child(play_button)
 	_apply_button_style(play_button, "primary")
 
-	# If you need more breathing room under the banner, add a spacer:
 	var after_play_spacer = Control.new()
-	after_play_spacer.custom_minimum_size = Vector2(0, 10)
+	after_play_spacer.custom_minimum_size = Vector2(0, 4)
 	v.add_child(after_play_spacer)
 
 	var difficulty_title = Label.new()
@@ -1428,17 +1433,20 @@ func _apply_button_style(button: Button, kind: String) -> void:
 	var style = _stylebox_9slice(path)
 	if style == null:
 		return
+	var hover_style = style.duplicate()
+	var pressed_style = style.duplicate()
+	var disabled_style = style.duplicate()
 	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", style.duplicate())
-	button.add_theme_stylebox_override("pressed", style.duplicate())
-	button.add_theme_stylebox_override("disabled", style.duplicate())
+	button.add_theme_stylebox_override("hover", hover_style)
+	button.add_theme_stylebox_override("pressed", pressed_style)
+	button.add_theme_stylebox_override("disabled", disabled_style)
 	button.clip_text = true
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if kind == "primary":
 		button.add_theme_constant_override("content_margin_left", 26)
 		button.add_theme_constant_override("content_margin_right", 26)
-		button.add_theme_constant_override("content_margin_top", 10)
-		button.add_theme_constant_override("content_margin_bottom", 10)
+		button.add_theme_constant_override("content_margin_top", 7)
+		button.add_theme_constant_override("content_margin_bottom", 7)
 		button.add_theme_font_size_override("font_size", 34)
 	elif kind == "small":
 		_apply_small_button_readability(button)
