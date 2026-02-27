@@ -65,6 +65,7 @@ var ghost_bbox_size := Vector2.ZERO
 # ----------------------------
 var root_frame: Panel
 var title_label: Label
+var title_texture_rect: TextureRect
 
 var board_panel: Panel
 var hud_panel: Panel
@@ -201,9 +202,9 @@ const UI_ICON_MAP = {
 	"speed": {"tres": "res://Assets/UI/icons/icon_speed.tres", "png": "res://Assets/UI/icons/icon_speed.png", "placeholder": "SPD"},
 	"time": {"tres": "res://Assets/UI/icons/icon_time.tres", "png": "res://Assets/UI/icons/icon_time.png", "placeholder": "T"},
 	"timeslow": {"tres": "res://Assets/UI/icons/icon_timeslow.tres", "png": "res://Assets/UI/icons/icon_timeslow.png", "placeholder": "TS"},
-	"freeze": {"tres": "", "png": "res://Assets/UI/icons/skill_freeze.png", "placeholder": "F"},
-	"clear": {"tres": "", "png": "res://Assets/UI/icons/skill_clear_board.png", "placeholder": "C"},
-	"safe_well": {"tres": "", "png": "res://Assets/UI/icons/skill_safe_well.png", "placeholder": "W"}
+	"freeze": {"tres": "res://Assets/UI/icons/skill/skill_freeze.tres", "png": "res://Assets/UI/icons/skill_freeze.png", "placeholder": "F"},
+	"clear": {"tres": "res://Assets/UI/icons/skill/skill_clear_board.tres", "png": "res://Assets/UI/icons/skill_clear_board.png", "placeholder": "C"},
+	"safe_well": {"tres": "res://Assets/UI/icons/skill/skill_safe_well.tres", "png": "res://Assets/UI/icons/skill_safe_well.png", "placeholder": "W"}
 }
 
 const NORMAL_RESPAWN_DELAY_MS = 260
@@ -876,6 +877,21 @@ func _build_ui() -> void:
 	title_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	title_label.clip_text = false
 	center_section.add_child(title_label)
+
+	title_texture_rect = TextureRect.new()
+	title_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_texture_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	title_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	title_texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	title_texture_rect.visible = false
+	center_section.add_child(title_texture_rect)
+	var title_image_path = "res://Assets/UI/Title/Title_Tetris.png"
+	if ResourceLoader.exists(title_image_path):
+		var title_texture = load(title_image_path)
+		if title_texture != null:
+			title_texture_rect.texture = title_texture
+			title_texture_rect.visible = true
+			title_label.visible = false
 
 	var right_stats = VBoxContainer.new()
 	right_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

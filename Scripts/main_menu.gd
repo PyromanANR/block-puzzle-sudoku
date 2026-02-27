@@ -40,8 +40,10 @@ const PLAYCARD_SEPARATION = 10
 const PLAYCARD_BUTTON_H = 78
 const PLAYCARD_CHIP_H = 60
 
-const BG_FRAMES_DIR = "res://Assets/UI/Background/FallingBlocks/frames"
-const NO_MERCY_OVERLAY_PATH = "res://Assets/UI/Background/NoMercy/overlay.png"
+const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
+const BG_SHEET_A_PATH = "res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1.png"
+const BG_SHEET_B_PATH = "res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1.png"
+const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
 
 var music_manager: MusicManager = null
 var sfx_players = {}
@@ -67,13 +69,17 @@ var level_chip_label: Label
 var level_chip_progress: ProgressBar
 var hero_title_zone: Control
 var hero_title_label: Label
+var hero_title_texture: TextureRect
 var hero_subtitle_label: Label
 var mode_description_label: Label
 var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
 var difficulty_glow: ColorRect
-var no_mercy_overlay: ColorRect
+var no_mercy_overlay: TextureRect
+var falling_blocks_bg: GPUParticles2D
+var falling_blocks_fg: GPUParticles2D
+var menu_palette_cache: Dictionary = {}
 
 var rewards_panel: Panel
 var rewards_level_label: Label
@@ -107,6 +113,7 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_apply_safe_area()
+		_sync_particles_to_viewport()
 
 
 
@@ -273,87 +280,93 @@ func _build_ui() -> void:
 func _build_background_layer() -> void:
 	var bg = ColorRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.07, 0.08, 0.11, 1.0)
+	bg.color = _palette_color("bg", Color(0.07, 0.08, 0.11, 1.0))
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(bg)
 
-	var sprite_layer = Node2D.new()
-	background_layer.add_child(sprite_layer)
+	var particles_holder = Control.new()
+	particles_holder.name = "FallingBlocksHolder"
+	particles_holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	particles_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background_layer.add_child(particles_holder)
 
-	var sprite = AnimatedSprite2D.new()
-	sprite.centered = false
-	sprite.position = Vector2.ZERO
-	sprite_layer.add_child(sprite)
+	falling_blocks_bg = _create_falling_particles(BG_SHEET_A_PATH, 12.0, 6.4, 90.0, 130.0, 0.34, 0.65)
+	if falling_blocks_bg != null:
+		particles_holder.add_child(falling_blocks_bg)
 
-	var frames = _build_background_frames()
-	if frames != null:
-		sprite.sprite_frames = frames
-		sprite.animation = "default"
-		sprite.play("default")
-	else:
-		var fallback = ColorRect.new()
-		fallback.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		fallback.color = Color(0.14, 0.15, 0.19, 0.55)
-		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		background_layer.add_child(fallback)
+	falling_blocks_fg = _create_falling_particles(BG_SHEET_B_PATH, 20.0, 4.2, 130.0, 190.0, 0.62, 0.95)
+	if falling_blocks_fg != null:
+		particles_holder.add_child(falling_blocks_fg)
 
 	difficulty_glow = ColorRect.new()
 	difficulty_glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(difficulty_glow)
 
-	no_mercy_overlay = ColorRect.new()
+	no_mercy_overlay = TextureRect.new()
 	no_mercy_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if ResourceLoader.exists(NO_MERCY_OVERLAY_PATH):
-		var texture = load(NO_MERCY_OVERLAY_PATH)
-		if texture != null:
-			var mat = CanvasItemMaterial.new()
-			mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
-			no_mercy_overlay.material = mat
-			no_mercy_overlay.color = Color(1, 1, 1, 0.14)
-	else:
-		no_mercy_overlay.color = Color(1.0, 0.35, 0.2, 0.08)
+	no_mercy_overlay.stretch_mode = TextureRect.STRETCH_SCALE
+	if ResourceLoader.exists(NO_MERCY_SPARKS_PATH):
+		var sparks = load(NO_MERCY_SPARKS_PATH)
+		if sparks != null:
+			no_mercy_overlay.texture = sparks
+	no_mercy_overlay.modulate = Color(1, 1, 1, 0.18)
 	background_layer.add_child(no_mercy_overlay)
 
+	_sync_particles_to_viewport()
 
-func _build_background_frames() -> SpriteFrames:
-	if not DirAccess.dir_exists_absolute(BG_FRAMES_DIR):
+
+func _create_falling_particles(sheet_path: String, amount: float, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_max: float) -> GPUParticles2D:
+	if not ResourceLoader.exists(sheet_path):
 		return null
-	var files = []
-	var dir = DirAccess.open(BG_FRAMES_DIR)
-	if dir == null:
+	var sheet = load(sheet_path)
+	if sheet == null:
 		return null
-	dir.list_dir_begin()
-	while true:
-		var file_name = dir.get_next()
-		if file_name == "":
-			break
-		if dir.current_is_dir():
+
+	var particles = GPUParticles2D.new()
+	particles.amount = int(amount)
+	particles.lifetime = lifetime
+	particles.one_shot = false
+	particles.explosiveness = 0.0
+	particles.randomness = 0.75
+	particles.emitting = true
+	particles.texture = sheet
+	particles.position = Vector2.ZERO
+	particles.modulate = Color(1, 1, 1, alpha)
+
+	var canvas_material = CanvasItemMaterial.new()
+	canvas_material.particles_animation = true
+	canvas_material.particles_anim_h_frames = 6
+	canvas_material.particles_anim_v_frames = 1
+	canvas_material.particles_anim_loop = true
+	particles.material = canvas_material
+
+	var process_material = ParticleProcessMaterial.new()
+	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process_material.direction = Vector3(0.15, 1.0, 0.0)
+	process_material.spread = 20.0
+	process_material.initial_velocity_min = speed_min
+	process_material.initial_velocity_max = speed_max
+	process_material.gravity = Vector3(0.0, 80.0, 0.0)
+	process_material.scale_min = 0.28
+	process_material.scale_max = scale_max
+	process_material.angular_velocity_min = -18.0
+	process_material.angular_velocity_max = 18.0
+	particles.process_material = process_material
+
+	return particles
+
+
+func _sync_particles_to_viewport() -> void:
+	var viewport_size = get_viewport_rect().size
+	for emitter in [falling_blocks_bg, falling_blocks_fg]:
+		if emitter == null:
 			continue
-		if not (file_name.ends_with(".png") or file_name.ends_with(".webp")):
-			continue
-		files.append(file_name)
-	dir.list_dir_end()
-	files.sort()
-	if files.is_empty():
-		return null
-
-	var frames = SpriteFrames.new()
-	frames.add_animation("default")
-	frames.set_animation_speed("default", 8.0)
-	for file_name in files:
-		var path = "%s/%s" % [BG_FRAMES_DIR, file_name]
-		if not ResourceLoader.exists(path):
-			continue
-		var tex = load(path)
-		if tex != null:
-			frames.add_frame("default", tex)
-	if frames.get_frame_count("default") <= 0:
-		return null
-	return frames
-
-
+		emitter.position = Vector2(viewport_size.x * 0.5, -40)
+		if emitter.process_material is ParticleProcessMaterial:
+			var process_material = emitter.process_material as ParticleProcessMaterial
+			process_material.emission_box_extents = Vector3(viewport_size.x * 0.55, 20.0, 0.0)
 func _build_top_bar() -> void:
 	var top = Control.new()
 	top.name = "TopBar"
@@ -601,6 +614,20 @@ func _build_hero_title() -> void:
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(title)
 	hero_title_label = title
+
+	hero_title_texture = TextureRect.new()
+	hero_title_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hero_title_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hero_title_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	hero_title_texture.custom_minimum_size = Vector2(480, HERO_TITLE_HEIGHT)
+	hero_title_texture.visible = false
+	center.add_child(hero_title_texture)
+	if ResourceLoader.exists(TITLE_IMAGE_PATH):
+		var title_texture = load(TITLE_IMAGE_PATH)
+		if title_texture != null:
+			hero_title_texture.texture = title_texture
+			hero_title_texture.visible = true
+			title.visible = false
 
 	var subtitle = Label.new()
 	subtitle.text = "Classic block strategy"
@@ -1105,7 +1132,7 @@ func _update_no_mercy_visibility() -> void:
 	if is_hard:
 		no_mercy_toggle.button_pressed = Save.get_no_mercy()
 	if no_mercy_overlay != null:
-		no_mercy_overlay.visible = is_hard and Save.get_no_mercy()
+		no_mercy_overlay.visible = is_hard and Save.get_no_mercy() and no_mercy_overlay.texture != null
 
 
 func _update_menu_fx() -> void:
@@ -1114,12 +1141,12 @@ func _update_menu_fx() -> void:
 		difficulty_glow.visible = true
 		difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var chip_color = _difficulty_color(difficulty)
-		var alpha = 0.22 if difficulty == "Hard" else 0.14
+		var alpha = _palette_float("alpha_strong", 0.22) if difficulty == "Hard" else _palette_float("alpha_soft", 0.14)
 		difficulty_glow.color = Color(chip_color.r, chip_color.g, chip_color.b, alpha)
 
 	if no_mercy_overlay != null:
 		no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		no_mercy_overlay.visible = difficulty == "Hard" and Save.get_no_mercy()
+		no_mercy_overlay.visible = difficulty == "Hard" and Save.get_no_mercy() and no_mercy_overlay.texture != null
 
 
 func _build_safe_rect() -> Rect2i:
@@ -1212,13 +1239,48 @@ func _apply_safe_area() -> void:
 
 
 func _difficulty_color(difficulty: String) -> Color:
+	var key = "glow_medium"
 	match difficulty:
 		"Easy":
-			return Color(0.32, 0.92, 0.56)
+			key = "glow_easy"
 		"Hard":
-			return Color(0.98, 0.35, 0.33)
+			key = "glow_hard"
 		_:
-			return Color(1.0, 0.76, 0.26)
+			key = "glow_medium"
+	return _palette_color(key, Color(1.0, 0.76, 0.26))
+
+
+func _load_menu_palette() -> Dictionary:
+	if not menu_palette_cache.is_empty():
+		return menu_palette_cache
+	var manager = _skin_manager()
+	if manager != null and manager.has_method("get_default_palette"):
+		var candidate = manager.call("get_default_palette")
+		if typeof(candidate) == TYPE_DICTIONARY:
+			menu_palette_cache = candidate
+	return menu_palette_cache
+
+
+func _palette_color(key: String, fallback: Color) -> Color:
+	var palette = _load_menu_palette()
+	if palette.has("colors"):
+		var colors = palette["colors"]
+		if typeof(colors) == TYPE_DICTIONARY and colors.has(key):
+			return Color.from_string(String(colors[key]), fallback)
+	return fallback
+
+
+func _palette_float(key: String, fallback: float) -> float:
+	var palette = _load_menu_palette()
+	if palette.has("spacing"):
+		var spacing = palette["spacing"]
+		if typeof(spacing) == TYPE_DICTIONARY and spacing.has(key):
+			return float(spacing[key])
+	if palette.has("fx"):
+		var fx = palette["fx"]
+		if typeof(fx) == TYPE_DICTIONARY and fx.has(key):
+			return float(fx[key])
+	return fallback
 
 
 func _set_button_icon(button: Button, path: String, fallback: String, label_text: String, icon_max: int = UI_ICON_MAX) -> void:
