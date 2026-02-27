@@ -9,11 +9,13 @@ const MainMenuPopups = preload("res://Scripts/Modules/UI/MainMenu/Popups.gd")
 const DialogFactory = preload("res://Scripts/Modules/UI/Common/DialogFactory.gd")
 const DebugMenu = preload("res://Scripts/Modules/Debug/DebugMenu.gd")
 
-const ICON_SETTINGS = "res://Assets/UI/Icons/icon_settings.png"
-const ICON_SHOP = "res://Assets/UI/Icons/icon_shop.png"
-const ICON_LEADERBOARD = "res://Assets/UI/Icons/icon_leaderboard.png"
-const ICON_QUESTS = "res://Assets/UI/Icons/icon_quests.png"
-const ICON_PROFILE = "res://Assets/UI/Icons/icon_profile.png"
+const ICON_SETTINGS_TRES = "res://Assets/UI/icons/menu/icon_settings.tres"
+const ICON_SHOP_TRES = "res://Assets/UI/icons/menu/icon_shop.tres"
+const ICON_LEADERBOARD_TRES = "res://Assets/UI/icons/menu/icon_leaderboard.tres"
+const ICON_QUESTS_TRES = "res://Assets/UI/icons/menu/icon_quests.tres"
+const ICON_DEBUG_TRES = "res://Assets/UI/icons/menu/icon_debug.tres"
+const ICON_CLOSE_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
+const ICON_BADGE_TRES = "res://Assets/UI/icons/menu/icon_badge.tres"
 
 const SETTINGS_PATH = "user://settings.cfg"
 const MUSIC_ATTENUATION_LINEAR = 0.05
@@ -45,7 +47,14 @@ const PLAYCARD_CHIP_H = 60
 const TITLE_IMAGE_PATH = "res://Assets/UI/Title/Title_Tetris.png"
 const BG_SHEET_A_PATH = "res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1.png"
 const BG_SHEET_B_PATH = "res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1.png"
+const BG_SHEET_C_PATH = "res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_C_6x1.png"
 const NO_MERCY_SPARKS_PATH = "res://Assets/UI/Background/NoMercy/Sparks.png"
+const MENU_PARALLAX_SHADER_PATH = "res://Assets/Shaders/Menu/ui_bg_voxel_parallax.gdshader"
+const NINEPATCH_BOTTOM_BAR_PATH = "res://Assets/UI/9patch/bottom_bar.png"
+const NINEPATCH_BUTTON_PRIMARY_PATH = "res://Assets/UI/9patch/button_primary.png"
+const NINEPATCH_BUTTON_SMALL_PATH = "res://Assets/UI/9patch/button_small.png"
+const NINEPATCH_PANEL_DEFAULT_PATH = "res://Assets/UI/9patch/panel_default.png"
+const NINEPATCH_TOP_CHIP_PATH = "res://Assets/UI/9patch/top_chip.png"
 
 var music_manager: MusicManager = null
 var sfx_players = {}
@@ -79,8 +88,9 @@ var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
 var difficulty_glow: ColorRect
 var no_mercy_overlay: TextureRect
-var falling_blocks_bg: GPUParticles2D
-var falling_blocks_fg: GPUParticles2D
+var falling_blocks_left: GPUParticles2D
+var falling_blocks_right: GPUParticles2D
+var falling_blocks_middle: GPUParticles2D
 var menu_palette_cache: Dictionary = {}
 
 var rewards_panel: Panel
@@ -292,22 +302,34 @@ func _build_background_layer() -> void:
 	particles_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(particles_holder)
 
-	falling_blocks_bg = _create_falling_particles(BG_SHEET_A_PATH, 11.0, 6.8, 82.0, 120.0, 0.28, 0.22, 0.55)
-	if falling_blocks_bg != null:
-		falling_blocks_bg.name = "FallingBlocks_L"
-		particles_holder.add_child(falling_blocks_bg)
+	falling_blocks_left = _create_falling_particles(BG_SHEET_A_PATH, 22, 8.6, 58.0, 84.0, 0.24, 0.24, 0.50)
+	if falling_blocks_left != null:
+		falling_blocks_left.name = "FallingBlocks_L"
+		particles_holder.add_child(falling_blocks_left)
 
-	falling_blocks_fg = _create_falling_particles(BG_SHEET_B_PATH, 16.0, 4.9, 115.0, 165.0, 0.46, 0.30, 0.75)
-	if falling_blocks_fg != null:
-		falling_blocks_fg.name = "FallingBlocks_R"
-		particles_holder.add_child(falling_blocks_fg)
+	falling_blocks_right = _create_falling_particles(BG_SHEET_B_PATH, 24, 7.8, 64.0, 92.0, 0.32, 0.30, 0.62)
+	if falling_blocks_right != null:
+		falling_blocks_right.name = "FallingBlocks_R"
+		particles_holder.add_child(falling_blocks_right)
+
+	falling_blocks_middle = _create_falling_particles(BG_SHEET_C_PATH, 6, 9.8, 46.0, 68.0, 0.16, 0.22, 0.40)
+	if falling_blocks_middle != null:
+		falling_blocks_middle.name = "FallingBlocks_M"
+		particles_holder.add_child(falling_blocks_middle)
+
+	_try_add_bg_soften_overlay()
 
 	difficulty_glow = ColorRect.new()
+	difficulty_glow.name = "difficulty_glow"
 	difficulty_glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var glow_material = CanvasItemMaterial.new()
+	glow_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	difficulty_glow.material = glow_material
 	background_layer.add_child(difficulty_glow)
 
 	no_mercy_overlay = TextureRect.new()
+	no_mercy_overlay.name = "no_mercy_overlay"
 	no_mercy_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	no_mercy_overlay.stretch_mode = TextureRect.STRETCH_SCALE
@@ -315,13 +337,38 @@ func _build_background_layer() -> void:
 		var sparks = load(NO_MERCY_SPARKS_PATH)
 		if sparks != null:
 			no_mercy_overlay.texture = sparks
-	no_mercy_overlay.modulate = Color(1, 1, 1, 0.18)
+	var sparks_material = CanvasItemMaterial.new()
+	sparks_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	no_mercy_overlay.material = sparks_material
+	no_mercy_overlay.modulate = Color(1, 1, 1, 0.30)
 	background_layer.add_child(no_mercy_overlay)
 
 	_sync_particles_to_viewport()
 
 
-func _create_falling_particles(sheet_path: String, amount: float, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float) -> GPUParticles2D:
+func _try_add_bg_soften_overlay() -> void:
+	if not ResourceLoader.exists(MENU_PARALLAX_SHADER_PATH):
+		return
+	var shader = load(MENU_PARALLAX_SHADER_PATH)
+	if not (shader is Shader):
+		return
+	var overlay = TextureRect.new()
+	overlay.name = "bg_soften"
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.stretch_mode = TextureRect.STRETCH_SCALE
+	if ResourceLoader.exists("res://icon.svg"):
+		var fallback_tex = load("res://icon.svg")
+		if fallback_tex is Texture2D:
+			overlay.texture = fallback_tex
+	var shader_material = ShaderMaterial.new()
+	shader_material.shader = shader
+	overlay.material = shader_material
+	overlay.modulate = Color(1, 1, 1, 0.1)
+	background_layer.add_child(overlay)
+
+
+func _create_falling_particles(sheet_path: String, amount: int, lifetime: float, speed_min: float, speed_max: float, alpha: float, scale_min: float, scale_max: float) -> GPUParticles2D:
 	if not ResourceLoader.exists(sheet_path):
 		return null
 	var sheet = load(sheet_path)
@@ -329,11 +376,11 @@ func _create_falling_particles(sheet_path: String, amount: float, lifetime: floa
 		return null
 
 	var particles = GPUParticles2D.new()
-	particles.amount = int(amount)
+	particles.amount = amount
 	particles.lifetime = lifetime
 	particles.one_shot = false
 	particles.explosiveness = 0.0
-	particles.randomness = 0.75
+	particles.randomness = 0.22
 	particles.emitting = true
 	particles.texture = sheet
 	particles.position = Vector2.ZERO
@@ -347,16 +394,20 @@ func _create_falling_particles(sheet_path: String, amount: float, lifetime: floa
 	particles.material = canvas_material
 
 	var process_material = ParticleProcessMaterial.new()
-	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	process_material.direction = Vector3(0.15, 1.0, 0.0)
-	process_material.spread = 20.0
+	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RECTANGLE
+	process_material.direction = Vector3(0.0, 1.0, 0.0)
+	process_material.spread = 6.0
 	process_material.initial_velocity_min = speed_min
 	process_material.initial_velocity_max = speed_max
-	process_material.gravity = Vector3(0.0, 80.0, 0.0)
+	process_material.gravity = Vector3(0.0, 115.0, 0.0)
 	process_material.scale_min = scale_min
 	process_material.scale_max = scale_max
-	process_material.angular_velocity_min = -18.0
-	process_material.angular_velocity_max = 18.0
+	process_material.angular_velocity_min = -6.0
+	process_material.angular_velocity_max = 6.0
+	process_material.angle_min = -4.0
+	process_material.angle_max = 4.0
+	process_material.anim_speed_min = 0.7
+	process_material.anim_speed_max = 1.2
 	particles.process_material = process_material
 
 	return particles
@@ -364,16 +415,21 @@ func _create_falling_particles(sheet_path: String, amount: float, lifetime: floa
 
 func _sync_particles_to_viewport() -> void:
 	var viewport_size = get_viewport_rect().size
-	if falling_blocks_bg != null:
-		falling_blocks_bg.position = Vector2(viewport_size.x * 0.15, -40)
-		if falling_blocks_bg.process_material is ParticleProcessMaterial:
-			var left_process_material = falling_blocks_bg.process_material as ParticleProcessMaterial
-			left_process_material.emission_box_extents = Vector3(viewport_size.x * 0.15, 20.0, 0.0)
-	if falling_blocks_fg != null:
-		falling_blocks_fg.position = Vector2(viewport_size.x * 0.85, -40)
-		if falling_blocks_fg.process_material is ParticleProcessMaterial:
-			var right_process_material = falling_blocks_fg.process_material as ParticleProcessMaterial
-			right_process_material.emission_box_extents = Vector3(viewport_size.x * 0.15, 20.0, 0.0)
+	if falling_blocks_left != null:
+		falling_blocks_left.position = Vector2(viewport_size.x * 0.12, -32)
+		if falling_blocks_left.process_material is ParticleProcessMaterial:
+			var left_process_material = falling_blocks_left.process_material as ParticleProcessMaterial
+			left_process_material.emission_rect_extents = Vector3(viewport_size.x * 0.12, 16.0, 0.0)
+	if falling_blocks_right != null:
+		falling_blocks_right.position = Vector2(viewport_size.x * 0.88, -32)
+		if falling_blocks_right.process_material is ParticleProcessMaterial:
+			var right_process_material = falling_blocks_right.process_material as ParticleProcessMaterial
+			right_process_material.emission_rect_extents = Vector3(viewport_size.x * 0.12, 16.0, 0.0)
+	if falling_blocks_middle != null:
+		falling_blocks_middle.position = Vector2(viewport_size.x * 0.5, -32)
+		if falling_blocks_middle.process_material is ParticleProcessMaterial:
+			var middle_process_material = falling_blocks_middle.process_material as ParticleProcessMaterial
+			middle_process_material.emission_rect_extents = Vector3(viewport_size.x * 0.08, 16.0, 0.0)
 
 func _build_top_bar() -> void:
 	var top = Control.new()
@@ -420,6 +476,7 @@ func _build_top_bar() -> void:
 	level_chip.pressed.connect(func(): _play_sfx("ui_click"))
 	level_chip.pressed.connect(func(): _open_panel(rewards_panel))
 	left_slot.add_child(level_chip)
+	_apply_top_chip_style(level_chip)
 
 	var chip_margin = MarginContainer.new()
 	chip_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -440,10 +497,9 @@ func _build_top_bar() -> void:
 	var badge_icon = TextureRect.new()
 	badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	badge_icon.custom_minimum_size = Vector2(UI_ICON_MAX, UI_ICON_MAX)
-	if ResourceLoader.exists(ICON_PROFILE):
-		var badge_tex = load(ICON_PROFILE)
-		if badge_tex != null:
-			badge_icon.texture = badge_tex
+	var badge_tex = _load_icon_tex(ICON_BADGE_TRES)
+	if badge_tex != null:
+		badge_icon.texture = badge_tex
 	chip_row.add_child(badge_icon)
 	if badge_icon.texture == null:
 		var badge_fallback = Label.new()
@@ -486,8 +542,7 @@ func _build_top_bar() -> void:
 		btn_debug.custom_minimum_size = Vector2(TOPBAR_BTN, TOPBAR_BTN)
 		btn_debug.expand_icon = true
 		btn_debug.add_theme_constant_override("icon_max_width", TOPBAR_BTN - 12)
-		btn_debug.text = "🧪"
-		btn_debug.tooltip_text = "Debug"
+		_set_button_icon(btn_debug, ICON_DEBUG_TRES, "🧪", "Debug", TOPBAR_BTN - 12)
 		btn_debug.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 		btn_debug.pressed.connect(func(): _play_sfx("ui_click"))
 		btn_debug.pressed.connect(func(): _open_panel(debug_panel))
@@ -495,7 +550,7 @@ func _build_top_bar() -> void:
 
 	var btn_settings = Button.new()
 	btn_settings.custom_minimum_size = Vector2(TOPBAR_BTN, TOPBAR_BTN)
-	_set_button_icon(btn_settings, ICON_SETTINGS, "⚙", "Settings", TOPBAR_BTN - 12)
+	_set_button_icon(btn_settings, ICON_SETTINGS_TRES, "⚙", "Settings", TOPBAR_BTN - 12)
 	btn_settings.expand_icon = true
 	btn_settings.add_theme_constant_override("icon_max_width", TOPBAR_BTN - 12)
 	btn_settings.mouse_entered.connect(func(): _play_sfx("ui_hover"))
@@ -513,6 +568,7 @@ func _build_play_card() -> void:
 	card.anchor_bottom = 0.0
 	card.custom_minimum_size = Vector2(PLAYCARD_MAX_W, 0)
 	content_layer.add_child(card)
+	_apply_panel_style(card)
 
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -534,6 +590,7 @@ func _build_play_card() -> void:
 	play_button.pressed.connect(func(): _play_sfx("ui_click"))
 	play_button.pressed.connect(_on_start)
 	v.add_child(play_button)
+	_apply_button_style(play_button, "primary")
 
 	var difficulty_title = Label.new()
 	difficulty_title.text = "Select Difficulty"
@@ -551,6 +608,7 @@ func _build_play_card() -> void:
 		chip.pressed.connect(func(): _play_sfx("ui_click"))
 		chip.pressed.connect(func(): _apply_difficulty_selection(diff))
 		chips.add_child(chip)
+		_apply_button_style(chip, "small")
 		difficulty_chip_buttons[diff] = chip
 
 	no_mercy_toggle = CheckBox.new()
@@ -583,6 +641,7 @@ func _build_play_card() -> void:
 	rewards_btn.pressed.connect(func(): _play_sfx("ui_click"))
 	rewards_btn.pressed.connect(func(): _open_panel(rewards_panel))
 	row.add_child(rewards_btn)
+	_apply_button_style(rewards_btn, "small")
 
 	var exit_btn = Button.new()
 	exit_btn.text = "Exit"
@@ -592,6 +651,7 @@ func _build_play_card() -> void:
 	exit_btn.pressed.connect(func(): _play_sfx("ui_click"))
 	exit_btn.pressed.connect(_on_exit)
 	row.add_child(exit_btn)
+	_apply_button_style(exit_btn, "small")
 
 
 func _build_hero_title() -> void:
@@ -662,12 +722,15 @@ func _build_bottom_nav() -> void:
 	var background_panel = Panel.new()
 	background_panel.name = "BackgroundPanel"
 	background_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# TODO: Replace with StyleBoxTexture 9-slice when res://Assets/UI/9patch/bottom_bar_9slice.png is available.
-	var bar_style = StyleBoxFlat.new()
-	bar_style.bg_color = Color(0.07, 0.09, 0.14, 0.86)
-	bar_style.corner_radius_top_left = 22
-	bar_style.corner_radius_top_right = 22
-	background_panel.add_theme_stylebox_override("panel", bar_style)
+	var bar_style = _load_stylebox_9slice(NINEPATCH_BOTTOM_BAR_PATH)
+	if bar_style != null:
+		background_panel.add_theme_stylebox_override("panel", bar_style)
+	else:
+		var fallback_bar_style = StyleBoxFlat.new()
+		fallback_bar_style.bg_color = Color(0.07, 0.09, 0.14, 0.86)
+		fallback_bar_style.corner_radius_top_left = 22
+		fallback_bar_style.corner_radius_top_right = 22
+		background_panel.add_theme_stylebox_override("panel", fallback_bar_style)
 	bottom_bar.add_child(background_panel)
 
 	var safe_margin = MarginContainer.new()
@@ -681,9 +744,9 @@ func _build_bottom_nav() -> void:
 	nav_row.add_theme_constant_override("separation", NAV_SEPARATION)
 	safe_margin.add_child(nav_row)
 
-	_add_nav_button(nav_row, "Shop", ICON_SHOP, "🛍", func(): _open_panel(shop_panel))
-	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD, "🏆", func(): _open_panel(leaderboard_panel))
-	_add_nav_button(nav_row, "Quests", ICON_QUESTS, "📜", func(): _open_panel(quests_panel))
+	_add_nav_button(nav_row, "Shop", ICON_SHOP_TRES, "🛍", func(): _open_panel(shop_panel))
+	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD_TRES, "🏆", func(): _open_panel(leaderboard_panel))
+	_add_nav_button(nav_row, "Quests", ICON_QUESTS_TRES, "📜", func(): _open_panel(quests_panel))
 
 
 func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: String, fallback_glyph: String, callback: Callable) -> void:
@@ -699,8 +762,8 @@ func _add_nav_button(parent: HBoxContainer, label_text: String, icon_path: Strin
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.text = ""
 	b.tooltip_text = label_text
-	if icon_path != "" and ResourceLoader.exists(icon_path):
-		var tex = load(icon_path)
+	if icon_path != "":
+		var tex = _load_icon_tex(icon_path)
 		if tex != null:
 			b.icon = tex
 	if b.icon == null:
@@ -765,6 +828,7 @@ func _create_modal_panel(title_text: String) -> Panel:
 	panel.offset_bottom = max_h * 0.5
 	panel.visible = false
 	modal_layer.add_child(panel)
+	_apply_panel_style(panel)
 
 	var v = _get_or_create(panel, "Body", VBoxContainer)
 	if v is Control:
@@ -785,7 +849,7 @@ func _create_modal_panel(title_text: String) -> Panel:
 	header.add_child(title)
 
 	var close_btn = Button.new()
-	close_btn.text = "✕"
+	_set_button_icon(close_btn, ICON_CLOSE_TRES, "✕", "Close")
 	close_btn.custom_minimum_size = Vector2(56, 48)
 	close_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	close_btn.pressed.connect(func(): _play_sfx("ui_click"))
@@ -954,6 +1018,7 @@ func _build_shop_content(panel: Panel) -> void:
 		var card = Panel.new()
 		card.custom_minimum_size = Vector2(0, 96)
 		content.add_child(card)
+		_apply_panel_style(card)
 		var label = Label.new()
 		label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		label.offset_left = 12
@@ -1148,12 +1213,17 @@ func _update_menu_fx() -> void:
 	if difficulty_glow != null:
 		difficulty_glow.visible = true
 		difficulty_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var chip_color = _difficulty_color(difficulty)
-		var alpha = _palette_float("alpha_strong", 0.22) if difficulty == "Hard" else _palette_float("alpha_soft", 0.14)
-		difficulty_glow.color = Color(chip_color.r, chip_color.g, chip_color.b, alpha)
+		match difficulty:
+			"Easy":
+				difficulty_glow.color = Color(0.31, 0.92, 0.46, 0.12)
+			"Hard":
+				difficulty_glow.color = Color(0.95, 0.18, 0.18, 0.18)
+			_:
+				difficulty_glow.color = Color(0.96, 0.78, 0.22, 0.14)
 
 	if no_mercy_overlay != null:
 		no_mercy_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		no_mercy_overlay.modulate = Color(1, 1, 1, 0.30)
 		no_mercy_overlay.visible = difficulty == "Hard" and Save.get_no_mercy() and no_mercy_overlay.texture != null
 
 
@@ -1306,18 +1376,80 @@ func _palette_float(key: String, fallback: float) -> float:
 	return fallback
 
 
+func _load_stylebox_9slice(path: String) -> StyleBoxTexture:
+	if not ResourceLoader.exists(path):
+		return null
+	var tex = load(path)
+	if not (tex is Texture2D):
+		return null
+	var style = StyleBoxTexture.new()
+	style.texture = tex
+	style.texture_margin_left = 12
+	style.texture_margin_right = 12
+	style.texture_margin_top = 12
+	style.texture_margin_bottom = 12
+	style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+	return style
+
+
+func _apply_button_style(button: Button, kind: String) -> void:
+	if button == null:
+		return
+	var path = NINEPATCH_BUTTON_PRIMARY_PATH
+	if kind == "small":
+		path = NINEPATCH_BUTTON_SMALL_PATH
+	var style = _load_stylebox_9slice(path)
+	if style == null:
+		return
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", style.duplicate())
+	button.add_theme_stylebox_override("pressed", style.duplicate())
+	button.add_theme_stylebox_override("disabled", style.duplicate())
+
+
+func _apply_panel_style(panel: Panel) -> void:
+	if panel == null:
+		return
+	var style = _load_stylebox_9slice(NINEPATCH_PANEL_DEFAULT_PATH)
+	if style == null:
+		return
+	panel.add_theme_stylebox_override("panel", style)
+
+
+func _apply_top_chip_style(button: Button) -> void:
+	if button == null:
+		return
+	var style = _load_stylebox_9slice(NINEPATCH_TOP_CHIP_PATH)
+	if style == null:
+		return
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", style.duplicate())
+	button.add_theme_stylebox_override("pressed", style.duplicate())
+
+
+func _load_icon_tex(path_to_tres: String) -> Texture2D:
+	if not ResourceLoader.exists(path_to_tres):
+		return null
+	var resource = load(path_to_tres)
+	if resource is Texture2D:
+		return resource as Texture2D
+	if resource is AtlasTexture:
+		return resource as AtlasTexture
+	return null
+
+
 func _set_button_icon(button: Button, path: String, fallback: String, label_text: String, icon_max: int = UI_ICON_MAX) -> void:
 	button.expand_icon = false
 	button.add_theme_constant_override("icon_max_width", icon_max)
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.custom_minimum_size = Vector2(max(button.custom_minimum_size.x, 64.0), max(button.custom_minimum_size.y, 64.0))
-	if ResourceLoader.exists(path):
-		var tex = load(path)
-		if tex != null:
-			button.icon = tex
-			button.text = ""
-			button.tooltip_text = label_text
-			return
+	var tex = _load_icon_tex(path)
+	if tex != null:
+		button.icon = tex
+		button.text = ""
+		button.tooltip_text = label_text
+		return
 	button.text = fallback
 	button.tooltip_text = label_text
 
