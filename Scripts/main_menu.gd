@@ -87,7 +87,7 @@ var hero_title_label: Label
 var hero_title_texture: TextureRect
 var hero_subtitle_label: Label
 var mode_description_label: Label
-var no_mercy_panel: Panel
+var no_mercy_panel: CanvasItem
 var no_mercy_toggle: CheckBox
 var no_mercy_help: Label
 var difficulty_chip_buttons: Dictionary = {}
@@ -712,57 +712,32 @@ func _build_play_card() -> void:
 		_apply_button_style(chip, "small")
 		difficulty_chip_buttons[diff] = chip
 
-	no_mercy_panel = Panel.new()
-	no_mercy_panel.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
-	no_mercy_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	no_mercy_panel.focus_mode = Control.FOCUS_NONE
-	no_mercy_panel.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	v.add_child(no_mercy_panel)
 
-	var no_mercy_margin = MarginContainer.new()
-	no_mercy_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	no_mercy_margin.add_theme_constant_override("margin_left", 18)
-	no_mercy_margin.add_theme_constant_override("margin_right", 18)
-	no_mercy_margin.add_theme_constant_override("margin_top", 10)
-	no_mercy_margin.add_theme_constant_override("margin_bottom", 10)
-	no_mercy_panel.add_child(no_mercy_margin)
 
-	var no_mercy_row = HBoxContainer.new()
-	no_mercy_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	no_mercy_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	no_mercy_row.add_theme_constant_override("separation", 10)
-	no_mercy_margin.add_child(no_mercy_row)
+	# No Mercy as toggle BUTTON (no checkbox)
+	var no_mercy_btn = Button.new()
+	no_mercy_btn.name = "NoMercyButton"
+	no_mercy_btn.text = "No Mercy"
+	no_mercy_btn.custom_minimum_size = Vector2(0, PLAYCARD_CHIP_H)
+	no_mercy_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	no_mercy_btn.toggle_mode = true
+	no_mercy_btn.button_pressed = Save.get_no_mercy()
+	no_mercy_btn.focus_mode = Control.FOCUS_NONE
+	no_mercy_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	no_mercy_btn.pressed.connect(func(): _play_sfx("ui_click"))
+	no_mercy_btn.toggled.connect(_on_no_mercy_toggled)
+	v.add_child(no_mercy_btn)
 
-	var no_mercy_label = Label.new()
-	no_mercy_label.text = "No Mercy"
-	no_mercy_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	no_mercy_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	no_mercy_label.add_theme_font_size_override("font_size", 22)
-	no_mercy_row.add_child(no_mercy_label)
+	# Reuse existing variable so visibility logic keeps working
+	no_mercy_panel = no_mercy_btn
+	if no_mercy_panel is Button:
+		_update_no_mercy_button_glow(no_mercy_panel as Button)
+	no_mercy_toggle = null
 
-	var no_mercy_spacer = Control.new()
-	no_mercy_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	no_mercy_row.add_child(no_mercy_spacer)
+	_apply_no_mercy_button_style(no_mercy_btn)
+	_update_no_mercy_button_glow(no_mercy_btn)
 
-	no_mercy_toggle = CheckBox.new()
-	no_mercy_toggle.button_pressed = Save.get_no_mercy()
-	no_mercy_toggle.text = ""
-	no_mercy_toggle.focus_mode = Control.FOCUS_NONE
-	no_mercy_toggle.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	no_mercy_toggle.pressed.connect(func(): _play_sfx("ui_click"))
-	no_mercy_toggle.toggled.connect(_on_no_mercy_toggled)
-	no_mercy_row.add_child(no_mercy_toggle)
 
-	no_mercy_panel.gui_input.connect(func(event: InputEvent):
-		if event is InputEventMouseButton:
-			var mouse_event := event as InputEventMouseButton
-			if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
-				if no_mercy_toggle.get_global_rect().has_point(get_global_mouse_position()):
-					return
-				_play_sfx("ui_click")
-				no_mercy_toggle.button_pressed = not no_mercy_toggle.button_pressed
-	)
-	_apply_no_mercy_checkbox_style(no_mercy_toggle, no_mercy_panel, no_mercy_label)
 
 	no_mercy_help = Label.new()
 	no_mercy_help.text = " No Mercy removes reserve slots."
@@ -1262,7 +1237,9 @@ func _apply_difficulty_selection(difficulty: String) -> void:
 func _on_no_mercy_toggled(enabled: bool) -> void:
 	var is_hard = Save.get_current_difficulty() == "Hard"
 	if not is_hard:
-		no_mercy_toggle.button_pressed = false
+		if no_mercy_panel is Button:
+			(no_mercy_panel as Button).button_pressed = false
+			_update_no_mercy_button_glow(no_mercy_panel as Button)
 		_update_menu_fx()
 		return
 	Save.set_no_mercy(enabled)
@@ -1272,6 +1249,8 @@ func _on_no_mercy_toggled(enabled: bool) -> void:
 		core.call("ApplyDifficultyFromSave")
 	_refresh_all_ui()
 	_update_menu_fx()
+	if no_mercy_panel is Button:
+		_update_no_mercy_button_glow(no_mercy_panel as Button)
 
 
 func _update_difficulty_buttons(selected: String) -> void:
@@ -1301,8 +1280,6 @@ func _update_difficulty_buttons(selected: String) -> void:
 
 
 func _update_no_mercy_visibility() -> void:
-	if no_mercy_toggle == null:
-		return
 	var is_hard = Save.get_current_difficulty() == "Hard"
 	if no_mercy_panel != null:
 		no_mercy_panel.visible = is_hard
@@ -1310,7 +1287,9 @@ func _update_no_mercy_visibility() -> void:
 		no_mercy_toggle.visible = is_hard
 	no_mercy_help.visible = is_hard
 	if is_hard:
-		no_mercy_toggle.button_pressed = Save.get_no_mercy()
+		if no_mercy_panel is Button:
+			(no_mercy_panel as Button).button_pressed = Save.get_no_mercy()
+			_update_no_mercy_button_glow(no_mercy_panel as Button)
 	var show_no_mercy_sparks = is_hard and Save.get_no_mercy()
 	if no_mercy_sparks_pollen != null:
 		no_mercy_sparks_pollen.visible = show_no_mercy_sparks
@@ -1540,6 +1519,65 @@ func _apply_button_style(button: Button, kind: String) -> void:
 		_apply_small_button_readability(button)
 	button.focus_mode = Control.FOCUS_NONE
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+
+func _apply_no_mercy_button_style(btn: Button) -> void:
+	if btn == null:
+		return
+	# Same 9-slice chip style (no new assets)
+	var chip_style = _stylebox_9slice(NINEPATCH_TOP_CHIP_PATH)
+	if chip_style != null:
+		btn.add_theme_stylebox_override("normal", chip_style)
+		btn.add_theme_stylebox_override("hover", chip_style.duplicate())
+		btn.add_theme_stylebox_override("pressed", chip_style.duplicate())
+		btn.add_theme_stylebox_override("hover_pressed", chip_style.duplicate())
+		btn.add_theme_stylebox_override("disabled", chip_style.duplicate())
+	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+	# Keep base text dark in all states
+	var base = Color(0.10, 0.07, 0.05, 1.0)
+	btn.add_theme_color_override("font_color", base)
+	btn.add_theme_color_override("font_hover_color", base)
+	btn.add_theme_color_override("font_pressed_color", base)
+	btn.add_theme_color_override("font_hover_pressed_color", base)
+
+	btn.add_theme_font_size_override("font_size", 22)
+	btn.add_theme_constant_override("content_margin_left", 18)
+	btn.add_theme_constant_override("content_margin_right", 18)
+	btn.add_theme_constant_override("content_margin_top", 10)
+	btn.add_theme_constant_override("content_margin_bottom", 10)
+	btn.clip_text = true
+	btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	btn.focus_mode = Control.FOCUS_NONE
+
+
+func _update_no_mercy_button_glow(btn: Button) -> void:
+	if btn == null:
+		return
+
+	var glow_red = Color(1.00, 0.22, 0.20, 0.65)  # strong red like Hard glow
+	var glow_soft = Color(1.00, 0.22, 0.20, 0.35)
+	var off = Color(1, 1, 1, 0.20)
+
+	if btn.button_pressed:
+		btn.add_theme_constant_override("outline_size", 6)
+		btn.add_theme_color_override("font_outline_color", glow_red)
+	else:
+		btn.add_theme_constant_override("outline_size", 2)
+		btn.add_theme_color_override("font_outline_color", off)
+
+	# Optional stronger hover hint when OFF
+	btn.mouse_entered.connect(func():
+		if btn != null and not btn.button_pressed:
+			btn.add_theme_constant_override("outline_size", 4)
+			btn.add_theme_color_override("font_outline_color", glow_soft)
+	)
+	btn.mouse_exited.connect(func():
+		if btn != null and not btn.button_pressed:
+			btn.add_theme_constant_override("outline_size", 2)
+			btn.add_theme_color_override("font_outline_color", off)
+	)
+
 
 
 func _apply_small_button_readability(button: Button) -> void:
