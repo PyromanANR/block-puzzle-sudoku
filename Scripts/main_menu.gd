@@ -1650,13 +1650,32 @@ func _apply_label_readability(label: Label, strength: String) -> void:
 	ls.shadow_size = 1
 
 
+func _center_pivot(ctrl: Control) -> void:
+	if ctrl == null:
+		return
+	ctrl.pivot_offset = ctrl.size * 0.5
+	
+	
 func _start_play_idle_animation(play_button: Button) -> void:
 	if play_button == null:
 		return
+
+	# Keep pivot centered even if layout changes the size later
+	play_button.resized.connect(func():
+		play_button.pivot_offset = play_button.size * 0.5
+	)
+	if not play_button.resized.is_connected(_center_pivot.bind(play_button)):
+		play_button.resized.connect(_center_pivot.bind(play_button))
+
+	# Set once after first layout pass
+	call_deferred("_center_pivot", play_button)
+
 	if _play_idle_tween != null and _play_idle_tween.is_valid():
 		_play_idle_tween.kill()
+
 	play_button.scale = Vector2.ONE
 	play_button.modulate = Color(1, 1, 1, 1)
+
 	_play_idle_tween = create_tween()
 	_play_idle_tween.set_loops()
 	_play_idle_tween.tween_interval(1.7)
@@ -1665,6 +1684,12 @@ func _start_play_idle_animation(play_button: Button) -> void:
 	_play_idle_tween.tween_property(play_button, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_play_idle_tween.parallel().tween_property(play_button, "modulate", Color(1, 1, 1, 1), 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
+
+
+# Put this helper anywhere in the same script
+func _set_pivot_to_center() -> void:
+	var b := get_node_or_null("PlayCard/Margin/Inner/VBox/PlayWrap/Button") # if you have a stable path
+	# If you don't have a stable path, pass the button in and set pivot directly there.
 
 func _set_active_nav(name: String) -> void:
 	current_nav = name
