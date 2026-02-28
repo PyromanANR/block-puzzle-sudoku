@@ -412,9 +412,9 @@ func _apply_safe_area_margins() -> void:
 
 	var scale_x := viewport_rect.size.x / float(win_size.x)
 	var scale_y := viewport_rect.size.y / float(win_size.y)
-	var safe_left := max(0.0, float(safe_rect.position.x) * scale_x)
-	var safe_top := max(0.0, float(safe_rect.position.y) * scale_y)
-	var safe_right := max(0.0, float(win_size.x - (safe_rect.position.x + safe_rect.size.x)) * scale_x)
+	var safe_left = max(0.0, float(safe_rect.position.x) * scale_x)
+	var safe_top = max(0.0, float(safe_rect.position.y) * scale_y)
+	var safe_right = max(0.0, float(win_size.x - (safe_rect.position.x + safe_rect.size.x)) * scale_x)
 
 	var max_x := viewport_rect.size.x * 0.12
 	var max_y := viewport_rect.size.y * 0.12
