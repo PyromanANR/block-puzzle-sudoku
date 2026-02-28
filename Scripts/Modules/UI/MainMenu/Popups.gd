@@ -1,21 +1,21 @@
 extends RefCounted
 class_name MainMenuPopups
 
+const UIStyle = preload("res://Scripts/Modules/UI/Common/UIStyle.gd")
+
 
 static func build_difficulty_popup(root: Control, menu_owner: Control, on_hover: Callable, on_click: Callable) -> Dictionary:
 	var popup_difficulty = PopupPanel.new()
 	popup_difficulty.size = Vector2(520, 380)
 	popup_difficulty.visible = false
 	root.add_child(popup_difficulty)
+	UIStyle.apply_panel_9slice(popup_difficulty)
 
+	var margin = UIStyle.wrap_popup_content(popup_difficulty)
 	var v = VBoxContainer.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	v.offset_left = 18
-	v.offset_top = 18
-	v.offset_right = -18
-	v.offset_bottom = -18
 	v.add_theme_constant_override("separation", 10)
-	popup_difficulty.add_child(v)
+	margin.add_child(v)
 
 	var t = Label.new()
 	t.text = "Difficulty"
@@ -47,6 +47,8 @@ static func build_difficulty_popup(root: Control, menu_owner: Control, on_hover:
 
 	var apply = Button.new()
 	apply.text = "Apply"
+	UIStyle.apply_button_9slice(apply, "small")
+	UIStyle.apply_button_text_palette(apply)
 	apply.mouse_entered.connect(on_hover)
 	apply.pressed.connect(on_click)
 	apply.pressed.connect(Callable(menu_owner, "_on_apply_difficulty"))
@@ -54,6 +56,8 @@ static func build_difficulty_popup(root: Control, menu_owner: Control, on_hover:
 
 	var cancel = Button.new()
 	cancel.text = "Cancel"
+	UIStyle.apply_button_9slice(cancel, "small")
+	UIStyle.apply_button_text_palette(cancel)
 	cancel.mouse_entered.connect(on_hover)
 	cancel.pressed.connect(on_click)
 	cancel.pressed.connect(func(): popup_difficulty.hide())
@@ -72,15 +76,13 @@ static func build_rewards_popup(root: Control, on_hover: Callable, on_click: Cal
 	rewards_popup.size = Vector2(520, 360)
 	rewards_popup.visible = false
 	root.add_child(rewards_popup)
+	UIStyle.apply_panel_9slice(rewards_popup)
 
+	var margin = UIStyle.wrap_popup_content(rewards_popup)
 	var v = VBoxContainer.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	v.offset_left = 18
-	v.offset_top = 18
-	v.offset_right = -18
-	v.offset_bottom = -18
 	v.add_theme_constant_override("separation", 8)
-	rewards_popup.add_child(v)
+	margin.add_child(v)
 
 	var title = Label.new()
 	title.text = "Rewards"
@@ -100,6 +102,8 @@ static func build_rewards_popup(root: Control, on_hover: Callable, on_click: Cal
 
 	var close = Button.new()
 	close.text = "Close"
+	UIStyle.apply_button_9slice(close, "small")
+	UIStyle.apply_button_text_palette(close)
 	close.mouse_entered.connect(on_hover)
 	close.pressed.connect(on_click)
 	close.pressed.connect(func(): rewards_popup.hide())
@@ -117,15 +121,13 @@ static func build_leaderboards_popup(root: Control, menu_owner: Control, on_hove
 	popup_leaderboards.size = Vector2(520, 360)
 	popup_leaderboards.visible = false
 	root.add_child(popup_leaderboards)
+	UIStyle.apply_panel_9slice(popup_leaderboards)
 
+	var margin = UIStyle.wrap_popup_content(popup_leaderboards)
 	var v = VBoxContainer.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	v.offset_left = 18
-	v.offset_top = 18
-	v.offset_right = -18
-	v.offset_bottom = -18
 	v.add_theme_constant_override("separation", 8)
-	popup_leaderboards.add_child(v)
+	margin.add_child(v)
 
 	var title = Label.new()
 	title.text = "Leaderboards"
@@ -139,6 +141,8 @@ static func build_leaderboards_popup(root: Control, menu_owner: Control, on_hove
 
 	var close = Button.new()
 	close.text = "Close"
+	UIStyle.apply_button_9slice(close, "small")
+	UIStyle.apply_button_text_palette(close)
 	close.mouse_entered.connect(on_hover)
 	close.pressed.connect(on_click)
 	close.pressed.connect(func(): popup_leaderboards.hide())
@@ -153,6 +157,8 @@ static func _leaderboard_button(text: String, diff_key: String, menu_owner: Cont
 	var b = Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(380, 50)
+	UIStyle.apply_button_9slice(b, "small")
+	UIStyle.apply_button_text_palette(b)
 	b.mouse_entered.connect(on_hover)
 	b.pressed.connect(on_click)
 	b.pressed.connect(func(): menu_owner.call("_on_select_leaderboard", diff_key))

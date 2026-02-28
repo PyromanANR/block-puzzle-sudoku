@@ -7,6 +7,7 @@ const MainMenuTopBar = preload("res://Scripts/Modules/UI/MainMenu/TopBar.gd")
 const MainMenuPrimaryButtons = preload("res://Scripts/Modules/UI/MainMenu/PrimaryButtons.gd")
 const MainMenuPopups = preload("res://Scripts/Modules/UI/MainMenu/Popups.gd")
 const DialogFactory = preload("res://Scripts/Modules/UI/Common/DialogFactory.gd")
+const SettingsPanel = preload("res://Scripts/Modules/UI/Common/SettingsPanel.gd")
 const DebugMenu = preload("res://Scripts/Modules/Debug/DebugMenu.gd")
 const UIStyle = preload("res://Scripts/Modules/UI/Common/UIStyle.gd")
 
@@ -927,14 +928,25 @@ func _build_modal_layer() -> void:
 	shop_panel = _create_modal_panel("Shop")
 	debug_panel = _create_modal_panel("Debug")
 
-	settings_panel = _create_modal_panel("Audio Settings")
+	settings_panel = SettingsPanel.build(modal_layer, Callable(self, "_close_all_panels"), {
+		"state_getter": func() -> Dictionary:
+			return {
+				"music_enabled": music_enabled,
+				"sfx_enabled": sfx_enabled,
+				"music_volume": music_volume,
+				"sfx_volume": sfx_volume
+			},
+		"on_music_enabled": Callable(self, "_on_music_enabled_toggled"),
+		"on_sfx_enabled": Callable(self, "_on_sfx_enabled_toggled"),
+		"on_music_volume": Callable(self, "_on_music_volume_changed"),
+		"on_sfx_volume": Callable(self, "_on_sfx_volume_changed")
+	})
 
 	_build_rewards_content(rewards_panel)
 	_build_leaderboard_content(leaderboard_panel)
 	_build_quests_content(quests_panel)
 	_build_shop_content(shop_panel)
 	_build_debug_content(debug_panel)
-	_build_settings_content(settings_panel)
 
 
 func _create_modal_panel(title_text: String) -> Panel:
@@ -971,14 +983,7 @@ func _ensure_panel_content(panel: Panel) -> VBoxContainer:
 	for child in panel.get_children():
 		child.queue_free()
 
-	var margin = MarginContainer.new()
-	margin.name = "Margin"
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 18)
-	margin.add_theme_constant_override("margin_right", 18)
-	margin.add_theme_constant_override("margin_top", 18)
-	margin.add_theme_constant_override("margin_bottom", 18)
-	panel.add_child(margin)
+	var margin = UIStyle.wrap_popup_content(panel)
 
 	var body = VBoxContainer.new()
 	body.name = "Body"
@@ -999,10 +1004,10 @@ func _ensure_panel_content(panel: Panel) -> VBoxContainer:
 	header.add_child(title)
 
 	var close_btn = Button.new()
-	_set_button_icon(close_btn, ICON_CLOSE_TRES, "✕", "Close")
 	close_btn.custom_minimum_size = Vector2(56, 48)
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	close_btn.text = "✕"
+	UIStyle.apply_button_9slice(close_btn, "small")
+	UIStyle.apply_button_text_palette(close_btn)
 	close_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	close_btn.pressed.connect(func(): _play_sfx("ui_click"))
 	close_btn.pressed.connect(func(): _close_all_panels())
@@ -1049,6 +1054,7 @@ func _build_leaderboard_content(panel: Panel) -> void:
 		tab.text = pair[0]
 		tab.custom_minimum_size = Vector2(0, 48)
 		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_apply_button_style(tab, "small")
 		tab.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 		tab.pressed.connect(func(): _play_sfx("ui_click"))
 		tab.pressed.connect(func(): _on_select_leaderboard(pair[1]))
@@ -1062,6 +1068,7 @@ func _build_leaderboard_content(panel: Panel) -> void:
 	var sign_in = Button.new()
 	sign_in.text = "Play Games: Sign In"
 	sign_in.custom_minimum_size = Vector2(0, 52)
+	_apply_button_style(sign_in, "small")
 	sign_in.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	sign_in.pressed.connect(func(): _play_sfx("ui_click"))
 	sign_in.pressed.connect(_on_play_games_sign_in)
@@ -1181,6 +1188,7 @@ func _build_debug_content(panel: Panel) -> void:
 		var b = Button.new()
 		b.text = item[0]
 		b.custom_minimum_size = Vector2(0, 48)
+		_apply_button_style(b, "small")
 		b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 		b.pressed.connect(func(): _play_sfx("ui_click"))
 		b.pressed.connect(item[1])
@@ -1494,8 +1502,15 @@ func _stylebox_9slice(path: String) -> StyleBoxTexture:
 func _apply_button_style(button: Button, kind: String) -> void:
 	if button == null:
 		return
-	UIStyle.apply_button_9slice(button, kind, NINEPATCH_BUTTON_PRIMARY_PATH, NINEPATCH_BUTTON_SMALL_PATH)
-	UIStyle.apply_button_text_defaults(button, kind)
+	UIStyle.apply_button_9slice(button, kind)
+	UIStyle.apply_button_text_palette(button)
+	if kind == "primary":
+		button.clip_text = true
+		button.add_theme_constant_override("content_margin_left", 26)
+		button.add_theme_constant_override("content_margin_right", 26)
+		button.add_theme_constant_override("content_margin_top", 7)
+		button.add_theme_constant_override("content_margin_bottom", 7)
+		button.add_theme_font_size_override("font_size", 34)
 	if kind == "small":
 		_apply_small_button_readability(button)
 
@@ -1761,7 +1776,7 @@ func _apply_no_mercy_checkbox_style(checkbox: CheckBox, panel: Panel = null, lab
 func _apply_panel_style(panel: Panel) -> void:
 	if panel == null:
 		return
-	UIStyle.apply_panel_9slice(panel, NINEPATCH_PANEL_DEFAULT_PATH)
+	UIStyle.apply_panel_9slice(panel)
 
 
 func _apply_top_chip_style(button: Button) -> void:

@@ -1,42 +1,43 @@
 extends RefCounted
 class_name SettingsPanel
 
-const PANEL_SIZE = Vector2(420, 300)
 const UIStyle = preload("res://Scripts/Modules/UI/Common/UIStyle.gd")
-const PANEL_9PATCH_PATH = "res://Assets/UI/9patch/panel_default.png"
-const BUTTON_PRIMARY_9PATCH_PATH = "res://Assets/UI/9patch/button_primary.png"
-const BUTTON_SMALL_9PATCH_PATH = "res://Assets/UI/9patch/button_small.png"
+
+const TARGET_W = 720.0
+const TARGET_H = 520.0
+
 
 static func build(parent: Control, on_close: Callable, config: Dictionary = {}) -> Control:
-	var center = CenterContainer.new()
-	center.name = "SettingsPanel"
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_STOP
-	center.visible = false
-	parent.add_child(center)
-
-	var panel = PanelContainer.new()
-	panel.custom_minimum_size = PANEL_SIZE
+	var panel = Panel.new()
+	panel.name = "SettingsPanel"
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	center.add_child(panel)
-	UIStyle.apply_panel_9slice(panel, PANEL_9PATCH_PATH)
+	panel.visible = false
+	parent.add_child(panel)
+	UIStyle.apply_panel_9slice(panel)
 
-	var margin = MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
-	panel.add_child(margin)
+	var vp = parent.get_viewport_rect().size
+	var max_w = min(TARGET_W, vp.x - 64.0)
+	var max_h = min(TARGET_H, vp.y - 64.0)
+	max_w = max(max_w, 320.0)
+	max_h = max(max_h, 320.0)
+	panel.offset_left = -max_w * 0.5
+	panel.offset_top = -max_h * 0.5
+	panel.offset_right = max_w * 0.5
+	panel.offset_bottom = max_h * 0.5
 
+	var margin = UIStyle.wrap_popup_content(panel)
 	var settings_v = VBoxContainer.new()
+	settings_v.name = "SettingsBody"
+	settings_v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	settings_v.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	settings_v.add_theme_constant_override("separation", 10)
 	margin.add_child(settings_v)
 
-	var settings_title = Label.new()
-	settings_title.text = "Audio Settings"
-	settings_title.add_theme_font_size_override("font_size", 24)
-	settings_v.add_child(settings_title)
+	UIStyle.ensure_popup_header(settings_v, "Audio Settings", on_close)
 
 	var chk_music_enabled = CheckBox.new()
 	chk_music_enabled.text = "Music Enabled"
@@ -76,12 +77,13 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 
 	var close_btn = Button.new()
 	close_btn.text = "Cancel"
-	UIStyle.apply_button_9slice(close_btn, "small", BUTTON_PRIMARY_9PATCH_PATH, BUTTON_SMALL_9PATCH_PATH)
+	UIStyle.apply_button_9slice(close_btn, "small")
+	UIStyle.apply_button_text_palette(close_btn)
 	close_btn.pressed.connect(func():
 		if on_close.is_valid():
 			on_close.call()
 		else:
-			center.visible = false
+			panel.visible = false
 	)
 	settings_v.add_child(close_btn)
 
@@ -111,6 +113,6 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 			config["on_sfx_volume"].call(value)
 	)
 
-	center.set_meta("sync_settings", sync_state)
+	panel.set_meta("sync_settings", sync_state)
 	sync_state.call()
-	return center
+	return panel
