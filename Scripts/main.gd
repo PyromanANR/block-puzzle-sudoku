@@ -249,6 +249,10 @@ var time_slow_mid: PanelContainer = null
 var time_slow_sand_mat: ShaderMaterial = null
 var time_slow_glass_mat: ShaderMaterial = null
 
+const TIME_SLOW_W_COLLAPSED := 18.0
+const TIME_SLOW_W_EXPAND_MIN := 44.0
+const TIME_SLOW_W_EXPAND_MAX := 64.0
+
 
 func _skin_manager():
 	return get_node_or_null("/root/SkinManager")
@@ -322,15 +326,43 @@ func _notification(what: int) -> void:
 
 
 func _time_slow_gap_w() -> float:
-	# Mobile-friendly: clamp by screen width
 	var w = get_viewport_rect().size.x
-	return clamp(w * 0.10, 44.0, 34.0)  
+	var expanded = clamp(w * 0.10, TIME_SLOW_W_EXPAND_MIN, TIME_SLOW_W_EXPAND_MAX)
+	var now_ms = Time.get_ticks_msec()
+	if _is_time_slow_column_expanded(now_ms):
+		return expanded
+	return TIME_SLOW_W_COLLAPSED
+
+
+func _is_time_slow_column_expanded(now_ms: int) -> bool:
+	# Expand after the mechanic was ever triggered in this run, or while it is visually relevant.
+	if time_slow_effect_until_ms > now_ms:
+		return true
+	if time_slow_overlay != null and time_slow_overlay.visible:
+		return true
+	# After first trigger, cooldown_until will be > 0 for rest of the run.
+	if time_slow_cooldown_until_ms > 0:
+		return true
+	return false
 
 
 func _sync_time_slow_column_width() -> void:
 	if time_slow_mid == null:
 		return
-	time_slow_mid.custom_minimum_size.x = _time_slow_gap_w()
+	var w = _time_slow_gap_w()
+	time_slow_mid.custom_minimum_size.x = w
+
+	# When collapsed, hide detailed hourglass layers so it doesn't look like a bug.
+	var expanded = w > TIME_SLOW_W_COLLAPSED + 1.0
+	if time_slow_frame_rect != null:
+		time_slow_frame_rect.visible = expanded and time_slow_frame_rect.texture != null
+	if time_slow_glass_rect != null:
+		time_slow_glass_rect.visible = expanded and time_slow_glass_rect.material != null
+	if time_slow_sand_rect != null:
+		time_slow_sand_rect.visible = expanded and time_slow_sand_rect.material != null
+	if bar_time_slow != null:
+		bar_time_slow.visible = expanded
+
 	var p = time_slow_mid.get_parent()
 	if p is Container:
 		(p as Container).queue_sort()
@@ -772,6 +804,7 @@ func _try_trigger_time_slow_from_well_placement() -> void:
 	time_slow_overlay_until_ms = now + int(overlay_sec * 1000.0)
 	time_slow_overlay_input_release_ms = now + 300
 	time_slow_effect_until_ms = now + int(float(core.call("GetTimeSlowEffectDurationSec")) * 1000.0)
+	call_deferred("_sync_time_slow_column_width")
 	if time_slow_overlay != null:
 		time_slow_overlay.visible = true
 		time_slow_overlay.modulate = Color(0.45, 0.78, 1.0, 0.55)
@@ -860,8 +893,9 @@ func _build_ui() -> void:
 	var left_stats = VBoxContainer.new()
 	left_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	left_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_stats.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_stats.alignment = BoxContainer.ALIGNMENT_BEGIN
 	left_stats.add_theme_constant_override("separation", 4)
+	left_stats.custom_minimum_size.x = 210
 	header_row.add_child(left_stats)
 
 	var center_section = Control.new()
@@ -909,8 +943,9 @@ func _build_ui() -> void:
 	var right_stats = VBoxContainer.new()
 	right_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	right_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_stats.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_stats.alignment = BoxContainer.ALIGNMENT_END
 	right_stats.add_theme_constant_override("separation", 4)
+	right_stats.custom_minimum_size.x = 210
 	header_row.add_child(right_stats)
 
 	var gapR = Control.new()
@@ -1002,7 +1037,7 @@ func _build_ui() -> void:
 	time_slow_mid = PanelContainer.new()
 	time_slow_mid.name = "time_slow_mid"
 	time_slow_mid.custom_minimum_size = Vector2(TIME_SLOW_GAP_W, 0)
-	time_slow_mid.size_flags_horizontal = Control.SIZE_FILL
+	time_slow_mid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	time_slow_mid.size_flags_stretch_ratio = 0.0
 	time_slow_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	time_slow_mid.z_index = 0
@@ -1097,20 +1132,20 @@ func _build_ui() -> void:
 
 	drop_zone_draw = Control.new()
 	drop_zone_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	drop_zone_draw.offset_left = 10
-	drop_zone_draw.offset_right = -10
-	drop_zone_draw.offset_top = 10
-	drop_zone_draw.offset_bottom = -10
+	drop_zone_draw.offset_left = 14
+	drop_zone_draw.offset_right = -14
+	drop_zone_draw.offset_top = 14
+	drop_zone_draw.offset_bottom = -14
 	drop_zone_draw.mouse_filter = Control.MOUSE_FILTER_STOP
 	drop_zone_panel.add_child(drop_zone_draw)
 
 	well_slots_draw = Control.new()
 	well_slots_draw.clip_contents = false
 	well_slots_draw.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	well_slots_draw.offset_left = 10
-	well_slots_draw.offset_right = -10
-	well_slots_draw.offset_top = 10
-	well_slots_draw.offset_bottom = -10
+	well_slots_draw.offset_left = 14
+	well_slots_draw.offset_right = -14
+	well_slots_draw.offset_top = 14
+	well_slots_draw.offset_bottom = -14
 	well_slots_draw.mouse_filter = Control.MOUSE_FILTER_STOP
 	well_slots_panel.add_child(well_slots_draw)
 
@@ -1304,14 +1339,14 @@ func _hud_line(k: String, v: String) -> Label:
 
 func _hud_metric_row(parent: Control, metric_key: String, prefix: String, value: String) -> Label:
 	var wrap = HBoxContainer.new()
-	wrap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	wrap.size_flags_horizontal = Control.SIZE_FILL
+	wrap.custom_minimum_size = Vector2(210, 0)
+	wrap.alignment = BoxContainer.ALIGNMENT_BEGIN
 	wrap.add_theme_constant_override("separation", 6)
 	parent.add_child(wrap)
-	if metric_key == "score" or metric_key == "speed" or metric_key == "time":
-		_add_icon_or_fallback(wrap, metric_key, 16, 28)
 	var value_label = Label.new()
 	value_label.text = "%s: %s" % [prefix, value]
-	value_label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	value_label.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
 	value_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
 	wrap.add_child(value_label)
 	return value_label
@@ -1890,14 +1925,19 @@ func _clear_color_grid() -> void:
 		color_grid.append(row)
 
 
-func _build_board_side_overlays() -> void:
+func _build_board_side_overlays(screen_bezel: Panel, board_px: float) -> void:
+	if screen_bezel == null:
+		return
+	const SKILLS_W = 96.0
+	const SKILLS_GAP = 12.0
+
 	var skills_holder = Control.new()
 	skills_holder.name = "skills_holder"
 	skills_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skills_holder.modulate = Color(1, 1, 1, 1)
-	skills_holder.custom_minimum_size = Vector2(84, 0)
-	skills_holder.size_flags_vertical = Control.SIZE_FILL
-	board_panel.add_child(skills_holder)
+	skills_holder.position = Vector2(14 + board_px + SKILLS_GAP, 14)
+	skills_holder.size = Vector2(SKILLS_W, board_px)
+	screen_bezel.add_child(skills_holder)
 	board_overlay_right = skills_holder
 
 	var skills_bg = Panel.new()
@@ -1952,35 +1992,6 @@ func _build_board_side_overlays() -> void:
 	skills_v.add_child(btn_skill_invuln)
 	var bot_sp = skills_v.add_spacer(false)
 	bot_sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_reposition_board_side_overlays()
-
-
-func _reposition_board_side_overlays() -> void:
-	if board_panel == null or board_overlay_right == null:
-		return
-	var grid_control = board_grid_overlay
-	var grid_rect = Rect2(board_start, Vector2(BOARD_SIZE * cell_size, BOARD_SIZE * cell_size))
-	if grid_control != null:
-		grid_rect = Rect2(grid_control.position, grid_control.size)
-	const BEZEL_PAD = 14.0
-	var bezel_top = grid_rect.position.y - BEZEL_PAD
-	var bezel_h = grid_rect.size.y + (BEZEL_PAD * 2.0)
-	var extra_top := 11.0
-	var extra_bottom := 8.0
-	bezel_top -= extra_top
-	bezel_h += extra_top + extra_bottom
-	bezel_top = clamp(bezel_top, 0.0, max(0.0, board_panel.size.y - bezel_h))
-	const GAP_FROM_GRID = 12.0
-	var left_x = (grid_rect.position.x + grid_rect.size.x) + GAP_FROM_GRID
-	const RIGHT_MARGIN = 10.0
-	var right_x = board_panel.size.x - RIGHT_MARGIN
-	var w = max(0.0, right_x - left_x)
-	board_overlay_right.scale = Vector2.ONE
-	board_overlay_right.position = Vector2(left_x, bezel_top)
-	board_overlay_right.size = Vector2(w, bezel_h)
-	var skill_even_area = board_overlay_right.get_node_or_null("skill_even_area") as Control
-	if skill_even_area != null:
-		skill_even_area.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _build_board_grid() -> void:
@@ -1991,19 +2002,25 @@ func _build_board_grid() -> void:
 	board_hl.clear()
 	_clear_color_grid()
 
-	var board_px = min(board_panel.size.x, board_panel.size.y) - 40.0
+	var board_px = min(board_panel.size.x - 160.0, board_panel.size.y) - 40.0
 	cell_size = int(floor(board_px / float(BOARD_SIZE)))
 	board_px = float(cell_size * BOARD_SIZE)
 
-	# Center grid in board panel
-	board_start = Vector2(
-		int((board_panel.size.x - board_px) * 0.5),
-		int((board_panel.size.y - board_px) * 0.55) # push slightly down (less empty top)
+	const SKILLS_W = 96.0
+	const SKILLS_GAP = 12.0
+	var bezel_w = board_px + 28 + SKILLS_GAP + SKILLS_W
+	var bezel_h = board_px + 28
+
+	# Center bezel + integrated skills in board panel
+	var bezel_pos = Vector2(
+		int((board_panel.size.x - bezel_w) * 0.5),
+		int((board_panel.size.y - bezel_h) * 0.55)
 	)
+	board_start = bezel_pos + Vector2(14, 14)
 
 	var screen_bezel = Panel.new()
-	screen_bezel.position = board_start - Vector2(14, 14)
-	screen_bezel.size = Vector2(board_px + 28, board_px + 28)
+	screen_bezel.position = bezel_pos
+	screen_bezel.size = Vector2(bezel_w, bezel_h)
 	screen_bezel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var screen_bezel_style = StyleBoxFlat.new()
 	screen_bezel_style.bg_color = Color(0.06, 0.08, 0.07, 0.95)
@@ -2060,7 +2077,7 @@ func _build_board_grid() -> void:
 	glare.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	board_panel.add_child(glare)
 
-	_build_board_side_overlays()
+	_build_board_side_overlays(screen_bezel, board_px)
 	_refresh_board_visual()
 
 
@@ -2291,10 +2308,22 @@ func _redraw_well() -> void:
 	
 	var drop_header = Label.new()
 	drop_header.text = "DROP ZONE"
-	drop_header.position = Vector2(8, 4)
+	drop_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	drop_header.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	drop_header.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
 	drop_header.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
 	drop_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# Full-width top strip (centered)
+	drop_header.anchor_left = 0.0
+	drop_header.anchor_right = 1.0
+	drop_header.anchor_top = 0.0
+	drop_header.anchor_bottom = 0.0
+	drop_header.offset_left = 0
+	drop_header.offset_right = 0
+	drop_header.offset_top = 4
+	drop_header.offset_bottom = 28
+
 	drop_zone_draw.add_child(drop_header)
 
 	var drop_marker = ColorRect.new()
@@ -2306,11 +2335,19 @@ func _redraw_well() -> void:
 
 
 	var slots_header_row = HBoxContainer.new()
-	slots_header_row.position = Vector2(8, 4)
-	slots_header_row.size = Vector2(max(0.0, slots_w - 16.0), 28)
+	slots_header_row.position = Vector2(14, 4)
+	slots_header_row.size = Vector2(max(0.0, slots_w - 28.0), 28)
 	slots_header_row.add_theme_constant_override("separation", 10)
 	slots_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	well_slots_draw.add_child(slots_header_row)
+
+	var top_lbl = Label.new()
+	top_lbl.text = "TOP %d" % pile_selectable
+	top_lbl.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
+	top_lbl.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
+	top_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_lbl.custom_minimum_size = Vector2(54, 0)
+	slots_header_row.add_child(top_lbl)
 
 	var slots_progress = ProgressBar.new()
 	slots_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2330,25 +2367,42 @@ func _redraw_well() -> void:
 	slots_header_row.add_child(slots_progress)
 
 	var slots_top = max(pile_top, 58.0)
-	var slot_w = max(0.0, slots_w - 16.0)
+	var slot_w = max(0.0, slots_w - 28.0)
+	var active_count = min(pile_selectable, pile_max)
 	var available_h = max(140.0, pile_bottom - slots_top)
-	var per_slot = available_h / float(max(1, pile_max))
-	var dynamic_h = max(64.0, min(120.0, per_slot - SLOT_GAP * 0.5))
+
+	# Allocate more height to active slots for touch comfort
+	var active_h = clamp(available_h * 0.18, 84.0, 132.0) # each active slot height target
+	var locked_count = pile_max - active_count
+	var locked_total_h = max(0.0, available_h - (active_h * active_count) - (SLOT_GAP * float(pile_max - 1)))
+	var locked_h = 0.0
+	if locked_count > 0:
+		locked_h = clamp(locked_total_h / float(locked_count), 54.0, 110.0)
+
+	# Place from bottom upwards
+	var y_cursor = pile_bottom
+
 	var slot_preview_cell = int(clamp(float(cell_size) * 0.95, 14.0, 52.0))
 	var neon_min = float(core.call("GetWellNeonMinAlpha"))
 	var neon_max = float(core.call("GetWellNeonMaxAlpha"))
 
 	for slot_i in range(pile_max):
-		var y = pile_bottom - dynamic_h - float(slot_i) * (dynamic_h + SLOT_GAP)
+		var is_active = slot_i < active_count
+		var h = active_h if is_active else locked_h
+
+		# Step up
+		y_cursor -= h
 
 		var slot = Panel.new()
-		slot.size = Vector2(slot_w, dynamic_h)
-		slot.position = Vector2(8, y)
+		slot.size = Vector2(slot_w, h)
+		slot.position = Vector2(14, y_cursor)
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
 		well_slots_draw.add_child(slot)
 
+		# Gap for next
+		y_cursor -= SLOT_GAP
+
 		var pile_index = (pile.size() - 1) - slot_i
-		var is_active = slot_i < pile_selectable
 
 		if is_active:
 			slot.add_theme_stylebox_override("panel", _style_stack_slot_selectable())
