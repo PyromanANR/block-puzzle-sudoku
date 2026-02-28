@@ -263,7 +263,7 @@ const SAFE_WELL_CD_MS := 60000
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
 var freeze_uses_left: int = 1
-var freeze_charges_max := 1
+var freeze_charges_max := 2
 var freeze_charges_current := 1
 var clear_charges_max := 1
 var clear_charges_current := 1
@@ -290,9 +290,9 @@ var time_slow_mid: PanelContainer = null
 var time_slow_sand_mat: ShaderMaterial = null
 var time_slow_glass_mat: ShaderMaterial = null
 
-const TIME_SLOW_W_COLLAPSED := 18.0
-const TIME_SLOW_W_EXPAND_MIN := 44.0
-const TIME_SLOW_W_EXPAND_MAX := 64.0
+const TIME_SLOW_W_COLLAPSED := 1.0
+const TIME_SLOW_W_EXPAND_MIN := 34.0
+const TIME_SLOW_W_EXPAND_MAX := 44.0
 
 
 func _skin_manager():
@@ -417,6 +417,8 @@ func _apply_balance_well_settings() -> void:
 	danger_start_ratio = float(s.get("danger_start_ratio", danger_start_ratio))
 	danger_end_ratio = float(s.get("danger_end_ratio", danger_end_ratio))
 
+var skill_ready_sfx_armed := false
+
 func _sync_skill_ready_latches() -> void:
 	var now = Time.get_ticks_msec()
 	prev_freeze_ready = Save.is_unlock_enabled("freeze_unlocked") and not used_freeze_this_round and now >= freeze_cd_until_ms
@@ -504,6 +506,10 @@ func _start_round() -> void:
 	_clear_pending_invalid_piece()
 	time_slow_ui_ready = false
 	call_deferred("_sync_time_slow_column_width")
+	skill_ready_sfx_armed = false
+	_update_skill_icon_states()    
+	_sync_skill_ready_latches()    
+	skill_ready_sfx_armed = true    
 
 
 
@@ -1828,13 +1834,12 @@ func try_use_freeze() -> bool:
 	if not Save.is_unlock_enabled("freeze_unlocked"):
 		show_toast("Reach player level 5", 1.9)
 		return false
-	if used_freeze_this_round:
-		show_toast("Freeze already used this round", 1.9)
+	if freeze_charges_current <= 0:
+		show_toast("No Freeze charges", 1.9)
 		return false
 	apply_freeze(FREEZE_DURATION_MS, FREEZE_MULTIPLIER)
 	if skill_vfx_controller != null:
 		skill_vfx_controller.on_freeze_cast(FREEZE_DURATION_MS)
-	used_freeze_this_round = true
 	freeze_charges_current = max(0, freeze_charges_current - 1)
 	freeze_cd_until_ms = Time.get_ticks_msec() + FREEZE_CD_MS
 	_update_skill_icon_states()
@@ -1991,12 +1996,13 @@ func _update_skill_icon_states() -> void:
 	var freeze_ready = Save.is_unlock_enabled("freeze_unlocked") and not used_freeze_this_round and now >= freeze_cd_until_ms
 	var clear_ready = Save.is_unlock_enabled("clear_board_unlocked") and not used_clear_board_this_round and now >= clear_cd_until_ms
 	var safe_ready = Save.is_unlock_enabled("safe_well_unlocked") and not used_safe_well_this_round and now >= safe_well_cd_until_ms
-	if not prev_freeze_ready and freeze_ready:
-		_play_sfx("skill_ready")
-	if not prev_clear_ready and clear_ready:
-		_play_sfx("skill_ready")
-	if not prev_safe_ready and safe_ready:
-		_play_sfx("skill_ready")
+	if skill_ready_sfx_armed:
+		if not prev_freeze_ready and freeze_ready:
+			_play_sfx("skill_ready")
+		if not prev_clear_ready and clear_ready:
+			_play_sfx("skill_ready")
+		if not prev_safe_ready and safe_ready:
+			_play_sfx("skill_ready")
 	prev_freeze_ready = freeze_ready
 	prev_clear_ready = clear_ready
 	prev_safe_ready = safe_ready
