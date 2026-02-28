@@ -275,8 +275,8 @@ const MENU_ICON_BACK_PNG = "res://Assets/UI/icons/menu/icon_back.png"
 const FREEZE_CD_MS := 30000
 const CLEAR_CD_MS := 45000
 const SAFE_WELL_CD_MS := 60000
-const AUTO_SNAP_COOLDOWN_MS := 5000
-const AUTO_SNAP_RADIUS := 1
+const AUTO_SNAP_COOLDOWN_MS := 3000
+const AUTO_SNAP_RADIUS := 2
 const AUTO_SNAP_TRAIL_POINTS := 8
 const AUTO_SNAP_MIN_DRAG_PX_FACTOR := 0.35
 const AUTO_SNAP_MIN_DOT := 0.65
@@ -1031,7 +1031,7 @@ func _build_ui() -> void:
 	left_group.name = "left_group"
 	left_group.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left_group.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_group.add_theme_constant_override("separation", 16)
+	left_group.add_theme_constant_override("separation", 80)
 	left_group.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(left_group)
 
@@ -1841,7 +1841,7 @@ func _create_skill_overlay(button: TextureButton) -> void:
 	charges.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	charges.add_theme_font_size_override("font_size", 24)
 	charges.add_theme_constant_override("outline_size", 3)
-	charges.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
+	charges.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	charges.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, 1.0))
 	overlay.add_child(charges)
 
@@ -1858,7 +1858,7 @@ func _create_skill_overlay(button: TextureButton) -> void:
 	state.offset_bottom = -2
 	state.add_theme_font_size_override("font_size", 24)
 	state.add_theme_constant_override("outline_size", 3)
-	state.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
+	state.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	state.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, 1.0))
 	overlay.add_child(state)
 
