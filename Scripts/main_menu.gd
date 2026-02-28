@@ -1184,15 +1184,53 @@ func _build_debug_content(panel: Panel) -> void:
 	if content == null:
 		push_error("Menu panel content is null: " + panel.name)
 		return
+
+	# --- Layout tuning ---
+	# If content is a VBoxContainer (most likely), center children and increase spacing.
+	if content is VBoxContainer:
+		var v := content as VBoxContainer
+		v.alignment = BoxContainer.ALIGNMENT_CENTER      # center, not full width
+		v.add_theme_constant_override("separation", 14)  # spacing between rows
+
+	# Optional: add some breathing room around the content.
+	if content is Control:
+		(content as Control).add_theme_constant_override("margin_left", 14)
+		(content as Control).add_theme_constant_override("margin_right", 14)
+		(content as Control).add_theme_constant_override("margin_top", 10)
+		(content as Control).add_theme_constant_override("margin_bottom", 10)
+
+	# Wrapper that limits width so buttons don't stretch across the whole panel.
+	# This is the key part.
+	var center_wrap := CenterContainer.new()
+	center_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_wrap.size_flags_vertical = Control.SIZE_FILL
+	center_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(center_wrap)
+
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.size_flags_vertical = Control.SIZE_FILL
+	col.add_theme_constant_override("separation", 14) # spacing between buttons
+	center_wrap.add_child(col)
+
+	# Set desired column width for buttons (adjust as you like).
+	var BTN_W := 360
+	var BTN_H := 62
+	var BTN_FONT := 24
+
 	lbl_cloud_status = Label.new()
 	UIStyle.apply_label_text_palette(lbl_cloud_status, "body")
-	content.add_child(lbl_cloud_status)
+	lbl_cloud_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(lbl_cloud_status)
 
 	chk_admin_mode_no_ads = CheckBox.new()
 	chk_admin_mode_no_ads.text = "Admin Mode (No Ads)"
 	chk_admin_mode_no_ads.button_pressed = OS.is_debug_build()
 	chk_admin_mode_no_ads.toggled.connect(_on_admin_mode_no_ads_toggled)
-	content.add_child(chk_admin_mode_no_ads)
+	# Bigger checkbox text
+	chk_admin_mode_no_ads.add_theme_font_size_override("font_size", 22)
+	col.add_child(chk_admin_mode_no_ads)
+
 	if AdsManager != null:
 		AdsManager.set_admin_mode_no_ads(chk_admin_mode_no_ads.button_pressed)
 
@@ -1207,14 +1245,23 @@ func _build_debug_content(panel: Panel) -> void:
 		["LB: Submit Test Score", Callable(self, "_on_debug_lb_submit_test_score")],
 		["Corrupt Local Save (DEBUG)", Callable(self, "_on_debug_corrupt_local")]
 	]:
-		var b = Button.new()
+		var b := Button.new()
 		b.text = item[0]
-		b.custom_minimum_size = Vector2(0, 48)
+
+		# Make buttons bigger and NOT full width
+		b.custom_minimum_size = Vector2(BTN_W, BTN_H)
+		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
 		_apply_button_style(b, "small")
+
+		# Bigger button text
+		b.add_theme_font_size_override("font_size", BTN_FONT)
+
 		b.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 		b.pressed.connect(func(): _play_sfx("ui_click"))
 		b.pressed.connect(item[1])
-		content.add_child(b)
+
+		col.add_child(b)
 
 
 func _refresh_all_ui() -> void:
