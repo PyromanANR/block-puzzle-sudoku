@@ -5,10 +5,11 @@ const PANEL_9PATCH = "res://Assets/UI/9patch/panel_default.png"
 const BTN_PRIMARY_9PATCH = "res://Assets/UI/9patch/button_primary.png"
 const BTN_SMALL_9PATCH = "res://Assets/UI/9patch/button_small.png"
 const TOP_CHIP_9PATCH = "res://Assets/UI/9patch/top_chip.png"
+const CLOSE_ICON_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
 
-const POPUP_PAD_LR = 28
-const POPUP_PAD_TOP = 26
-const POPUP_PAD_BOTTOM = 28
+const POPUP_PAD_LR = 40
+const POPUP_PAD_TOP = 34
+const POPUP_PAD_BOTTOM = 40
 
 
 static func stylebox_9slice(path: String) -> StyleBoxTexture:
@@ -76,6 +77,8 @@ static func wrap_popup_content(root_panel: Control) -> MarginContainer:
 	if root_panel == null:
 		return null
 	var margin = root_panel.get_node_or_null("PopupMargin") as MarginContainer
+	if margin != null and (not is_instance_valid(margin) or margin.is_queued_for_deletion()):
+		margin = null
 	if margin == null:
 		margin = MarginContainer.new()
 		margin.name = "PopupMargin"
@@ -84,7 +87,7 @@ static func wrap_popup_content(root_panel: Control) -> MarginContainer:
 		for child in children:
 			if child == margin:
 				continue
-			if child is Node:
+			if child is Node and not child.is_queued_for_deletion():
 				root_panel.remove_child(child)
 				margin.add_child(child)
 		root_panel.add_child(margin)
@@ -95,7 +98,24 @@ static func wrap_popup_content(root_panel: Control) -> MarginContainer:
 	return margin
 
 
-static func ensure_popup_header(content_root: VBoxContainer, title_text: String, on_close: Callable) -> void:
+static func apply_close_icon(btn: Button) -> void:
+	if btn == null:
+		return
+	btn.text = "✕"
+	btn.icon = null
+	if not ResourceLoader.exists(CLOSE_ICON_TRES):
+		return
+	var icon_texture = load(CLOSE_ICON_TRES)
+	if not (icon_texture is Texture2D):
+		return
+	btn.icon = icon_texture
+	btn.text = ""
+	btn.expand_icon = true
+	btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+static func ensure_popup_header(content_root: VBoxContainer, title_text: String, on_close: Callable, wire_button_sfx: Callable = Callable()) -> void:
 	if content_root == null:
 		return
 	var header = content_root.get_node_or_null("PopupHeader") as HBoxContainer
@@ -119,14 +139,16 @@ static func ensure_popup_header(content_root: VBoxContainer, title_text: String,
 	if close_btn == null:
 		close_btn = Button.new()
 		close_btn.name = "PopupClose"
-		close_btn.text = "✕"
 		close_btn.custom_minimum_size = Vector2(56, 48)
 		header.add_child(close_btn)
 	apply_button_9slice(close_btn, "small")
 	apply_button_text_palette(close_btn)
+	apply_close_icon(close_btn)
 	for conn in close_btn.pressed.get_connections():
 		close_btn.pressed.disconnect(conn.callable)
 	close_btn.pressed.connect(func():
 		if on_close.is_valid():
 			on_close.call()
 	)
+	if wire_button_sfx.is_valid():
+		wire_button_sfx.call(close_btn)

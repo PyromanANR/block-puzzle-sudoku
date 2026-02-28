@@ -18,6 +18,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	panel.visible = false
 	parent.add_child(panel)
 	UIStyle.apply_panel_9slice(panel)
+	panel.set_meta("ui_fixed_popup_size", true)
 
 	var vp = parent.get_viewport_rect().size
 	var max_w = min(TARGET_W, vp.x - 64.0)
@@ -29,6 +30,8 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	panel.offset_right = max_w * 0.5
 	panel.offset_bottom = max_h * 0.5
 
+	var wire_button_sfx = config.get("wire_button_sfx", Callable()) as Callable
+
 	var margin = UIStyle.wrap_popup_content(panel)
 	var settings_v = VBoxContainer.new()
 	settings_v.name = "SettingsBody"
@@ -37,7 +40,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	settings_v.add_theme_constant_override("separation", 10)
 	margin.add_child(settings_v)
 
-	UIStyle.ensure_popup_header(settings_v, "Audio Settings", on_close)
+	UIStyle.ensure_popup_header(settings_v, "Audio Settings", on_close, wire_button_sfx)
 
 	var chk_music_enabled = CheckBox.new()
 	chk_music_enabled.text = "Music Enabled"
@@ -77,8 +80,11 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 
 	var close_btn = Button.new()
 	close_btn.text = "Cancel"
+	close_btn.custom_minimum_size = Vector2(170, 57)
 	UIStyle.apply_button_9slice(close_btn, "small")
 	UIStyle.apply_button_text_palette(close_btn)
+	if wire_button_sfx.is_valid():
+		wire_button_sfx.call(close_btn)
 	close_btn.pressed.connect(func():
 		if on_close.is_valid():
 			on_close.call()
