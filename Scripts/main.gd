@@ -115,6 +115,7 @@ var next_box: Panel
 
 var btn_settings: TextureButton
 var btn_exit: TextureButton
+var header_right_section: MarginContainer
 var btn_skill_freeze: TextureButton
 var btn_skill_clear: TextureButton
 var btn_skill_invuln: TextureButton
@@ -403,6 +404,8 @@ func _apply_safe_area_margins() -> void:
 	root_margin.add_theme_constant_override("margin_right", CONTENT_BASE_RIGHT)
 	root_margin.add_theme_constant_override("margin_top", CONTENT_BASE_TOP)
 	root_margin.add_theme_constant_override("margin_bottom", CONTENT_BASE_BOTTOM)
+	if header_right_section != null:
+		header_right_section.add_theme_constant_override("margin_right", 0)
 
 	var is_mobile := OS.has_feature("android") or OS.has_feature("ios") or OS.has_feature("mobile")
 	if not is_mobile:
@@ -435,6 +438,8 @@ func _apply_safe_area_margins() -> void:
 	header.offset_top = HEADER_BASE_TOP + safe_top
 	header.offset_bottom = HEADER_BASE_BOTTOM + safe_top
 	root_margin.add_theme_constant_override("margin_top", CONTENT_BASE_TOP + safe_top)
+	if header_right_section != null:
+		header_right_section.add_theme_constant_override("margin_right", safe_right)
 
 
 func _time_slow_gap_w() -> float:
@@ -1022,11 +1027,19 @@ func _build_ui() -> void:
 	header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	safe_area_root.add_child(header_row)
 
+	var left_group = HBoxContainer.new()
+	left_group.name = "left_group"
+	left_group.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left_group.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_group.add_theme_constant_override("separation", 16)
+	left_group.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(left_group)
+
 	var left_button_section = MarginContainer.new()
 	left_button_section.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left_button_section.add_theme_constant_override("margin_top", 4)
 	left_button_section.add_theme_constant_override("margin_bottom", 4)
-	header_row.add_child(left_button_section)
+	left_group.add_child(left_button_section)
 
 	btn_exit = TextureButton.new()
 	btn_exit.custom_minimum_size = Vector2(EXIT_BUTTON_SIZE, EXIT_BUTTON_SIZE)
@@ -1046,7 +1059,7 @@ func _build_ui() -> void:
 	stats_block.alignment = BoxContainer.ALIGNMENT_CENTER
 	stats_block.add_theme_constant_override("separation", 2)
 	stats_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(stats_block)
+	left_group.add_child(stats_block)
 
 	lbl_score = Label.new()
 	lbl_score.text = "Score: 0"
@@ -1101,12 +1114,20 @@ func _build_ui() -> void:
 	lbl_level.add_theme_color_override("font_color", muted)
 	stats_subrow.add_child(lbl_level)
 
-	var header_center_spacer = Control.new()
-	header_center_spacer.name = "header_center_spacer"
-	header_center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_center_spacer.custom_minimum_size = Vector2(260, 0)
-	header_center_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(header_center_spacer)
+	var mid_spacer = Control.new()
+	mid_spacer.name = "mid_spacer"
+	mid_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mid_spacer.custom_minimum_size = Vector2(16, 0)
+	mid_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(mid_spacer)
+
+	var right_group = HBoxContainer.new()
+	right_group.name = "right_group"
+	right_group.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_group.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_group.add_theme_constant_override("separation", 12)
+	right_group.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(right_group)
 
 	var title_block = Control.new()
 	title_block.name = "title_block"
@@ -1114,7 +1135,6 @@ func _build_ui() -> void:
 	title_block.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	title_block.custom_minimum_size = Vector2(260, 0)
 	title_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(title_block)
 
 	title_label = Label.new()
 	title_label.text = "TETRIS SUDOKU"
@@ -1150,11 +1170,14 @@ func _build_ui() -> void:
 			title_texture_rect.visible = true
 			title_label.visible = false
 
+	right_group.add_child(title_block)
+
 	var right_button_section = MarginContainer.new()
+	header_right_section = right_button_section
 	right_button_section.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right_button_section.add_theme_constant_override("margin_top", 4)
 	right_button_section.add_theme_constant_override("margin_bottom", 4)
-	header_row.add_child(right_button_section)
+	right_group.add_child(right_button_section)
 
 	btn_settings = TextureButton.new()
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
