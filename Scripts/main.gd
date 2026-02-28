@@ -279,7 +279,7 @@ const AUTO_SNAP_RADIUS := 1
 const AUTO_SNAP_TRAIL_POINTS := 8
 const AUTO_SNAP_MIN_DRAG_PX_FACTOR := 0.35
 const AUTO_SNAP_MIN_DOT := 0.65
-
+var suppress_invalid_sfx_once: bool = false # Used to prevent invalid SFX when auto-snap will attempt
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
 var freeze_uses_left: int = 1
@@ -2902,21 +2902,34 @@ func _finish_drag() -> void:
 	var placed := false
 	var auto_snapped := false
 	var auto_snap_succeeded := false
-	if anchor.x != -999 and was_selected:
-		placed = _try_place_piece(selected_piece, anchor.x, anchor.y)
-		if not placed and source_snapshot < 0:
-			var snapped = _find_best_snap_anchor(selected_piece, anchor, AUTO_SNAP_RADIUS)
-			if snapped.x >= 0 and _auto_snap_trajectory_allows(release_mouse, snapped):
-				auto_snapped = true
-				placed = _try_place_piece(selected_piece, snapped.x, snapped.y)
-				auto_snap_succeeded = placed
-				if auto_snap_succeeded:
-					auto_snap_cooldown_until_ms = Time.get_ticks_msec() + AUTO_SNAP_COOLDOWN_MS
 
+	if anchor.x != -999 and was_selected:
+		# Precompute whether we may attempt auto-snap, so we can suppress the first invalid SFX.
+		var will_attempt_auto_snap := false
+		var snapped := Vector2i(-1, -1)
+		if source_snapshot < 0:
+			snapped = _find_best_snap_anchor(selected_piece, anchor, AUTO_SNAP_RADIUS)
+			if snapped.x >= 0 and _auto_snap_trajectory_allows(release_mouse, snapped):
+				will_attempt_auto_snap = true
+
+		# Suppress invalid sound on the first attempt if auto-snap will be tried.
+		suppress_invalid_sfx_once = will_attempt_auto_snap
+
+		placed = _try_place_piece(selected_piece, anchor.x, anchor.y)
+
+		if not placed and will_attempt_auto_snap:
+			auto_snapped = true
+			placed = _try_place_piece(selected_piece, snapped.x, snapped.y)
+			auto_snap_succeeded = placed
+			if auto_snap_succeeded:
+				auto_snap_cooldown_until_ms = Time.get_ticks_msec() + AUTO_SNAP_COOLDOWN_MS
+
+	# Only play invalid here if we ended up not placed AND auto-snap didn't succeed.
 	if was_selected and not placed and (not auto_snapped or not auto_snap_succeeded):
 		_play_sfx("invalid")
 		core.call("RegisterCancelledDrag")
 		_spawn_pending_invalid_piece(selected_snapshot, source_snapshot, release_mouse)
+
 	if was_selected:
 		_set_piece_in_hand_state(selected_snapshot, false)
 
@@ -3239,7 +3252,10 @@ func _force_cancel_drag(reason: String = "", committed: bool = false) -> void:
 
 func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	if not bool(board.call("CanPlace", piece, ax, ay)):
-		_play_sfx("invalid")
+		if not suppress_invalid_sfx_once:
+			_play_sfx("invalid")
+		else:
+			suppress_invalid_sfx_once = false # consume the suppression
 		return false
 
 	var result: Dictionary = board.call("PlaceAndClear", piece, ax, ay)
