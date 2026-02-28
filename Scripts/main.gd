@@ -5,6 +5,7 @@ const SkillVFXControllerScript = preload("res://Scripts/VFX/SkillVFXController.g
 const MusicManagerScript = preload("res://Scripts/Audio/MusicManager.gd")
 const AudioManagerScript = preload("res://Scripts/Modules/Audio/AudioManager.gd")
 const SettingsPanel = preload("res://Scripts/Modules/UI/Common/SettingsPanel.gd")
+const UIStyle = preload("res://Scripts/Modules/UI/Common/UIStyle.gd")
 const MAIN_MENU_SCENE = "res://Scenes/MainMenu.tscn"
 const MAIN_SCENE = "res://Scenes/Main.tscn"
 
@@ -1197,7 +1198,7 @@ func _build_ui() -> void:
 	var exit_panel = PanelContainer.new()
 	exit_panel.custom_minimum_size = Vector2(520, 260)
 	exit_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	exit_panel.add_theme_stylebox_override("panel", _style_preview_box())
+	UIStyle.apply_panel_9slice(exit_panel, "res://Assets/UI/9patch/panel_default.png")
 	popup_exit.add_child(exit_panel)
 
 	var exit_margin = MarginContainer.new()
@@ -1234,6 +1235,7 @@ func _build_ui() -> void:
 	var btn_restart_popup = Button.new()
 	btn_restart_popup.text = "Restart"
 	btn_restart_popup.custom_minimum_size = Vector2(130, 44)
+	UIStyle.apply_button_9slice(btn_restart_popup, "small", "res://Assets/UI/9patch/button_primary.png", "res://Assets/UI/9patch/button_small.png")
 	btn_restart_popup.pressed.connect(_on_exit_restart)
 	_wire_button_sfx(btn_restart_popup)
 	exit_buttons.add_child(btn_restart_popup)
@@ -1241,6 +1243,7 @@ func _build_ui() -> void:
 	var btn_main_menu_popup = Button.new()
 	btn_main_menu_popup.text = "Main Menu"
 	btn_main_menu_popup.custom_minimum_size = Vector2(130, 44)
+	UIStyle.apply_button_9slice(btn_main_menu_popup, "small", "res://Assets/UI/9patch/button_primary.png", "res://Assets/UI/9patch/button_small.png")
 	btn_main_menu_popup.pressed.connect(_on_exit_main_menu)
 	_wire_button_sfx(btn_main_menu_popup)
 	exit_buttons.add_child(btn_main_menu_popup)
@@ -1248,6 +1251,7 @@ func _build_ui() -> void:
 	var btn_cancel_popup = Button.new()
 	btn_cancel_popup.text = "Cancel"
 	btn_cancel_popup.custom_minimum_size = Vector2(130, 44)
+	UIStyle.apply_button_9slice(btn_cancel_popup, "small", "res://Assets/UI/9patch/button_primary.png", "res://Assets/UI/9patch/button_small.png")
 	btn_cancel_popup.pressed.connect(_on_exit_cancel)
 	_wire_button_sfx(btn_cancel_popup)
 	exit_buttons.add_child(btn_cancel_popup)

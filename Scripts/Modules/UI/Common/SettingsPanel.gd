@@ -2,6 +2,10 @@ extends RefCounted
 class_name SettingsPanel
 
 const PANEL_SIZE = Vector2(420, 300)
+const UIStyle = preload("res://Scripts/Modules/UI/Common/UIStyle.gd")
+const PANEL_9PATCH_PATH = "res://Assets/UI/9patch/panel_default.png"
+const BUTTON_PRIMARY_9PATCH_PATH = "res://Assets/UI/9patch/button_primary.png"
+const BUTTON_SMALL_9PATCH_PATH = "res://Assets/UI/9patch/button_small.png"
 
 static func build(parent: Control, on_close: Callable, config: Dictionary = {}) -> Control:
 	var center = CenterContainer.new()
@@ -15,6 +19,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	panel.custom_minimum_size = PANEL_SIZE
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	center.add_child(panel)
+	UIStyle.apply_panel_9slice(panel, PANEL_9PATCH_PATH)
 
 	var margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -71,6 +76,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 
 	var close_btn = Button.new()
 	close_btn.text = "Cancel"
+	UIStyle.apply_button_9slice(close_btn, "small", BUTTON_PRIMARY_9PATCH_PATH, BUTTON_SMALL_9PATCH_PATH)
 	close_btn.pressed.connect(func():
 		if on_close.is_valid():
 			on_close.call()

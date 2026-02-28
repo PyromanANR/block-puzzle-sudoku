@@ -8,6 +8,7 @@ const MainMenuPrimaryButtons = preload("res://Scripts/Modules/UI/MainMenu/Primar
 const MainMenuPopups = preload("res://Scripts/Modules/UI/MainMenu/Popups.gd")
 const DialogFactory = preload("res://Scripts/Modules/UI/Common/DialogFactory.gd")
 const DebugMenu = preload("res://Scripts/Modules/Debug/DebugMenu.gd")
+const UIStyle = preload("res://Scripts/Modules/UI/Common/UIStyle.gd")
 
 const ICON_SETTINGS_TRES = "res://Assets/UI/icons/menu/icon_settings.tres"
 const ICON_SHOP_TRES = "res://Assets/UI/icons/menu/icon_shop.tres"
@@ -1487,58 +1488,16 @@ func _palette_float(key: String, fallback: float) -> float:
 
 
 func _stylebox_9slice(path: String) -> StyleBoxTexture:
-	if not ResourceLoader.exists(path):
-		return null
-	var resource = load(path)
-	if resource is StyleBoxTexture:
-		return resource as StyleBoxTexture
-	if resource is StyleBox:
-		return null
-	var tex = resource
-	if not (tex is Texture2D):
-		return null
-	var style = StyleBoxTexture.new()
-	style.texture = tex
-	style.texture_margin_left = 12
-	style.texture_margin_right = 12
-	style.texture_margin_top = 12
-	style.texture_margin_bottom = 12
-	style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
-	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
-	return style
+	return UIStyle.stylebox_9slice(path)
 
 
 func _apply_button_style(button: Button, kind: String) -> void:
 	if button == null:
 		return
-	var path = NINEPATCH_BUTTON_PRIMARY_PATH
+	UIStyle.apply_button_9slice(button, kind, NINEPATCH_BUTTON_PRIMARY_PATH, NINEPATCH_BUTTON_SMALL_PATH)
+	UIStyle.apply_button_text_defaults(button, kind)
 	if kind == "small":
-		path = NINEPATCH_BUTTON_SMALL_PATH
-	var style = _stylebox_9slice(path)
-	if style == null:
-		return
-	var hover_style = style.duplicate()
-	var pressed_style = style.duplicate()
-	var disabled_style = style.duplicate()
-	pressed_style.content_margin_top += 2
-	pressed_style.content_margin_bottom = max(0.0, pressed_style.content_margin_bottom - 2)
-	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", hover_style)
-	button.add_theme_stylebox_override("pressed", pressed_style)
-	button.add_theme_stylebox_override("hover_pressed", pressed_style)
-	button.add_theme_stylebox_override("disabled", disabled_style)
-	button.clip_text = true
-	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if kind == "primary":
-		button.add_theme_constant_override("content_margin_left", 26)
-		button.add_theme_constant_override("content_margin_right", 26)
-		button.add_theme_constant_override("content_margin_top", 7)
-		button.add_theme_constant_override("content_margin_bottom", 7)
-		button.add_theme_font_size_override("font_size", 34)
-	elif kind == "small":
 		_apply_small_button_readability(button)
-	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
 func _apply_no_mercy_button_style(btn: Button) -> void:
@@ -1802,10 +1761,7 @@ func _apply_no_mercy_checkbox_style(checkbox: CheckBox, panel: Panel = null, lab
 func _apply_panel_style(panel: Panel) -> void:
 	if panel == null:
 		return
-	var style = _stylebox_9slice(NINEPATCH_PANEL_DEFAULT_PATH)
-	if style == null:
-		return
-	panel.add_theme_stylebox_override("panel", style)
+	UIStyle.apply_panel_9slice(panel, NINEPATCH_PANEL_DEFAULT_PATH)
 
 
 func _apply_top_chip_style(button: Button) -> void:
