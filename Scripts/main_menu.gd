@@ -353,7 +353,6 @@ func _build_background_layer() -> void:
 	var spawner = spawner_script.new()
 	spawner.name = "FallingBlocksSpawner"
 	particles_holder.add_child(spawner)
-
 	_ensure_ui_vignette()
 
 	difficulty_glow = ColorRect.new()
@@ -735,6 +734,7 @@ func _build_play_card() -> void:
 	no_mercy_btn.pressed.connect(func(): _play_sfx("ui_click"))
 	no_mercy_btn.toggled.connect(_on_no_mercy_toggled)
 	v.add_child(no_mercy_btn)
+	no_mercy_help = null
 
 	# Reuse existing variable so visibility logic keeps working
 	no_mercy_panel = no_mercy_btn
@@ -745,20 +745,10 @@ func _build_play_card() -> void:
 	_apply_no_mercy_button_style(no_mercy_btn)
 	_update_no_mercy_button_glow(no_mercy_btn)
 
-
-
-	no_mercy_help = Label.new()
-	no_mercy_help.text = " No Mercy removes reserve slots."
-	no_mercy_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	no_mercy_help.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	no_mercy_help.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	no_mercy_help.custom_minimum_size = Vector2(0, 28)
-	no_mercy_help.add_theme_font_size_override("font_size", 22)
-	_apply_label_readability(no_mercy_help, "normal")
-	v.add_child(no_mercy_help)
-
 	mode_description_label = Label.new()
-	mode_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Disable wrapping (single line)
+	mode_description_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+
 	mode_description_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mode_description_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	mode_description_label.custom_minimum_size = Vector2(0, 34)
@@ -1314,7 +1304,8 @@ func _update_no_mercy_visibility() -> void:
 		no_mercy_panel.visible = is_hard
 	else:
 		no_mercy_toggle.visible = is_hard
-	no_mercy_help.visible = is_hard
+	if no_mercy_help != null:
+		no_mercy_help.visible = is_hard
 	if is_hard:
 		if no_mercy_panel is Button:
 			(no_mercy_panel as Button).button_pressed = Save.get_no_mercy()
@@ -1634,19 +1625,29 @@ func _apply_label_readability(label: Label, strength: String) -> void:
 	var font_color = Color(0.11, 0.08, 0.06, 1.0)
 	var outline_color = Color(1.0, 1.0, 1.0, 0.22)
 	var outline_size = 1
+
 	if strength == "strong":
 		font_color = Color(0.08, 0.06, 0.04, 1.0)
 		outline_size = 2
 		font_size += 2
 	elif strength == "muted":
-		font_color = Color(0.19, 0.15, 0.12, 0.95)
-		outline_color = Color(1.0, 1.0, 1.0, 0.18)
-		outline_size = 1
-		font_size = max(12, font_size - 2)
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", font_color)
-	label.add_theme_constant_override("outline_size", outline_size)
-	label.add_theme_color_override("font_outline_color", outline_color)
+		font_color = Color(0.14, 0.10, 0.08, 1.0)
+		outline_color = Color(0.0, 0.0, 0.0, 0.35)
+		outline_size = 2
+		font_size = max(12, font_size)
+
+	var ls := label.label_settings
+	if ls == null:
+		ls = LabelSettings.new()
+		label.label_settings = ls
+
+	ls.font_size = font_size
+	ls.font_color = font_color
+	ls.outline_size = outline_size
+	ls.outline_color = outline_color
+	ls.shadow_color = Color(0, 0, 0, 0.20)
+	ls.shadow_offset = Vector2(0, 1)
+	ls.shadow_size = 1
 
 
 func _start_play_idle_animation(play_button: Button) -> void:
@@ -1696,31 +1697,39 @@ func _ensure_ui_vignette() -> void:
 	var existing = background_layer.get_node_or_null("ui_vignette")
 	if existing != null:
 		existing.queue_free()
+
 	var ui_vignette = ColorRect.new()
 	ui_vignette.name = "ui_vignette"
 	ui_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	# Use white ColorRect for vignette shaders (standard setup).
 	ui_vignette.color = Color(1, 1, 1, 1)
+
 	ui_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 	var shader = Shader.new()
 	shader.code = """
 shader_type canvas_item;
 
-uniform float dim_strength : hint_range(0.0, 1.0) = 0.14;
-uniform vec2 center = vec2(0.5, 0.52);
-uniform vec2 radius = vec2(0.25, 0.34);
+uniform float dim_strength : hint_range(0.0, 1.0) = 0.35;
+uniform vec2 center = vec2(0.5, 0.55);
+uniform vec2 radius = vec2(0.33, 0.42);
 
 void fragment() {
 	vec2 uv = UV;
 	vec2 d = (uv - center) / max(radius, vec2(0.001));
 	float dist = length(d);
-	float mask = 1.0 - smoothstep(0.0, 1.0, dist);
-	float alpha = dim_strength * mask;
+	float edge = smoothstep(0.0, 1.0, dist);
+	float alpha = dim_strength * pow(edge, 1.2);
 	COLOR = vec4(0.0, 0.0, 0.0, alpha);
 }
 """
 	var mat = ShaderMaterial.new()
 	mat.shader = shader
 	ui_vignette.material = mat
+	ui_vignette.z_index = 0
+	ui_vignette.z_as_relative = true
+
 	background_layer.add_child(ui_vignette)
 
 

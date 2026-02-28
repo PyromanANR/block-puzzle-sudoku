@@ -5,8 +5,8 @@ extends Node2D
 	"res://Assets/UI/Background/FallingBlocks"
 ]
 
-@export var spawn_delay_min: float = 0.25
-@export var spawn_delay_max: float = 0.65
+@export var spawn_delay_min: float = 0.55
+@export var spawn_delay_max: float = 0.8
 
 @export var fall_speed_min: float = 55.0
 @export var fall_speed_max: float = 95.0
