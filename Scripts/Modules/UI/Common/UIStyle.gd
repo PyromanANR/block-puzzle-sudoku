@@ -107,8 +107,8 @@ static func wrap_popup_content(root_panel: Control) -> MarginContainer:
 static func apply_popup_vertical_offset(panel: Control) -> void:
 	if panel == null:
 		return
-	panel.anchor_top = 0.60
-	panel.anchor_bottom = 0.60
+	panel.anchor_top = 0.50
+	panel.anchor_bottom = 0.50
 	if panel.get_meta("ui_fixed_popup_size", false):
 		return
 	if panel.has_meta("modal_target_size"):

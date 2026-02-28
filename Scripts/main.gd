@@ -96,6 +96,7 @@ var board_overlay_right: Control
 var settings_popup: Control
 var popup_exit: Control
 var modal_holder: Control
+var modal_layer: CanvasLayer
 var overlay_dim_modal: ColorRect
 var modal_stack: Array = []
 
@@ -1210,13 +1211,18 @@ func _build_ui() -> void:
 	overlay_dim_modal.visible = false
 	overlay_dim_modal.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay_dim_modal.gui_input.connect(_on_modal_overlay_input)
-	root_frame.add_child(overlay_dim_modal)
 
+	# Modal layer ABOVE all HUD/board UI
+	modal_layer = CanvasLayer.new()
+	modal_layer.layer = 200  # high enough to be above everything in this scene
+	add_child(modal_layer)
 	modal_holder = Control.new()
+	modal_holder.theme = root_frame.theme
 	modal_holder.name = "ModalHolder"
 	modal_holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	modal_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root_frame.add_child(modal_holder)
+	modal_layer.add_child(modal_holder)
+	modal_holder.add_child(overlay_dim_modal)
 
 	overlay_text = Label.new()
 	overlay_text.text = "GAME OVER"
