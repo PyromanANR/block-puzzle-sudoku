@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import random
 import sys
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -84,7 +83,7 @@ def _sensitivity_notes(params: Dict[str, Any], runs: int, seed: int, fast: bool)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fit puzzle-run balance coefficients with stochastic simulation.")
+    parser = argparse.ArgumentParser(description="Fit no-skill baseline balance coefficients with stochastic simulation.")
     parser.add_argument("--runs", type=int, default=500, help="Simulation runs per (difficulty, bucket) pair")
     parser.add_argument("--seed", type=int, default=1, help="Base random seed")
     parser.add_argument("--fast", action="store_true", help="Use faster but coarser simulation")
@@ -146,8 +145,8 @@ def main() -> None:
     report.extend(notes)
     report.append("")
     report.append("## Notes")
-    report.append("- Progression buckets use day mapping A:0-2, B:3-4, C:5-6, R1:7-13, R2:14-20, R3:21+.")
-    report.append("- Skill unlock schedule and rank unlock days are encoded exactly as requested.")
+    report.append("- Optimization targets only the no-skill BASE bucket.")
+    report.append("- Skill effects are intentionally excluded from this baseline model.")
 
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("\n".join(report) + "\n")

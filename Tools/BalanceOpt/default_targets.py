@@ -1,27 +1,11 @@
-"""Default targets, bounds, and progression helpers for the balance optimizer."""
+"""Default targets, bounds, and baseline helpers for the balance optimizer."""
 
 from __future__ import annotations
 
 from typing import Dict, List
 
 DIFFICULTIES = ["easy", "medium", "hard", "nm"]
-BUCKETS = ["A", "B", "C", "R1", "R2", "R3"]
-
-DAY_BUCKETS = {
-    "A": (0, 2),
-    "B": (3, 4),
-    "C": (5, 6),
-    "R1": (7, 13),
-    "R2": (14, 20),
-    "R3": (21, 9999),
-}
-
-SKILL_UNLOCK_DAY = {"freeze": 0, "clear": 3, "ultimate": 5}
-SKILL_RANK_DAYS = {
-    "freeze": [7, 14, 21],
-    "clear": [10, 17, 24],
-    "ultimate": [12, 19, 26],
-}
+BUCKETS = ["BASE"]
 
 INITIAL_PEAKS = {
     "easy": [180.0, 360.0, 600.0],
@@ -40,19 +24,10 @@ INITIAL_AMPLITUDES = {
 }
 
 BASE_MEDIAN_SECONDS = {
-    "easy": 9.0 * 60.0,
-    "medium": 6.0 * 60.0,
-    "hard": 7.5 * 60.0,
-    "nm": 5.0 * 60.0,
-}
-
-BUCKET_PROGRESS_FACTOR = {
-    "A": 1.00,
-    "B": 1.10,
-    "C": 1.20,
-    "R1": 1.20 * 1.12,
-    "R2": 1.20 * 1.12 * 1.10,
-    "R3": 1.20 * 1.12 * 1.10 * 1.08,
+    "easy": 8.0 * 60.0,
+    "medium": 5.5 * 60.0,
+    "hard": 4.75 * 60.0,
+    "nm": 3.75 * 60.0,
 }
 
 BASE_PEAK_REACH = {
@@ -62,37 +37,23 @@ BASE_PEAK_REACH = {
     "nm": [0.75, 0.30, 0.08],
 }
 
-# Progression soft-growth for peak survival targets.
-BUCKET_PEAK_BONUS = {"A": 0.0, "B": 0.02, "C": 0.04, "R1": 0.06, "R2": 0.08, "R3": 0.10}
-
-
-def day_to_bucket(day: int) -> str:
-    """Map day index to progression bucket."""
-    for bucket, (low, high) in DAY_BUCKETS.items():
-        if low <= day <= high:
-            return bucket
-    return "R3"
-
 
 def bucket_to_representative_day(bucket: str) -> int:
-    """Use lower bound day as representative for simulation."""
-    return DAY_BUCKETS[bucket][0]
+    """Single baseline bucket maps to day zero."""
+    _ = bucket
+    return 0
 
 
 def build_default_targets() -> Dict[str, Dict[str, Dict[str, List[float]]]]:
-    """Return target medians and peak survival probabilities by bucket+difficulty."""
+    """Return baseline target medians and peak survival probabilities."""
     targets = {"median_seconds": {}, "peak_reach": {}}
-    for bucket in BUCKETS:
-        medians = {}
-        peak = {}
-        for diff in DIFFICULTIES:
-            medians[diff] = BASE_MEDIAN_SECONDS[diff] * BUCKET_PROGRESS_FACTOR[bucket]
-            pvals = []
-            for p in BASE_PEAK_REACH[diff]:
-                pvals.append(min(0.99, p + BUCKET_PEAK_BONUS[bucket]))
-            peak[diff] = pvals
-        targets["median_seconds"][bucket] = medians
-        targets["peak_reach"][bucket] = peak
+    medians = {}
+    peaks = {}
+    for diff in DIFFICULTIES:
+        medians[diff] = BASE_MEDIAN_SECONDS[diff]
+        peaks[diff] = list(BASE_PEAK_REACH[diff])
+    targets["median_seconds"]["BASE"] = medians
+    targets["peak_reach"]["BASE"] = peaks
     return targets
 
 
