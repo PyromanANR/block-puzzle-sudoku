@@ -229,7 +229,7 @@ const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.
 const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.gdshader"
 const TIME_SLOW_ATLAS_PNG_PATH = "res://Assets/UI/time_slow/time_slow_atlas.png"
 const SETTINGS_PATH = "user://settings.cfg"
-const MUSIC_ATTENUATION_LINEAR = 0.03
+const MUSIC_ATTENUATION_LINEAR = 0.2
 const GAME_OVER_SFX_PATH = "res://Assets/Audio/SFX/game_over.ogg"
 const MENU_ICON_SETTINGS_TRES = "res://Assets/UI/icons/menu/icon_settings.tres"
 const MENU_ICON_CLOSE_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
@@ -291,6 +291,9 @@ func _skin_piece_color(kind: String) -> Color:
 # Entry
 # ============================================================
 func _ready() -> void:
+	var mm = get_node_or_null("/root/MusicManager")
+	if mm != null:
+		mm.play_game_music()
 	core = get_node_or_null("/root/Core")
 	if core == null:
 		push_error("Core autoload not found.")
@@ -304,8 +307,11 @@ func _ready() -> void:
 	start_ms = Time.get_ticks_msec()
 	_load_audio_settings()
 	if music_manager == null:
-		music_manager = MusicManagerScript.new()
-		add_child(music_manager)
+		music_manager = get_node_or_null("/root/MusicManager")
+		if music_manager == null:
+			music_manager = MusicManagerScript.new()
+			music_manager.name = "MusicManager"
+			get_tree().root.add_child(music_manager) 
 	_audio_setup()
 	_apply_audio_settings()
 	if music_manager != null:

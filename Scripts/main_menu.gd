@@ -21,7 +21,7 @@ const ICON_CLOSE_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
 const ICON_BADGE_TRES = "res://Assets/UI/icons/menu/icon_badge.tres"
 
 const SETTINGS_PATH = "user://settings.cfg"
-const MUSIC_ATTENUATION_LINEAR = 0.03
+const MUSIC_ATTENUATION_LINEAR = 0.2
 
 const UI_ICON_MAX = 28
 const UI_ICON_MAX_LARGE = 36
@@ -122,6 +122,8 @@ var chk_admin_mode_no_ads: CheckBox
 
 
 func _ready() -> void:
+	get_tree().paused = false
+	Engine.time_scale = 1.0
 	if music_manager == null:
 		music_manager = MusicManagerScript.new()
 		add_child(music_manager)
@@ -362,6 +364,9 @@ func _build_background_layer() -> void:
 	var spawner = spawner_script.new()
 	spawner.name = "FallingBlocksSpawner"
 	particles_holder.add_child(spawner)
+	spawner.process_mode = Node.PROCESS_MODE_ALWAYS
+	spawner.set_process(true)
+	call_deferred("_sync_particles_to_viewport") 
 	_ensure_ui_vignette()
 
 	difficulty_glow = ColorRect.new()
