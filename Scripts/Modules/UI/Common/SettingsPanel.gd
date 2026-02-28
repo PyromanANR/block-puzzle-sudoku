@@ -70,11 +70,12 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	sfx_row.add_child(slider_sfx_volume)
 
 	var close_btn = Button.new()
-	close_btn.text = "Close"
+	close_btn.text = "Cancel"
 	close_btn.pressed.connect(func():
-		center.visible = false
 		if on_close.is_valid():
 			on_close.call()
+		else:
+			center.visible = false
 	)
 	settings_v.add_child(close_btn)
 
