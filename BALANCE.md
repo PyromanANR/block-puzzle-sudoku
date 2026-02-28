@@ -26,13 +26,13 @@
 | `FREEZE_CD_MS` | `30000` | `Scripts/main.gd` |
 | `CLEAR_CD_MS` | `45000` | `Scripts/main.gd` |
 | `SAFE_WELL_CD_MS` | `60000` | `Scripts/main.gd` |
-| `freeze_charges_max` | `2` | `Scripts/main.gd` |
-| `clear_charges_max` | `1` | `Scripts/main.gd` |
+| `freeze_charges_max` | `3` | `Scripts/main.gd` |
+| `clear_charges_max` | `2` | `Scripts/main.gd` |
 | `safe_well_charges_max` | `1` | `Scripts/main.gd` |
 | Runtime counters | `freeze_charges_current`, `clear_charges_current`, `safe_well_charges_current` | `Scripts/main.gd` |
 | Clear-board score factor | `CLEAR_BOARD_POINTS_PER_CELL = 1` | `Scripts/main.gd` |
 
-> Note: code truth is `freeze_charges_max := 2` in current build (not 1).
+> Note: code truth in current build: `freeze_charges_max := 3`, `clear_charges_max := 2`, `safe_well_charges_max := 1`.
 
 ### Unlock levels (GDScript + Save)
 
@@ -64,10 +64,12 @@
 
 ## Skills (Design + Runtime Rules)
 
+- Total skills: **3** (Freeze, Clear Board, Safe Well)
+
 ### Freeze
 
 - Unlock: **Lv 5**
-- Charges per round: `freeze_charges_max` (**2** in current code)
+- Charges per round: `freeze_charges_max` (**3** in current code)
 - Cooldown: `FREEZE_CD_MS` (**30000 ms / 30s**)
 - Effect duration: `FREEZE_DURATION_MS` (**5000 ms / 5s**)
 - Effect strength: `FREEZE_MULTIPLIER = 0.10`
@@ -82,7 +84,7 @@
 ### Clear Board
 
 - Unlock: **Lv 10**
-- Charges: `clear_charges_max` (**1**)
+- Charges: `clear_charges_max` (**2**)
 - Cooldown: `CLEAR_CD_MS` (**45000 ms / 45s**)
 - Effect: board reset (`board.call("Reset")`) + scoring by `CLEAR_BOARD_POINTS_PER_CELL = 1`.
 - Restrictions: hard one-per-round check via `used_clear_board_this_round` in `try_use_clear_board()`.
