@@ -1120,7 +1120,7 @@ func _build_ui() -> void:
 	ghost_layer.add_child(ghost_root)
 
 	fx_layer = CanvasLayer.new()
-	fx_layer.layer = 50
+	fx_layer.layer = -10
 	add_child(fx_layer)
 	time_slow_overlay = ColorRect.new()
 	time_slow_overlay.color = Color(0.35, 0.70, 1.0, 0.0)
@@ -1196,7 +1196,7 @@ func _build_ui() -> void:
 	modal_holder.add_child(popup_exit)
 
 	var exit_panel = PanelContainer.new()
-	exit_panel.custom_minimum_size = Vector2(520, 260)
+	exit_panel.custom_minimum_size = Vector2(676, 338)
 	exit_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	UIStyle.apply_panel_9slice(exit_panel)
 	popup_exit.add_child(exit_panel)
@@ -1204,31 +1204,31 @@ func _build_ui() -> void:
 	var exit_margin = UIStyle.wrap_popup_content(exit_panel)
 
 	var exit_v = VBoxContainer.new()
-	exit_v.add_theme_constant_override("separation", 14)
+	exit_v.add_theme_constant_override("separation", 18)
 	exit_margin.add_child(exit_v)
 
 	var exit_title = Label.new()
 	exit_title.text = "Exit"
 	exit_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	exit_title.add_theme_font_size_override("font_size", 30)
+	exit_title.add_theme_font_size_override("font_size", 39)
 	exit_v.add_child(exit_title)
 
 	var exit_subtitle = Label.new()
 	exit_subtitle.text = "What would you like to do?"
 	exit_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	exit_subtitle.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	exit_subtitle.add_theme_font_size_override("font_size", _skin_font_size("small", 21))
 	exit_v.add_child(exit_subtitle)
 
 	exit_v.add_spacer(false)
 
 	var exit_buttons = HBoxContainer.new()
 	exit_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
-	exit_buttons.add_theme_constant_override("separation", 12)
+	exit_buttons.add_theme_constant_override("separation", 16)
 	exit_v.add_child(exit_buttons)
 
 	var btn_restart_popup = Button.new()
 	btn_restart_popup.text = "Restart"
-	btn_restart_popup.custom_minimum_size = Vector2(130, 44)
+	btn_restart_popup.custom_minimum_size = Vector2(170, 57)
 	UIStyle.apply_button_9slice(btn_restart_popup, "small")
 	UIStyle.apply_button_text_palette(btn_restart_popup)
 	btn_restart_popup.pressed.connect(_on_exit_restart)
@@ -1237,7 +1237,7 @@ func _build_ui() -> void:
 
 	var btn_main_menu_popup = Button.new()
 	btn_main_menu_popup.text = "Main Menu"
-	btn_main_menu_popup.custom_minimum_size = Vector2(130, 44)
+	btn_main_menu_popup.custom_minimum_size = Vector2(170, 57)
 	UIStyle.apply_button_9slice(btn_main_menu_popup, "small")
 	UIStyle.apply_button_text_palette(btn_main_menu_popup)
 	btn_main_menu_popup.pressed.connect(_on_exit_main_menu)
@@ -1246,7 +1246,7 @@ func _build_ui() -> void:
 
 	var btn_cancel_popup = Button.new()
 	btn_cancel_popup.text = "Cancel"
-	btn_cancel_popup.custom_minimum_size = Vector2(130, 44)
+	btn_cancel_popup.custom_minimum_size = Vector2(170, 57)
 	UIStyle.apply_button_9slice(btn_cancel_popup, "small")
 	UIStyle.apply_button_text_palette(btn_cancel_popup)
 	btn_cancel_popup.pressed.connect(_on_exit_cancel)
@@ -1254,6 +1254,7 @@ func _build_ui() -> void:
 	exit_buttons.add_child(btn_cancel_popup)
 
 	settings_popup = SettingsPanel.build(modal_holder, Callable(self, "_on_settings_popup_close_requested"), {
+		"wire_button_sfx": Callable(self, "_wire_button_sfx"),
 		"state_getter": Callable(self, "_get_audio_settings_state"),
 		"on_music_enabled": Callable(self, "_on_music_enabled_toggled"),
 		"on_sfx_enabled": Callable(self, "_on_sfx_enabled_toggled"),

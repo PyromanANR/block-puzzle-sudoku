@@ -258,6 +258,13 @@ func _play_sfx(key) -> void:
 		p.play()
 
 
+func _wire_button_sfx_menu(btn: BaseButton) -> void:
+	if btn == null:
+		return
+	btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	btn.pressed.connect(func(): _play_sfx("ui_click"))
+
+
 func _build_ui() -> void:
 	for ch in get_children():
 		if ch is AudioStreamPlayer or ch == music_manager:
@@ -929,6 +936,7 @@ func _build_modal_layer() -> void:
 	debug_panel = _create_modal_panel("Debug")
 
 	settings_panel = SettingsPanel.build(modal_layer, Callable(self, "_close_all_panels"), {
+		"wire_button_sfx": Callable(self, "_wire_button_sfx_menu"),
 		"state_getter": func() -> Dictionary:
 			return {
 				"music_enabled": music_enabled,
@@ -1008,6 +1016,7 @@ func _ensure_panel_content(panel: Panel) -> VBoxContainer:
 	close_btn.text = "✕"
 	UIStyle.apply_button_9slice(close_btn, "small")
 	UIStyle.apply_button_text_palette(close_btn)
+	UIStyle.apply_close_icon(close_btn)
 	close_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	close_btn.pressed.connect(func(): _play_sfx("ui_click"))
 	close_btn.pressed.connect(func(): _close_all_panels())
@@ -1439,15 +1448,18 @@ func _apply_safe_area() -> void:
 			safe_margin.add_theme_constant_override("margin_right", int(NAV_SIDE_MARGIN))
 
 	for panel in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel, settings_panel]:
-		if panel != null:
-			var max_w = min(920.0, vp.size.x - (safe_left + safe_right + 32.0))
-			var max_h = min(980.0, vp.size.y - (safe_top + safe_bottom + 32.0))
-			max_w = max(max_w, 320.0)
-			max_h = max(max_h, 320.0)
-			panel.offset_left = -max_w * 0.5
-			panel.offset_right = max_w * 0.5
-			panel.offset_top = -max_h * 0.5
-			panel.offset_bottom = max_h * 0.5
+		if panel == null:
+			continue
+		if panel.has_meta("ui_fixed_popup_size") and bool(panel.get_meta("ui_fixed_popup_size", false)):
+			continue
+		var max_w = min(920.0, vp.size.x - (safe_left + safe_right + 32.0))
+		var max_h = min(980.0, vp.size.y - (safe_top + safe_bottom + 32.0))
+		max_w = max(max_w, 320.0)
+		max_h = max(max_h, 320.0)
+		panel.offset_left = -max_w * 0.5
+		panel.offset_right = max_w * 0.5
+		panel.offset_top = -max_h * 0.5
+		panel.offset_bottom = max_h * 0.5
 
 
 func _difficulty_color(difficulty: String) -> Color:
