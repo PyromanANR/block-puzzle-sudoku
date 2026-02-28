@@ -1,181 +1,148 @@
-# Balance Targets & Tuning Guide (Sudoku-like + Falling Blocks)
+# BALANCE
 
-## 1) Internet research (2022–2026 preference)
+## Current Build Snapshot (Single Source of Truth)
 
-> Notes are focused on pacing, fair randomness and challenge ramp.
+- Snapshot date: **2026-02-28**
+- Gameplay scene/controller truth:
+  - Scene: `res://Scenes/Main.tscn`
+  - GDScript controller: `res://Scripts/main.gd`
+- Core config truth: `Scripts/Core/balance_config.json`
+- Core bridge truth: `Scripts/Core/CoreBridge.cs`
+- Balance-relevant `core.call("...")` currently used in `main.gd`:
+  - Well/timings: `GetWellSettings`, `GetFallSpeed`, `GetBaseFallSpeed`
+  - Time Slow: `GetTimeSlowCooldownSec`, `GetTimeSlowEffectDurationSec`, `GetTimeSlowEffectTimeScale`, `GetTimeSlowReadyOverlayDurationSec`, `GetTimeSlowReadySfxPath`
+  - Time-scale stack: `GetNoMercyExtraTimeScale`, `GetWellDragTimeScale`, `GetAutoSlowScale`, `GetWellFirstEntrySlowTimeScale`, `GetInvalidDropFailTimeScale`
+  - Related runtime triggers: `ShouldTriggerAutoSlow`, `GetAutoSlowDurationSec`, `GetMicroFreezeSec`, `GetInvalidDropGraceSec`, `GetInvalidDropFailSlowSec`
 
-1. **Unity — 2024 Mobile Gaming Report**  
-   https://unity.com/resources/2024-mobile-gaming-report  
-   Broad 2024 mobile trend report used as macro context for short/mid session behavior and rising expectation for fast engagement loops.
+## Constants & Tunables (Exact Values + Where)
 
-2. **GameAnalytics Blog / Benchmarks hub**  
-   https://gameanalytics.com/blog/  
-   Industry benchmark discussions repeatedly highlight first-session friction and early drop-off sensitivity.
+### Skills / cooldowns / charges (GDScript)
 
-3. **GDC Vault (difficulty/puzzle talks index)**  
-   https://www.gdcvault.com/search.php#&category=free&firstfocus=&keyword=difficulty+puzzle  
-   Practical design talks trend toward staged onboarding -> pressure -> mastery and telemetry-driven balancing.
+| Key | Value | Where |
+|---|---:|---|
+| `FREEZE_DURATION_MS` | `5000` | `Scripts/main.gd` |
+| `FREEZE_MULTIPLIER` | `0.10` | `Scripts/main.gd` |
+| `SAFE_WELL_DURATION_MS` | `7000` | `Scripts/main.gd` |
+| `FREEZE_CD_MS` | `30000` | `Scripts/main.gd` |
+| `CLEAR_CD_MS` | `45000` | `Scripts/main.gd` |
+| `SAFE_WELL_CD_MS` | `60000` | `Scripts/main.gd` |
+| `freeze_charges_max` | `2` | `Scripts/main.gd` |
+| `clear_charges_max` | `1` | `Scripts/main.gd` |
+| `safe_well_charges_max` | `1` | `Scripts/main.gd` |
+| Runtime counters | `freeze_charges_current`, `clear_charges_current`, `safe_well_charges_current` | `Scripts/main.gd` |
+| Clear-board score factor | `CLEAR_BOARD_POINTS_PER_CELL = 1` | `Scripts/main.gd` |
 
-4. **TetrisWiki — Tetris Guideline**  
-   https://tetris.wiki/Tetris_Guideline  
-   Reference for fairness expectations, controllability and consistency in falling-block systems.
+> Note: code truth is `freeze_charges_max := 2` in current build (not 1).
 
-5. **TetrisWiki — Random Generator (7-bag)**  
-   https://tetris.wiki/Random_Generator  
-   Canonical example of "fair randomness" reducing droughts and perceived RNG deaths.
+### Unlock levels (GDScript + Save)
 
-6. **arXiv search: dynamic difficulty adjustment in games**  
-   https://arxiv.org/search/?query=dynamic+difficulty+adjustment+games&searchtype=all  
-   Recent academic landscape used to ground DDA as adaptive but rate-limited control.
+- Freeze unlock: level **5** (`freeze_unlocked`)
+- Clear Board unlock: level **10** (`clear_board_unlocked`)
+- Safe Well unlock: level **20** (`safe_well_unlocked`)
 
-7. **Wikipedia — Flow (psychology)**  
-   https://en.wikipedia.org/wiki/Flow_(psychology)  
-   Used for practical flow-target framing: challenge should stay slightly above comfort.
+### Audio (GDScript)
 
-8. **Wikipedia — Hypercasual game**  
-   https://en.wikipedia.org/wiki/Hypercasual_game  
-   Useful for interpreting very short-session expectations and time-to-core-challenge on mobile.
+- `MUSIC_ATTENUATION_LINEAR = 0.2` (effective music = UI slider × 0.2).
+- SFX keys used by gameplay/skills include:
+  - `skill_ready`, `freeze_cast`, `safe_well_cast`, `panic`, `game_over`
+  - Also present in current setup: `skill_freeze`, `skill_safe_well`, `safe_well_doors_open`, `safe_well_doors_close`, `safe_well_lock_clink`, `time_slow`, `clear`, `pick`, `place`, `invalid`, `well_enter`, `ui_click`, `ui_hover`.
 
-### Research-derived pacing recommendations
+### Well / timings (GDScript + Core config)
 
-- **Casual segment**: session target ~4–9 min median, pressure should appear quickly but be recoverable.
-- **Mid/core segment**: session target ~7–15 min, clear pressure step by minute 1–2.
-- **Hardcore segment**: long-tail runs 12–25+ min, with early pressure and high skill ceiling.
-- **Time-to-first-meaningful challenge** should be inside first 30–90 seconds.
-- **Time-to-first-near-fail** should generally appear in 2–6 min (segment dependent).
-- **Fairness guardrails**: constrained random generation + pity fallback to avoid random unwinnables.
+- `NORMAL_RESPAWN_DELAY_MS = 260` (`Scripts/main.gd`).
+- Well settings are read via `core.call("GetWellSettings")` in `_apply_balance_well_settings()`.
+- CoreBridge mapping (`GetWellSettings`) exposes these keys:
+  - `pile_max` ← `PileMax`
+  - `top_selectable` ← `TopSelectable`
+  - `danger_start_ratio` ← `DangerLineStartRatio`
+  - `danger_end_ratio` ← `DangerLineEndRatio`
+- Current config values in `balance_config.json`:
+  - `PileMax = 6`
+  - `TopSelectable = 3`
+  - `DangerLineStartRatio = 0.64`
+  - `DangerLineEndRatio = 0.84`
 
----
+## Skills (Design + Runtime Rules)
 
-## 2) Numeric design targets
+### Freeze
 
-Adjusted targets for this project:
+- Unlock: **Lv 5**
+- Charges per round: `freeze_charges_max` (**2** in current code)
+- Cooldown: `FREEZE_CD_MS` (**30000 ms / 30s**)
+- Effect duration: `FREEZE_DURATION_MS` (**5000 ms / 5s**)
+- Effect strength: `FREEZE_MULTIPLIER = 0.10`
+  - Runtime clamp in `apply_freeze`: `clamp(multiplier, 0.05, 1.0)`.
+- Restrictions:
+  - `used_freeze_this_round` flag exists and is used by UI-ready logic.
+  - In current `try_use_freeze()` there is **no early return check** for `used_freeze_this_round`; practical limiting is by charges (`freeze_charges_current`) + cooldown.
+- UI:
+  - State labels: `Ready / CD / Active / Used / Locked`
+  - Radial cooldown wedge via `CooldownRadial`.
 
-- **Casual**
-  - first pressure: **45–90s**
-  - first near-fail: **3–6 min**
-  - typical fail window: **5–10 min**
+### Clear Board
 
-- **Mid/core**
-  - first pressure: **30–60s**
-  - first near-fail: **2–4 min**
-  - typical fail window: **6–15 min**
+- Unlock: **Lv 10**
+- Charges: `clear_charges_max` (**1**)
+- Cooldown: `CLEAR_CD_MS` (**45000 ms / 45s**)
+- Effect: board reset (`board.call("Reset")`) + scoring by `CLEAR_BOARD_POINTS_PER_CELL = 1`.
+- Restrictions: hard one-per-round check via `used_clear_board_this_round` in `try_use_clear_board()`.
 
-- **Hardcore**
-  - first pressure: **20–45s**
-  - first near-fail: **1.5–3 min**
-  - typical fail window: **10–25+ min**
+### Safe Well
 
----
+- Unlock: **Lv 20**
+- Charges: `safe_well_charges_max` (**1**)
+- Cooldown: `SAFE_WELL_CD_MS` (**60000 ms / 60s**)
+- Duration: `SAFE_WELL_DURATION_MS` (**7000 ms / 7s**)
+- Effect:
+  - Immediately clears well (`pile.clear()`).
+  - While active, falling pieces committed to well are discarded safely (no pile append).
+- Restrictions: hard one-per-round check via `used_safe_well_this_round`.
 
-## 3) Implemented tuning knobs (single config)
+### Time Slow (Well-triggered mechanic)
 
-Config file: `Scripts/Core/balance_config.json`
+- Trigger source: `_try_trigger_time_slow_from_well_placement()`.
+- Trigger condition: successful placement that came from WELL (`placed_from_well`).
+- Cooldown sec: `core.call("GetTimeSlowCooldownSec")` → config key `TimeSlowCooldownSec = 60.0`.
+- Effect duration sec: `core.call("GetTimeSlowEffectDurationSec")` → `TimeSlowEffectDurationSec = 5.0`.
+- Effect scale: `core.call("GetTimeSlowEffectTimeScale")` → `TimeSlowEffectTimeScale = 0.55`.
+- Overlay duration sec: `core.call("GetTimeSlowReadyOverlayDurationSec")` → `TimeSlowReadyOverlayDurationSec = 0.8`.
+- UI expand rule: `_is_time_slow_column_expanded()`:
+  - expanded if effect is active, or overlay visible, or cooldown ever started (`time_slow_cooldown_until_ms > 0`).
 
-### Speed / pacing
-- `BaseFallSpeed`
-- `LevelSpeedGrowth`
-- `TimeSpeedRampPerMinute`
-- `MaxFallSpeedCap`
-- `DdaMinFallMultiplier`, `DdaMaxFallMultiplier`
+## Time Scale Priority (Order of Overrides)
 
-### Generation fairness
-- `IdealPieceChanceEarly`, `IdealPieceChanceLate`
-- `IdealChanceDecayPerMinute`, `IdealChanceFloor`
-- `PityEveryNSpawns`
-- `NoProgressMovesForPity`
-- `CandidateTopBand`
+Exact order in `_update_time_scale_runtime()` (minimum scale wins; final clamp in `_set_time_scale` is `0.05..1.0`):
 
-### DDA signals
-- `TargetMoveTimeSec`
-- `FillDangerThreshold`
-- `DdaRatePerMove`
+1. No Mercy extra scale: `core.call("GetNoMercyExtraTimeScale", well_fill_ratio)`
+2. WellDrag while dragging: `core.call("GetWellDragTimeScale", well_fill_ratio)`
+3. AutoSlow while `auto_slow_until_ms` active: `core.call("GetAutoSlowScale")`
+4. MicroFreeze fixed scale `0.15` while `micro_freeze_until_ms` active
+5. WellFirstEntry while `well_first_entry_slow_until_ms` active: `core.call("GetWellFirstEntrySlowTimeScale")`
+6. TimeSlow while `time_slow_effect_until_ms` active: `core.call("GetTimeSlowEffectTimeScale")`
+7. FreezeSkill while `is_freeze_active()`: `freeze_effect_multiplier`
+8. InvalidDropFail while `invalid_drop_slow_until_ms` active: `core.call("GetInvalidDropFailTimeScale")`
+9. Final apply: `_set_time_scale(reason, scale)` with clamp `0.05..1.0`
 
-### Well / pile
-- `WellSize`
-- `PileMax`
-- `TopSelectable`
-- `PileVisible`
-- `DangerLineStartRatio`, `DangerLineEndRatio`
+## UI Overlay Texts (Exact strings + sizes + placement)
 
-### Scoring / leveling
-- `PointsPerLevel` (slows early leveling to avoid level-10-at-3-min flatness)
+- Charges label:
+  - Exact format: `"%d×"`
+  - Placement: **top-right** (`Control.PRESET_TOP_RIGHT`, right-aligned)
+  - Font size: `24`
+- State label strings (exact code truth):
+  - `Locked`, `CD`, `Active`, `Used`, `Ready`
+  - Placement: **bottom-center** (`Control.PRESET_BOTTOM_WIDE`, centered)
+  - Font size: `24`
 
----
+## Known Issues / TODO (Only facts)
 
-## 4) Curve changes implemented
+- `used_freeze_this_round` exists but is not set to `true` in `try_use_freeze()`; unlike Clear Board / Safe Well, Freeze is not hard-blocked by this flag in runtime use path.
+- Previous docs that state `freeze_charges_max = 1` are stale for current build; code truth is `2`.
+- If design requires strict “1 use per round” for Freeze, this needs code change (not applied here).
 
-1. **Speed ramp strengthened early**
-   - Added explicit time-based ramp (`TimeSpeedRampPerMinute`) in addition to level scaling.
-   - Added hard cap (`MaxFallSpeedCap`) and kept DDA smoothing.
+## Snapshot checklist
 
-2. **Well generosity reduced by default**
-   - Default `PileMax` changed from old 8 toward **6** via config.
-   - Main scene now reads well settings from Core config.
-
-3. **Generation forgiveness now decays over run time**
-   - Ideal-piece chance decays by minute and is clamped by floor.
-   - Pity still prevents unfair dead-end streaks.
-
-4. **Pity now reacts to no-progress streaks**
-   - If player makes `NoProgressMovesForPity` moves without clear, next piece can be forced helpful.
-
----
-
-## 5) Simulation runner metrics
-
-The simulation tracks:
-- average time to game over
-- p50/p90 time distribution
-- clears/minute
-- no-move loss rate
-- well overflow rate
-- pity triggers per game
-
-### Variant results (offline quick sim)
-From `tools_simulate_balance.py`:
-
-```json
-{
-  "well_8": {
-    "games": 120,
-    "well_size": 8,
-    "avg_time_sec": 95.47999999999999,
-    "p50_time_sec": 95.47999999999999,
-    "p90_time_sec": 95.47999999999999,
-    "avg_clears_per_min": 34.49937159614579,
-    "no_move_loss_rate": 0.0,
-    "well_overflow_rate": 1.0,
-    "pity_triggers_per_game": 23.3
-  },
-  "well_6": {
-    "games": 120,
-    "well_size": 6,
-    "avg_time_sec": 69.3,
-    "p50_time_sec": 69.3,
-    "p90_time_sec": 69.3,
-    "avg_clears_per_min": 31.298701298701296,
-    "no_move_loss_rate": 0.0,
-    "well_overflow_rate": 1.0,
-    "pity_triggers_per_game": 15.816666666666666
-  },
-  "well_5": {
-    "games": 120,
-    "well_size": 5,
-    "avg_time_sec": 56.879999999999995,
-    "p50_time_sec": 56.879999999999995,
-    "p90_time_sec": 56.879999999999995,
-    "avg_clears_per_min": 28.560126582278482,
-    "no_move_loss_rate": 0.0,
-    "well_overflow_rate": 1.0,
-    "pity_triggers_per_game": 12.475
-  }
-}
-```
-
-Interpretation:
-- `well=8` is the most forgiving and drifts toward boredom for stronger players.
-- `well=6` gives a better pressure step while keeping fairness.
-- `well=5` is noticeably harsher and closer to hardcore pacing.
-
-Recommended default for now: **well=6 / pile_max=6**.
+- Freeze: Ready → Active (5s) → CD (30s) → Ready (SFX only on transition, not on run start).
+- Clear Board: clears board + applies score using `CLEAR_BOARD_POINTS_PER_CELL`.
+- Safe Well: clears well + safe-discard for falling pieces while active.
+- Time Slow: triggers only from placement from well; UI column expands after first trigger.
