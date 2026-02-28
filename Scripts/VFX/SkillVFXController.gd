@@ -2,8 +2,8 @@ extends Node
 class_name SkillVFXController
 
 const FREEZE_SFX_PATH = "res://Assets/Audio/Skills/Freeze/freeze_cast.ogg"
+const CLEAR_BOARD_CAST_SFX_PATH = "res://Assets/Audio/clear.wav"
 const SAFE_WELL_CAST_SFX_PATH = "res://Assets/Audio/Skills/SafeWell/safewell_cast.ogg"
-const SAFE_WELL_ZAP_SFX_PATH = "res://Assets/Audio/Skills/SafeWell/well_zap.ogg"
 const SAFE_WELL_DOORS_CLOSE_SFX_PATH = "res://Assets/Audio/Skills/SafeWell/doors_close.ogg"
 const SAFE_WELL_DOORS_OPEN_SFX_PATH = "res://Assets/Audio/Skills/SafeWell/doors_open.ogg"
 const SAFE_WELL_LOCK_SFX_PATH = "res://Assets/Audio/Skills/SafeWell/lock_clink.ogg"
@@ -12,12 +12,10 @@ const FREEZE_ICE_TEXTURE_PATH = "res://Assets/VFX/Skills/Freeze/ice_screen_overl
 const FREEZE_FALLBACK_TEXTURE_PATH = "res://Assets/VFX/Skills/Freeze/frost_edge.png"
 const SAFE_WELL_DOOR_TEXTURE_PATH = "res://Assets/VFX/Skills/SafeWell/door_metal.png"
 const SAFE_WELL_LOCK_TEXTURE_PATH = "res://Assets/VFX/Skills/SafeWell/lock_icon.png"
-const SAFE_WELL_LIGHTNING_TEXTURE_PATH = "res://Assets/VFX/Skills/SafeWell/lightning_strip.png"
 
 const FREEZE_ICE_SHADER_PATH = "res://Assets/Shaders/Skills/ice_screen.gdshader"
 const VIGNETTE_SHADER_PATH = "res://Assets/Shaders/Skills/vignette.gdshader"
 const FLASH_SHADER_PATH = "res://Assets/Shaders/Skills/flash.gdshader"
-const LIGHTNING_SHADER_PATH = "res://Assets/Shaders/Skills/lightning.gdshader"
 const TIME_SLOW_RIPPLE_SHADER_PATH = "res://Assets/Shaders/Skills/time_slow_ripple.gdshader"
 
 var host_control: Control = null
@@ -28,7 +26,8 @@ var well_panel_control: Control = null
 var frame_control: Control = null
 
 var overlay_layer: CanvasLayer = null
-var overlay_root: Control = null
+var vfx_root_full: Control = null
+var freeze_root: Control = null
 
 var rng = RandomNumberGenerator.new()
 var sfx_players: Dictionary = {}
@@ -51,9 +50,6 @@ var shake_origin = Vector2.ZERO
 
 var safe_well_start_ms = -1
 var safe_well_end_ms = -1
-var safe_well_lightning_end_ms = -1
-var safe_well_lightning_rect: Control = null
-var safe_well_lightning_mat: ShaderMaterial = null
 var safe_well_left_door: Control = null
 var safe_well_right_door: Control = null
 var safe_well_lock: Control = null
@@ -93,6 +89,7 @@ func on_freeze_cast(duration_ms: int) -> void:
 
 func on_clear_board_cast() -> void:
 	_ensure_overlay_layer()
+	_play_optional_sfx("clear_board_cast", CLEAR_BOARD_CAST_SFX_PATH)
 	var now = Time.get_ticks_msec()
 	clear_flash_start_ms = now
 	clear_flash_end_ms = now + 200
@@ -107,12 +104,10 @@ func on_clear_board_cast() -> void:
 func on_safe_well_cast(duration_ms: int) -> void:
 	_ensure_overlay_layer()
 	_play_optional_sfx("safe_well_cast", SAFE_WELL_CAST_SFX_PATH)
-	_play_optional_sfx("safe_well_zap", SAFE_WELL_ZAP_SFX_PATH)
 	var now = Time.get_ticks_msec()
 	safe_well_start_ms = now
 	safe_well_end_ms = now + max(duration_ms, 1)
-	safe_well_lightning_end_ms = safe_well_start_ms + 1500
-	safe_well_close_end_ms = safe_well_lightning_end_ms + 300
+	safe_well_close_end_ms = safe_well_start_ms + 300
 	safe_well_open_start_ms = max(safe_well_close_end_ms, safe_well_end_ms - 260)
 	safe_well_open_end_ms = safe_well_end_ms
 	safe_well_doors_started = false
@@ -162,14 +157,14 @@ func _ensure_overlay_layer() -> void:
 		return
 	overlay_layer = CanvasLayer.new()
 	overlay_layer.layer = 30
-	overlay_root = Control.new()
-	overlay_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay_root.offset_left = 0
-	overlay_root.offset_top = 0
-	overlay_root.offset_right = 0
-	overlay_root.offset_bottom = 0
-	overlay_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay_layer.add_child(overlay_root)
+	vfx_root_full = Control.new()
+	vfx_root_full.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vfx_root_full.offset_left = 0
+	vfx_root_full.offset_top = 0
+	vfx_root_full.offset_right = 0
+	vfx_root_full.offset_bottom = 0
+	vfx_root_full.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay_layer.add_child(vfx_root_full)
 	host_control.add_child(overlay_layer)
 
 
@@ -190,6 +185,9 @@ func _ensure_audio_player(key: String, path: String) -> AudioStreamPlayer:
 
 
 func _play_optional_sfx(key: String, path: String) -> void:
+	if play_main_sfx.is_valid():
+		play_main_sfx.call(key)
+		return
 	var player = _ensure_audio_player(key, path)
 	if player != null and player.stream != null:
 		player.play()
@@ -232,13 +230,15 @@ func _rect_for(control: Control) -> Rect2:
 
 
 func _ensure_freeze_nodes() -> void:
-	if overlay_root == null:
+	if vfx_root_full == null:
 		return
-	overlay_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay_root.offset_left = 0
-	overlay_root.offset_top = 0
-	overlay_root.offset_right = 0
-	overlay_root.offset_bottom = 0
+	if freeze_root == null or not is_instance_valid(freeze_root):
+		freeze_root = Control.new()
+		freeze_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vfx_root_full.add_child(freeze_root)
+	var frame_rect = _bottom_zone_rect()
+	freeze_root.global_position = frame_rect.position
+	freeze_root.size = frame_rect.size
 	if freeze_frost_rect == null or not is_instance_valid(freeze_frost_rect):
 		var frost_tex = _texture_from_path(FREEZE_ICE_TEXTURE_PATH)
 		if frost_tex == null:
@@ -260,25 +260,14 @@ func _ensure_freeze_nodes() -> void:
 		freeze_frost_rect.offset_top = 0
 		freeze_frost_rect.offset_right = 0
 		freeze_frost_rect.offset_bottom = 0
-		overlay_root.add_child(freeze_frost_rect)
+		freeze_root.add_child(freeze_frost_rect)
 		var frost_shader = _shader_from_path(FREEZE_ICE_SHADER_PATH)
 		if frost_shader != null:
 			freeze_frost_mat = ShaderMaterial.new()
 			freeze_frost_mat.shader = frost_shader
 			freeze_frost_mat.set_shader_parameter("u_strength", 0.0)
+			freeze_frost_mat.set_shader_parameter("u_edge_width", 0.14)
 			freeze_frost_rect.material = freeze_frost_mat
-	var frame_rect = _freeze_target_rect()
-
-	# Make the frame thinner/less intrusive by insetting the target rect
-	# (prevents frost covering too much content)
-	var inset = 10.0
-	frame_rect.position += Vector2(inset, inset)
-	frame_rect.size -= Vector2(inset * 2.0, inset * 2.0)
-	if frame_rect.size.x < 2.0 or frame_rect.size.y < 2.0:
-		frame_rect = _freeze_target_rect()
-
-	overlay_root.position = frame_rect.position
-	overlay_root.size = frame_rect.size
 	if freeze_vignette_rect == null or not is_instance_valid(freeze_vignette_rect):
 		var vignette = ColorRect.new()
 		vignette.color = Color(0.0, 0.0, 0.0, 0.0)
@@ -288,7 +277,7 @@ func _ensure_freeze_nodes() -> void:
 		vignette.offset_right = 0
 		vignette.offset_bottom = 0
 		vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		overlay_root.add_child(vignette)
+		freeze_root.add_child(vignette)
 		freeze_vignette_rect = vignette
 		var vignette_shader = _shader_from_path(VIGNETTE_SHADER_PATH)
 		if vignette_shader != null:
@@ -301,13 +290,13 @@ func _ensure_freeze_nodes() -> void:
 
 
 func _ensure_clear_flash_node() -> void:
-	if overlay_root == null:
+	if vfx_root_full == null:
 		return
 	if clear_flash_rect == null or not is_instance_valid(clear_flash_rect):
 		clear_flash_rect = ColorRect.new()
 		clear_flash_rect.color = Color(1, 1, 1, 1)
 		clear_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		overlay_root.add_child(clear_flash_rect)
+		vfx_root_full.add_child(clear_flash_rect)
 		var flash_shader = _shader_from_path(FLASH_SHADER_PATH)
 		if flash_shader != null:
 			clear_flash_mat = ShaderMaterial.new()
@@ -328,7 +317,7 @@ func _ensure_clear_flash_node() -> void:
 
 
 func _ensure_time_slow_ripple_node() -> bool:
-	if overlay_root == null:
+	if vfx_root_full == null:
 		return false
 	if time_slow_ripple_rect != null and is_instance_valid(time_slow_ripple_rect):
 		return true
@@ -350,7 +339,7 @@ func _ensure_time_slow_ripple_node() -> bool:
 	time_slow_ripple_mat.set_shader_parameter("u_center", Vector2(0.5, 0.5))
 	time_slow_ripple_rect.material = time_slow_ripple_mat
 	time_slow_ripple_rect.visible = false
-	overlay_root.add_child(time_slow_ripple_rect)
+	vfx_root_full.add_child(time_slow_ripple_rect)
 	return true
 
 
@@ -360,49 +349,45 @@ func _well_rect() -> Rect2:
 	return _rect_for(drop_zone_control)
 
 
-func _freeze_frame_rect() -> Rect2:
-	if frame_control != null and is_instance_valid(frame_control):
-		return _rect_for(frame_control)
-	return _rect_for(host_control)
+func _merge_rects(a: Rect2, b: Rect2) -> Rect2:
+	if a.size.x <= 0.0 or a.size.y <= 0.0:
+		return b
+	if b.size.x <= 0.0 or b.size.y <= 0.0:
+		return a
+	var x0 = min(a.position.x, b.position.x)
+	var y0 = min(a.position.y, b.position.y)
+	var x1 = max(a.position.x + a.size.x, b.position.x + b.size.x)
+	var y1 = max(a.position.y + a.size.y, b.position.y + b.size.y)
+	return Rect2(Vector2(x0, y0), Vector2(x1 - x0, y1 - y0))
 
 
-func _freeze_target_rect() -> Rect2:
-	# Freeze should cover ONLY the bottom well container
-	if well_panel_control != null and is_instance_valid(well_panel_control):
-		return _rect_for(well_panel_control)
-	# Fallback: cover well slots/drop zone if well_panel not provided
-	return _well_rect()
+func _global_rect_for(control: Control) -> Rect2:
+	if control == null or not is_instance_valid(control):
+		return Rect2(Vector2.ZERO, Vector2.ZERO)
+	return control.get_global_rect()
+
+
+func _bottom_zone_rect() -> Rect2:
+	var merged = _merge_rects(_global_rect_for(drop_zone_control), _global_rect_for(well_control))
+	if merged.size.x <= 0.0 or merged.size.y <= 0.0:
+		merged = _global_rect_for(well_panel_control)
+	if merged.size.x <= 0.0 or merged.size.y <= 0.0:
+		merged = _global_rect_for(host_control)
+	var pad = 8.0
+	merged.position -= Vector2(pad, pad)
+	merged.size += Vector2(pad * 2.0, pad * 2.0)
+	if host_control != null and is_instance_valid(host_control):
+		var viewport_rect = Rect2(host_control.global_position, host_control.get_viewport_rect().size)
+		var clipped = merged.intersection(viewport_rect)
+		if clipped.size.x > 0.0 and clipped.size.y > 0.0:
+			merged = clipped
+	return merged
 
 
 func _ensure_safe_well_nodes() -> void:
-	if overlay_root == null:
+	if vfx_root_full == null:
 		return
 	var well_rect = _well_rect()
-	if safe_well_lightning_rect == null or not is_instance_valid(safe_well_lightning_rect):
-		var strip_tex = _texture_from_path(SAFE_WELL_LIGHTNING_TEXTURE_PATH)
-		if strip_tex != null:
-			var strip = TextureRect.new()
-			strip.texture = strip_tex
-			strip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			strip.stretch_mode = TextureRect.STRETCH_SCALE
-			safe_well_lightning_rect = strip
-		else:
-			var lightning_fallback = ColorRect.new()
-			lightning_fallback.color = Color(0.65, 0.85, 1.0, 0.24)
-			safe_well_lightning_rect = lightning_fallback
-		safe_well_lightning_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		overlay_root.add_child(safe_well_lightning_rect)
-		var lightning_shader = _shader_from_path(LIGHTNING_SHADER_PATH)
-		if lightning_shader != null:
-			safe_well_lightning_mat = ShaderMaterial.new()
-			safe_well_lightning_mat.shader = lightning_shader
-			safe_well_lightning_mat.set_shader_parameter("u_strength", 0.0)
-			safe_well_lightning_mat.set_shader_parameter("u_time", 0.0)
-			safe_well_lightning_mat.set_shader_parameter("u_vertical", 1.0)
-			safe_well_lightning_rect.material = safe_well_lightning_mat
-	safe_well_lightning_rect.position = well_rect.position
-	safe_well_lightning_rect.size = well_rect.size
-	safe_well_lightning_rect.visible = false
 	_ensure_safe_well_doors(well_rect)
 
 
@@ -410,13 +395,13 @@ func _ensure_safe_well_doors(door_rect: Rect2) -> void:
 	var door_tex = _texture_from_path(SAFE_WELL_DOOR_TEXTURE_PATH)
 	if safe_well_left_door == null or not is_instance_valid(safe_well_left_door):
 		safe_well_left_door = _build_door_panel(door_tex)
-		overlay_root.add_child(safe_well_left_door)
+		vfx_root_full.add_child(safe_well_left_door)
 	if safe_well_right_door == null or not is_instance_valid(safe_well_right_door):
 		safe_well_right_door = _build_door_panel(door_tex)
-		overlay_root.add_child(safe_well_right_door)
+		vfx_root_full.add_child(safe_well_right_door)
 	if safe_well_lock == null or not is_instance_valid(safe_well_lock):
 		safe_well_lock = _build_lock_control(_texture_from_path(SAFE_WELL_LOCK_TEXTURE_PATH))
-		overlay_root.add_child(safe_well_lock)
+		vfx_root_full.add_child(safe_well_lock)
 	var panel_width = max(32.0, door_rect.size.x * 0.5)
 	safe_well_left_door.size = Vector2(panel_width, door_rect.size.y)
 	safe_well_right_door.size = Vector2(panel_width, door_rect.size.y)
@@ -467,7 +452,7 @@ func _build_lock_control(lock_tex: Texture2D) -> Control:
 
 
 func _spawn_safe_well_sparks() -> void:
-	if overlay_root == null:
+	if vfx_root_full == null:
 		return
 	var well_rect = _well_rect()
 	if well_rect.size.x <= 1.0 or well_rect.size.y <= 1.0:
@@ -483,7 +468,7 @@ func _spawn_safe_well_sparks() -> void:
 		spark.add_point(Vector2(x0, y0))
 		spark.add_point(Vector2(x0 + rng.randf_range(-8.0, 8.0), y0 + rng.randf_range(4.0, 14.0)))
 		spark.add_point(Vector2(x0 + rng.randf_range(-14.0, 14.0), y0 + rng.randf_range(8.0, 18.0)))
-		overlay_root.add_child(spark)
+		vfx_root_full.add_child(spark)
 		var t = get_tree().create_timer(0.1, true, false, true)
 		t.timeout.connect(func():
 			if is_instance_valid(spark):
@@ -508,9 +493,9 @@ func _update_freeze(now: int) -> bool:
 	var alpha = min(eased_in, eased_out)
 	if freeze_frost_rect != null and is_instance_valid(freeze_frost_rect):
 		freeze_frost_rect.visible = true
-		freeze_frost_rect.modulate.a = 0.22 * alpha
+		freeze_frost_rect.modulate.a = 0.20 * alpha
 		if freeze_frost_mat != null:
-			freeze_frost_mat.set_shader_parameter("u_strength", clamp(0.65 * alpha, 0.0, 1.0))
+			freeze_frost_mat.set_shader_parameter("u_strength", clamp(0.42 * alpha, 0.0, 1.0))
 	if freeze_vignette_rect != null and is_instance_valid(freeze_vignette_rect):
 		freeze_vignette_rect.visible = true
 		var v_strength = clamp(0.08 * alpha, 0.0, 1.0)
@@ -560,27 +545,7 @@ func _update_safe_well(now: int) -> bool:
 	if safe_well_start_ms < 0 or safe_well_end_ms <= safe_well_start_ms:
 		return false
 	var active = true
-	var total = float(safe_well_end_ms - safe_well_start_ms)
-	var t = clamp(float(now - safe_well_start_ms) / total, 0.0, 1.0)
 	var well_rect = _well_rect()
-	if safe_well_lightning_rect != null and is_instance_valid(safe_well_lightning_rect):
-		safe_well_lightning_rect.position = well_rect.position
-		safe_well_lightning_rect.size = well_rect.size
-	if now < safe_well_lightning_end_ms:
-		if safe_well_lightning_rect != null and is_instance_valid(safe_well_lightning_rect):
-			safe_well_lightning_rect.visible = true
-			var pulse = abs(sin(t * PI * 5.0))
-			var alpha = lerp(0.08, 0.40, pulse)
-			safe_well_lightning_rect.modulate.a = alpha
-			if safe_well_lightning_mat != null:
-				safe_well_lightning_mat.set_shader_parameter("u_strength", clamp(alpha * 1.8, 0.0, 1.0))
-				safe_well_lightning_mat.set_shader_parameter("u_time", float(now) / 1000.0)
-				safe_well_lightning_mat.set_shader_parameter("u_vertical", 1.0)
-		safe_well_doors_started = false
-		_hide_safe_well_doors_lock()
-		return active
-	if safe_well_lightning_rect != null and is_instance_valid(safe_well_lightning_rect):
-		safe_well_lightning_rect.visible = false
 	if not safe_well_doors_started:
 		safe_well_doors_started = true
 		if safe_well_left_door != null and is_instance_valid(safe_well_left_door):
@@ -594,13 +559,10 @@ func _update_safe_well(now: int) -> bool:
 	if now >= safe_well_end_ms:
 		safe_well_start_ms = -1
 		safe_well_end_ms = -1
-		safe_well_lightning_end_ms = -1
 		safe_well_close_end_ms = -1
 		safe_well_open_start_ms = -1
 		safe_well_open_end_ms = -1
 		safe_well_doors_started = false
-		if safe_well_lightning_rect != null and is_instance_valid(safe_well_lightning_rect):
-			safe_well_lightning_rect.visible = false
 		if safe_well_left_door != null and is_instance_valid(safe_well_left_door):
 			safe_well_left_door.visible = false
 		if safe_well_right_door != null and is_instance_valid(safe_well_right_door):
@@ -661,8 +623,8 @@ func _update_doors_timeline(now: int, door_rect: Rect2) -> void:
 	if now <= safe_well_close_end_ms:
 		if safe_well_left_door.get_meta("close_sfx_played", false) == false:
 			safe_well_left_door.set_meta("close_sfx_played", true)
-			_play_optional_sfx("doors_close", SAFE_WELL_DOORS_CLOSE_SFX_PATH)
-		var close_t = clamp(float(now - safe_well_lightning_end_ms) / float(max(1, safe_well_close_end_ms - safe_well_lightning_end_ms)), 0.0, 1.0)
+			_play_optional_sfx("safe_well_doors_close", SAFE_WELL_DOORS_CLOSE_SFX_PATH)
+		var close_t = clamp(float(now - safe_well_start_ms) / float(max(1, safe_well_close_end_ms - safe_well_start_ms)), 0.0, 1.0)
 		safe_well_left_door.position.x = lerp(left_open_x, left_closed_x, close_t)
 		safe_well_right_door.position.x = lerp(right_open_x, right_closed_x, close_t)
 		if safe_well_lock != null and is_instance_valid(safe_well_lock):
@@ -678,13 +640,13 @@ func _update_doors_timeline(now: int, door_rect: Rect2) -> void:
 			safe_well_lock.scale = Vector2.ONE * lerp(0.1, 1.0, lock_t)
 			if lock_t > 0.02 and safe_well_lock.get_meta("sfx_played", false) == false:
 				safe_well_lock.set_meta("sfx_played", true)
-				_play_optional_sfx("lock_clink", SAFE_WELL_LOCK_SFX_PATH)
+				_play_optional_sfx("safe_well_lock_clink", SAFE_WELL_LOCK_SFX_PATH)
 		return
 	if now <= safe_well_open_end_ms:
 		var open_t = clamp(float(now - safe_well_open_start_ms) / float(max(1, safe_well_open_end_ms - safe_well_open_start_ms)), 0.0, 1.0)
 		if safe_well_left_door.get_meta("open_sfx_played", false) == false:
 			safe_well_left_door.set_meta("open_sfx_played", true)
-			_play_optional_sfx("doors_open", SAFE_WELL_DOORS_OPEN_SFX_PATH)
+			_play_optional_sfx("safe_well_doors_open", SAFE_WELL_DOORS_OPEN_SFX_PATH)
 		safe_well_left_door.position.x = lerp(left_closed_x, left_open_x, open_t)
 		safe_well_right_door.position.x = lerp(right_closed_x, right_open_x, open_t)
 		if safe_well_lock != null and is_instance_valid(safe_well_lock):
