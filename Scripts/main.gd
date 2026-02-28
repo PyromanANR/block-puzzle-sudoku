@@ -612,7 +612,7 @@ func _setup_skill_vfx_controller() -> void:
 		return
 	skill_vfx_controller = SkillVFXControllerScript.new()
 	add_child(skill_vfx_controller)
-	skill_vfx_controller.setup(self, board_panel, drop_zone_panel, well_slots_panel, root_frame)
+	skill_vfx_controller.setup(self, board_panel, well_panel, drop_zone_panel, well_slots_panel, root_frame)
 	skill_vfx_controller.setup_sfx_callback(Callable(self, "_play_sfx"))
 	if OS.is_debug_build() and not skill_vfx_debug_rects_logged and drop_zone_panel != null and well_slots_panel != null:
 		skill_vfx_debug_rects_logged = true

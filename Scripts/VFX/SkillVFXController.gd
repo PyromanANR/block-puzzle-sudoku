@@ -24,6 +24,7 @@ var host_control: Control = null
 var board_control: Control = null
 var drop_zone_control: Control = null
 var well_control: Control = null
+var well_panel_control: Control = null
 var frame_control: Control = null
 
 var overlay_layer: CanvasLayer = null
@@ -67,9 +68,10 @@ var time_slow_ripple_rect: ColorRect = null
 var time_slow_ripple_mat: ShaderMaterial = null
 
 
-func setup(host: Control, board: Control, drop_zone: Control, well: Control = null, frame: Control = null) -> void:
+func setup(host: Control, board: Control, well_panel: Control, drop_zone: Control, well: Control = null, frame: Control = null) -> void:
 	host_control = host
 	board_control = board
+	well_panel_control = well_panel
 	drop_zone_control = drop_zone
 	well_control = well
 	frame_control = frame
@@ -265,7 +267,16 @@ func _ensure_freeze_nodes() -> void:
 			freeze_frost_mat.shader = frost_shader
 			freeze_frost_mat.set_shader_parameter("u_strength", 0.0)
 			freeze_frost_rect.material = freeze_frost_mat
-	var frame_rect = _freeze_frame_rect()
+	var frame_rect = _freeze_target_rect()
+
+	# Make the frame thinner/less intrusive by insetting the target rect
+	# (prevents frost covering too much content)
+	var inset = 10.0
+	frame_rect.position += Vector2(inset, inset)
+	frame_rect.size -= Vector2(inset * 2.0, inset * 2.0)
+	if frame_rect.size.x < 2.0 or frame_rect.size.y < 2.0:
+		frame_rect = _freeze_target_rect()
+
 	overlay_root.position = frame_rect.position
 	overlay_root.size = frame_rect.size
 	if freeze_vignette_rect == null or not is_instance_valid(freeze_vignette_rect):
@@ -353,6 +364,14 @@ func _freeze_frame_rect() -> Rect2:
 	if frame_control != null and is_instance_valid(frame_control):
 		return _rect_for(frame_control)
 	return _rect_for(host_control)
+
+
+func _freeze_target_rect() -> Rect2:
+	# Freeze should cover ONLY the bottom well container
+	if well_panel_control != null and is_instance_valid(well_panel_control):
+		return _rect_for(well_panel_control)
+	# Fallback: cover well slots/drop zone if well_panel not provided
+	return _well_rect()
 
 
 func _ensure_safe_well_nodes() -> void:
@@ -489,12 +508,12 @@ func _update_freeze(now: int) -> bool:
 	var alpha = min(eased_in, eased_out)
 	if freeze_frost_rect != null and is_instance_valid(freeze_frost_rect):
 		freeze_frost_rect.visible = true
-		freeze_frost_rect.modulate.a = 0.35 * alpha
+		freeze_frost_rect.modulate.a = 0.22 * alpha
 		if freeze_frost_mat != null:
-			freeze_frost_mat.set_shader_parameter("u_strength", clamp(0.9 * alpha, 0.0, 1.0))
+			freeze_frost_mat.set_shader_parameter("u_strength", clamp(0.65 * alpha, 0.0, 1.0))
 	if freeze_vignette_rect != null and is_instance_valid(freeze_vignette_rect):
 		freeze_vignette_rect.visible = true
-		var v_strength = clamp(0.2 * alpha, 0.0, 1.0)
+		var v_strength = clamp(0.08 * alpha, 0.0, 1.0)
 		if freeze_vignette_rect is ColorRect:
 			freeze_vignette_rect.color.a = 1.0
 		if freeze_vignette_mat != null:
