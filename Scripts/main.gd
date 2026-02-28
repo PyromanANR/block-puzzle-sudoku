@@ -1049,7 +1049,8 @@ func _build_ui() -> void:
 
 	var left_cluster = HBoxContainer.new()
 	left_cluster.name = "left_cluster"
-	left_cluster.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left_cluster.custom_minimum_size.x = 420
+	left_cluster.size_flags_horizontal = Control.SIZE_FILL
 	left_cluster.size_flags_stretch_ratio = 0.0
 	left_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_cluster.add_theme_constant_override("separation", HEADER_CLUSTER_GAP)
@@ -1204,7 +1205,9 @@ func _build_ui() -> void:
 
 	var right_cluster = HBoxContainer.new()
 	right_cluster.name = "right_cluster"
-	right_cluster.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_cluster.custom_minimum_size.x = 420
+	right_cluster.size_flags_horizontal = Control.SIZE_FILL
+	right_cluster.alignment = BoxContainer.ALIGNMENT_END # push gear to the far right inside its box
 	right_cluster.size_flags_stretch_ratio = 0.0
 	right_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_cluster.add_theme_constant_override("separation", HEADER_CLUSTER_GAP)
