@@ -1,5 +1,27 @@
 extends Control
 
+class CooldownRadial extends Control:
+	var progress_remaining_01 := 0.0:
+		set(value):
+			progress_remaining_01 = clamp(value, 0.0, 1.0)
+			visible = progress_remaining_01 > 0.001
+			queue_redraw()
+	func _draw() -> void:
+		if progress_remaining_01 <= 0.001:
+			return
+		var center = size * 0.5
+		var radius = min(size.x, size.y) * 0.48
+		var angle_span = TAU * progress_remaining_01
+		var start_angle = -PI * 0.5
+		var points: PackedVector2Array = PackedVector2Array()
+		points.append(center)
+		var steps = max(6, int(48.0 * progress_remaining_01))
+		for i in range(steps + 1):
+			var t = float(i) / float(max(1, steps))
+			var a = start_angle + angle_span * t
+			points.append(center + Vector2(cos(a), sin(a)) * radius)
+		draw_colored_polygon(points, Color(0, 0, 0, 0.55))
+
 const BoardGridOverlay = preload("res://Scripts/BoardGridOverlay.gd")
 const SkillVFXControllerScript = preload("res://Scripts/VFX/SkillVFXController.gd")
 const MusicManagerScript = preload("res://Scripts/Audio/MusicManager.gd")
@@ -233,10 +255,28 @@ const MUSIC_ATTENUATION_LINEAR = 0.2
 const GAME_OVER_SFX_PATH = "res://Assets/Audio/SFX/game_over.ogg"
 const MENU_ICON_SETTINGS_TRES = "res://Assets/UI/icons/menu/icon_settings.tres"
 const MENU_ICON_CLOSE_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
+const MENU_ICON_BACK_PNG = "res://Assets/UI/icons/menu/icon_back.png"
+const FREEZE_CD_MS := 30000
+const CLEAR_CD_MS := 45000
+const SAFE_WELL_CD_MS := 60000
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
 var freeze_uses_left: int = 1
+var freeze_charges_max := 1
+var freeze_charges_current := 1
+var clear_charges_max := 1
+var clear_charges_current := 1
+var safe_well_charges_max := 1
+var safe_well_charges_current := 1
+var freeze_cd_until_ms := 0
+var clear_cd_until_ms := 0
+var safe_well_cd_until_ms := 0
+var prev_freeze_ready := false
+var prev_clear_ready := false
+var prev_safe_ready := false
+var ghost_shake_phase := 0.0
+var ghost_shake_strength_px := 2.0
 var time_slow_atlas: Resource = null
 var time_slow_glass_overlay: Resource = null
 var time_slow_sand_fill: Resource = null
@@ -420,6 +460,15 @@ func _start_round() -> void:
 	used_freeze_this_round = false
 	used_clear_board_this_round = false
 	used_safe_well_this_round = false
+	freeze_charges_current = freeze_charges_max
+	clear_charges_current = clear_charges_max
+	safe_well_charges_current = safe_well_charges_max
+	freeze_cd_until_ms = 0
+	clear_cd_until_ms = 0
+	safe_well_cd_until_ms = 0
+	prev_freeze_ready = false
+	prev_clear_ready = false
+	prev_safe_ready = false
 	Engine.time_scale = 1.0
 	core.call("ResetRuntimeClock")
 	sfx_blocked_by_game_over = false
@@ -608,6 +657,7 @@ func _audio_setup() -> void:
 	_ensure_sfx("safe_well_doors_close", "res://Assets/Audio/Skills/SafeWell/doors_close.ogg", -16.0)
 	_ensure_sfx("safe_well_lock_clink", "res://Assets/Audio/Skills/SafeWell/lock_clink.ogg", -16.0)
 	_ensure_sfx("panic", "res://Assets/Audio/panic_tick.wav", -14.0)
+	_ensure_sfx("skill_ready", "res://Assets/Audio/SFX/skill_ready.ogg", -14.0)
 	_ensure_sfx("game_over", GAME_OVER_SFX_PATH, -17.0)
 	var ts_path = String(core.call("GetTimeSlowReadySfxPath"))
 	if ts_path != "":
@@ -877,10 +927,10 @@ func _build_ui() -> void:
 	header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(header_row)
 
-	var left_button_section = HBoxContainer.new()
+	var left_button_section = MarginContainer.new()
 	left_button_section.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	left_button_section.alignment = BoxContainer.ALIGNMENT_BEGIN
-	left_button_section.add_theme_constant_override("separation", 10)
+	left_button_section.add_theme_constant_override("margin_top", 4)
+	left_button_section.add_theme_constant_override("margin_bottom", 4)
 	header_row.add_child(left_button_section)
 
 	btn_exit = TextureButton.new()
@@ -888,34 +938,88 @@ func _build_ui() -> void:
 	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_exit.ignore_texture_size = true
 	btn_exit.mouse_filter = Control.MOUSE_FILTER_STOP
-	_apply_header_button_icon(btn_exit, MENU_ICON_CLOSE_TRES, "X", 34)
+	_apply_header_button_icon(btn_exit, MENU_ICON_BACK_PNG, "←", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
 	left_button_section.add_child(btn_exit)
 
-	var gapL = Control.new()
-	gapL.custom_minimum_size = Vector2(10, 0)
-	gapL.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(gapL)
+	var stats_block = VBoxContainer.new()
+	stats_block.name = "stats_block"
+	stats_block.custom_minimum_size = Vector2(360, 0)
+	stats_block.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stats_block.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	stats_block.alignment = BoxContainer.ALIGNMENT_CENTER
+	stats_block.add_theme_constant_override("separation", 2)
+	stats_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(stats_block)
 
-	var stats_grid = GridContainer.new()
-	stats_grid.name = "stats_grid"
-	stats_grid.columns = 2
-	stats_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	stats_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stats_grid.add_theme_constant_override("h_separation", 28)
-	stats_grid.add_theme_constant_override("v_separation", 6)
-	stats_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(stats_grid)
+	lbl_score = Label.new()
+	lbl_score.text = "Score: 0"
+	lbl_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	lbl_score.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_score.add_theme_font_size_override("font_size", 32)
+	lbl_score.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
+	lbl_score.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stats_block.add_child(lbl_score)
 
+	var stats_subrow = HBoxContainer.new()
+	stats_subrow.name = "stats_subrow"
+	stats_subrow.add_theme_constant_override("separation", 0)
+	stats_subrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stats_block.add_child(stats_subrow)
+	var muted = _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1))
+	muted.a = 0.70
 
-	var center_section = Control.new()
-	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	center_section.custom_minimum_size = Vector2(260, 0)
-	center_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	center_section.clip_contents = false
-	header_row.add_child(center_section)
+	lbl_time = Label.new()
+	lbl_time.text = "Time: 00:00"
+	lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	lbl_time.custom_minimum_size = Vector2(0, 22)
+	lbl_time.add_theme_font_size_override("font_size", 18)
+	lbl_time.add_theme_color_override("font_color", muted)
+	stats_subrow.add_child(lbl_time)
+
+	var sep_1 = Label.new()
+	sep_1.text = " | "
+	sep_1.custom_minimum_size = Vector2(0, 22)
+	sep_1.add_theme_font_size_override("font_size", 18)
+	sep_1.add_theme_color_override("font_color", muted)
+	stats_subrow.add_child(sep_1)
+
+	lbl_speed = Label.new()
+	lbl_speed.text = "Speed: 1.00"
+	lbl_speed.custom_minimum_size = Vector2(0, 22)
+	lbl_speed.add_theme_font_size_override("font_size", 18)
+	lbl_speed.add_theme_color_override("font_color", muted)
+	stats_subrow.add_child(lbl_speed)
+
+	var sep_2 = Label.new()
+	sep_2.text = " | "
+	sep_2.custom_minimum_size = Vector2(0, 22)
+	sep_2.add_theme_font_size_override("font_size", 18)
+	sep_2.add_theme_color_override("font_color", muted)
+	stats_subrow.add_child(sep_2)
+
+	lbl_level = Label.new()
+	lbl_level.text = "Level: 1"
+	lbl_level.custom_minimum_size = Vector2(0, 22)
+	lbl_level.add_theme_font_size_override("font_size", 18)
+	lbl_level.add_theme_color_override("font_color", muted)
+	stats_subrow.add_child(lbl_level)
+
+	var header_center_spacer = Control.new()
+	header_center_spacer.name = "header_center_spacer"
+	header_center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_center_spacer.custom_minimum_size = Vector2(260, 0)
+	header_center_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(header_center_spacer)
+
+	var title_block = Control.new()
+	title_block.name = "title_block"
+	title_block.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	title_block.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	title_block.custom_minimum_size = Vector2(260, 0)
+	title_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(title_block)
 
 	title_label = Label.new()
 	title_label.text = "TETRIS SUDOKU"
@@ -934,7 +1038,7 @@ func _build_ui() -> void:
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	title_label.clip_text = false
-	center_section.add_child(title_label)
+	title_block.add_child(title_label)
 
 	title_texture_rect = TextureRect.new()
 	title_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -942,7 +1046,7 @@ func _build_ui() -> void:
 	title_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	title_texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	title_texture_rect.visible = false
-	center_section.add_child(title_texture_rect)
+	title_block.add_child(title_texture_rect)
 	var title_image_path = "res://Assets/UI/Title/Title_Tetris.png"
 	if ResourceLoader.exists(title_image_path):
 		var title_texture = load(title_image_path)
@@ -951,16 +1055,10 @@ func _build_ui() -> void:
 			title_texture_rect.visible = true
 			title_label.visible = false
 
-
-	var gapR = Control.new()
-	gapR.custom_minimum_size = Vector2(10, 0)
-	gapR.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(gapR)
-
-	var right_button_section = HBoxContainer.new()
+	var right_button_section = MarginContainer.new()
 	right_button_section.size_flags_horizontal = Control.SIZE_SHRINK_END
-	right_button_section.alignment = BoxContainer.ALIGNMENT_END
-	right_button_section.add_theme_constant_override("separation", 10)
+	right_button_section.add_theme_constant_override("margin_top", 4)
+	right_button_section.add_theme_constant_override("margin_bottom", 4)
 	header_row.add_child(right_button_section)
 
 	btn_settings = TextureButton.new()
@@ -972,11 +1070,6 @@ func _build_ui() -> void:
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
 	right_button_section.add_child(btn_settings)
-
-	lbl_score = _hud_metric_cell(stats_grid, "Score", "0", HORIZONTAL_ALIGNMENT_LEFT)
-	lbl_level = _hud_metric_cell(stats_grid, "Level", "1", HORIZONTAL_ALIGNMENT_RIGHT)
-	lbl_speed = _hud_metric_cell(stats_grid, "Speed", "1.00", HORIZONTAL_ALIGNMENT_LEFT)
-	lbl_time = _hud_metric_cell(stats_grid, "Time", "00:00", HORIZONTAL_ALIGNMENT_RIGHT)
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1184,7 +1277,7 @@ func _build_ui() -> void:
 	toast_panel = Panel.new()
 	toast_panel.visible = false
 	toast_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	toast_panel.add_theme_stylebox_override("panel", _style_preview_box())
+	UIStyle.apply_panel_9slice(toast_panel)
 	toast_panel.set_anchors_preset(Control.PRESET_CENTER)
 	toast_panel.offset_left = -220
 	toast_panel.offset_right = 220
@@ -1202,7 +1295,9 @@ func _build_ui() -> void:
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	toast_label.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	toast_label.add_theme_font_size_override("font_size", 22)
+	toast_label.add_theme_constant_override("outline_size", 2)
+	toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
 	toast_margin.add_child(toast_label)
 
 	overlay_dim = ColorRect.new()
@@ -1273,7 +1368,7 @@ func _build_ui() -> void:
 	UIStyle.ensure_popup_chrome_with_header(
 		exit_panel,
 		exit_v,
-		"Exit",
+		"",
 		Callable(self, "_on_exit_cancel"),
 		func() -> void:
 			_play_sfx("ui_hover"),
@@ -1282,12 +1377,13 @@ func _build_ui() -> void:
 	)
 	
 	# Make Exit popup header bigger (only this popup)
-	var exit_title = exit_v.get_node("PopupHeader/PopupTitle") as Label
+	var exit_title = exit_v.get_node_or_null("PopupHeader/PopupTitle") as Label
 	if exit_title != null:
-		exit_title.add_theme_font_size_override("font_size", 50) # was 30
+		exit_title.text = ""
+		exit_title.visible = false
 
 	# Make subtitle bigger
-	exit_subtitle.add_theme_font_size_override("font_size",  30) # was 22
+	exit_subtitle.add_theme_font_size_override("font_size", 30)
 
 	exit_v.add_spacer(false)
 
@@ -1593,6 +1689,73 @@ func _setup_time_slow_future_assets() -> void:
 	bar_time_slow.visible = false
 
 
+func _create_skill_overlay(button: TextureButton) -> void:
+	if button == null:
+		return
+	var overlay = Control.new()
+	overlay.name = "SkillOverlay"
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(overlay)
+
+	var radial = CooldownRadial.new()
+	radial.name = "CooldownRadial"
+	radial.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	radial.visible = false
+	radial.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(radial)
+
+	var charges = Label.new()
+	charges.name = "ChargesLabel"
+	charges.text = "1×"
+	charges.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	charges.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	charges.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	charges.offset_left = -44
+	charges.offset_top = -22
+	charges.offset_right = -4
+	charges.offset_bottom = -4
+	charges.add_theme_font_size_override("font_size", 14)
+	charges.add_theme_constant_override("outline_size", 2)
+	charges.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
+	overlay.add_child(charges)
+
+	var state = Label.new()
+	state.name = "StateLabel"
+	state.text = "Ready"
+	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	state.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	state.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	state.offset_left = 2
+	state.offset_right = -2
+	state.offset_top = -20
+	state.offset_bottom = -2
+	state.add_theme_font_size_override("font_size", 13)
+	state.add_theme_constant_override("outline_size", 2)
+	state.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
+	overlay.add_child(state)
+
+
+func _set_skill_overlay(button: TextureButton, state_text: String, charges_value: int, radial_remaining_01: float, color_alpha: float) -> void:
+	if button == null:
+		return
+	var overlay = button.get_node_or_null("SkillOverlay")
+	if overlay == null:
+		return
+	var charges = overlay.get_node_or_null("ChargesLabel") as Label
+	if charges != null:
+		charges.text = "%d×" % charges_value
+		charges.modulate = Color(1, 1, 1, color_alpha)
+	var state = overlay.get_node_or_null("StateLabel") as Label
+	if state != null:
+		state.text = state_text
+		state.modulate = Color(1, 1, 1, color_alpha)
+	var radial = overlay.get_node_or_null("CooldownRadial") as CooldownRadial
+	if radial != null:
+		radial.progress_remaining_01 = radial_remaining_01
+	button.tooltip_text = ""
+
+
 func _build_skill_icon_button(icon_key: String) -> TextureButton:
 	var b = TextureButton.new()
 	b.custom_minimum_size = Vector2(64, 64)
@@ -1616,6 +1779,7 @@ func _build_skill_icon_button(icon_key: String) -> TextureButton:
 		fallback.add_theme_font_size_override("font_size", 20)
 		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(fallback)
+	_create_skill_overlay(b)
 	return b
 func _on_skill_icon_pressed(btn: TextureButton, unlock_key: String, _locked_msg: String) -> void:
 	if not Save.is_unlock_enabled(unlock_key):
@@ -1656,6 +1820,8 @@ func try_use_freeze() -> bool:
 	if skill_vfx_controller != null:
 		skill_vfx_controller.on_freeze_cast(FREEZE_DURATION_MS)
 	used_freeze_this_round = true
+	freeze_charges_current = max(0, freeze_charges_current - 1)
+	freeze_cd_until_ms = Time.get_ticks_msec() + FREEZE_CD_MS
 	_update_skill_icon_states()
 	show_toast("Freeze active for 5s", 1.6)
 	_play_sfx("skill_freeze")
@@ -1694,6 +1860,8 @@ func try_use_clear_board() -> bool:
 	if skill_vfx_controller != null:
 		skill_vfx_controller.on_clear_board_cast()
 	used_clear_board_this_round = true
+	clear_charges_current = max(0, clear_charges_current - 1)
+	clear_cd_until_ms = Time.get_ticks_msec() + CLEAR_CD_MS
 	if filled_cells > 0:
 		score += filled_cells * CLEAR_BOARD_POINTS_PER_CELL
 		show_toast("Board cleared: +%d" % (filled_cells * CLEAR_BOARD_POINTS_PER_CELL), 1.7)
@@ -1719,6 +1887,8 @@ func try_use_safe_well() -> bool:
 	if skill_vfx_controller != null:
 		skill_vfx_controller.on_safe_well_cast(SAFE_WELL_DURATION_MS)
 	used_safe_well_this_round = true
+	safe_well_charges_current = max(0, safe_well_charges_current - 1)
+	safe_well_cd_until_ms = Time.get_ticks_msec() + SAFE_WELL_CD_MS
 	show_toast("Safe Well active for 7s", 1.6)
 	_play_sfx("skill_safe_well")
 	_play_sfx("ui_click")
@@ -1743,45 +1913,87 @@ func _skill_locked_tooltip(required_level: int) -> String:
 	return "Reach Level %d (current %d)" % [required_level, current_level]
 
 
-func _set_skill_button_state(button: TextureButton, unlock_key: String, used_this_round: bool, default_tooltip: String) -> void:
+func _set_skill_button_state(button: TextureButton, unlock_key: String, used_this_round: bool, _default_tooltip: String) -> void:
 	if button == null:
 		return
+	var now = Time.get_ticks_msec()
 	var unlock_ready = Save.is_unlock_enabled(unlock_key)
-	var locked = (not unlock_ready) or used_this_round
-	button.disabled = locked
-	if not unlock_ready:
-		button.tooltip_text = _skill_locked_tooltip(_required_level_for_unlock(unlock_key))
+	var cd_until = 0
+	var cd_total = 1
+	var active = false
+	var charges = 1
+	if unlock_key == "freeze_unlocked":
+		cd_until = freeze_cd_until_ms
+		cd_total = FREEZE_CD_MS
+		active = is_freeze_active()
+		charges = freeze_charges_current
+	elif unlock_key == "clear_board_unlocked":
+		cd_until = clear_cd_until_ms
+		cd_total = CLEAR_CD_MS
+		active = false
+		charges = clear_charges_current
 	else:
-		button.tooltip_text = default_tooltip
+		cd_until = safe_well_cd_until_ms
+		cd_total = SAFE_WELL_CD_MS
+		active = is_safe_well_active()
+		charges = safe_well_charges_current
+	var cd_remaining_01 = clamp(float(max(0, cd_until - now)) / float(max(1, cd_total)), 0.0, 1.0)
+	var state_text = "Ready"
+	var alpha = 1.0
+	if not unlock_ready:
+		state_text = "Locked"
+		button.disabled = true
+		alpha = 0.45
+		cd_remaining_01 = 0.0
+	elif cd_until > now:
+		state_text = "CD"
+		button.disabled = true
+		alpha = 0.65
+	elif active:
+		state_text = "Active"
+		button.disabled = false
+		alpha = 1.0
+	elif used_this_round:
+		state_text = "Used"
+		button.disabled = true
+		alpha = 0.45
+	else:
+		state_text = "Ready"
+		button.disabled = false
+		alpha = 1.0
+	button.modulate = Color(1, 1, 1, alpha)
+	_set_skill_overlay(button, state_text, charges, cd_remaining_01, alpha)
+	button.tooltip_text = ""
+
 
 func _update_skill_icon_states() -> void:
 	if btn_skill_freeze == null or btn_skill_clear == null or btn_skill_invuln == null:
 		return
-	var freeze_locked = not Save.is_unlock_enabled("freeze_unlocked") or used_freeze_this_round
-	var clear_locked = not Save.is_unlock_enabled("clear_board_unlocked") or used_clear_board_this_round
-	var well_locked = not Save.is_unlock_enabled("safe_well_unlocked") or used_safe_well_this_round
-	var a_freeze = 0.45 if freeze_locked else 1.0
-	var a_clear = 0.45 if clear_locked else 1.0
-	var a_well = 0.45 if well_locked else 1.0
-	btn_skill_freeze.modulate = Color(1, 1, 1, a_freeze)
-	btn_skill_clear.modulate = Color(1, 1, 1, a_clear)
-	btn_skill_invuln.modulate = Color(1, 1, 1, a_well)
-	_set_skill_button_state(btn_skill_freeze, "freeze_unlocked", used_freeze_this_round, "Freeze time flow for 5 seconds")
-	_set_skill_button_state(btn_skill_clear, "clear_board_unlocked", used_clear_board_this_round, "Clear all filled board cells")
-	_set_skill_button_state(btn_skill_invuln, "safe_well_unlocked", used_safe_well_this_round, "Safe Well for 7 seconds")
-	if btn_skill_freeze.get_child_count() > 0 and btn_skill_freeze.get_child(0) is Label:
-		btn_skill_freeze.get_child(0).modulate = Color(1, 1, 1, a_freeze)
-	if btn_skill_clear.get_child_count() > 0 and btn_skill_clear.get_child(0) is Label:
-		btn_skill_clear.get_child(0).modulate = Color(1, 1, 1, a_clear)
-	if btn_skill_invuln.get_child_count() > 0 and btn_skill_invuln.get_child(0) is Label:
-		btn_skill_invuln.get_child(0).modulate = Color(1, 1, 1, a_well)
+	_set_skill_button_state(btn_skill_freeze, "freeze_unlocked", used_freeze_this_round, "")
+	_set_skill_button_state(btn_skill_clear, "clear_board_unlocked", used_clear_board_this_round, "")
+	_set_skill_button_state(btn_skill_invuln, "safe_well_unlocked", used_safe_well_this_round, "")
+	var now = Time.get_ticks_msec()
+	var freeze_ready = Save.is_unlock_enabled("freeze_unlocked") and not used_freeze_this_round and now >= freeze_cd_until_ms
+	var clear_ready = Save.is_unlock_enabled("clear_board_unlocked") and not used_clear_board_this_round and now >= clear_cd_until_ms
+	var safe_ready = Save.is_unlock_enabled("safe_well_unlocked") and not used_safe_well_this_round and now >= safe_well_cd_until_ms
+	if not prev_freeze_ready and freeze_ready:
+		_play_sfx("skill_ready")
+	if not prev_clear_ready and clear_ready:
+		_play_sfx("skill_ready")
+	if not prev_safe_ready and safe_ready:
+		_play_sfx("skill_ready")
+	prev_freeze_ready = freeze_ready
+	prev_clear_ready = clear_ready
+	prev_safe_ready = safe_ready
 
 
 func show_toast(text: String, duration_sec: float = 1.9) -> void:
 	if toast_panel == null or toast_label == null:
 		return
 	toast_label.text = text
+	toast_panel.modulate.a = 0.0
 	toast_panel.visible = true
+	create_tween().tween_property(toast_panel, "modulate:a", 1.0, 0.12)
 	toast_hide_at_ms = Time.get_ticks_msec() + int(max(0.1, duration_sec) * 1000.0)
 
 
@@ -1790,8 +2002,11 @@ func _update_toast() -> void:
 		return
 	if not toast_panel.visible:
 		return
-	if Time.get_ticks_msec() >= toast_hide_at_ms:
-		toast_panel.visible = false
+	if toast_hide_at_ms > 0 and Time.get_ticks_msec() >= toast_hide_at_ms:
+		toast_hide_at_ms = -1
+		var tw = create_tween()
+		tw.tween_property(toast_panel, "modulate:a", 0.0, 0.12)
+		tw.finished.connect(func(): toast_panel.visible = false)
 
 
 func _show_game_over_overlay() -> void:
@@ -2004,21 +2219,18 @@ func _build_board_side_overlays(screen_bezel: Panel, board_px: float) -> void:
 	top_sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_freeze = _build_skill_icon_button("freeze")
-	btn_skill_freeze.tooltip_text = "Freeze time flow for 5 seconds"
 	btn_skill_freeze.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_freeze, "freeze_unlocked", "Reach player level 5"))
 	skills_v.add_child(btn_skill_freeze)
 	var mid1 = skills_v.add_spacer(false)
 	mid1.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_clear = _build_skill_icon_button("clear")
-	btn_skill_clear.tooltip_text = "Clear all filled board cells"
 	btn_skill_clear.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_clear, "clear_board_unlocked", "Reach player level 10"))
 	skills_v.add_child(btn_skill_clear)
 	var mid2 = skills_v.add_spacer(false)
 	mid2.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	btn_skill_invuln = _build_skill_icon_button("safe_well")
-	btn_skill_invuln.tooltip_text = "Safe Well for 7 seconds"
 	btn_skill_invuln.pressed.connect(func(): _on_skill_icon_pressed(btn_skill_invuln, "safe_well_unlocked", "Reach player level 20"))
 	skills_v.add_child(btn_skill_invuln)
 	var bot_sp = skills_v.add_spacer(false)
@@ -2974,6 +3186,7 @@ func _process(delta: float) -> void:
 	_redraw_well()
 	_update_status_hud()
 	_update_time_slow_overlay()
+	_update_skill_icon_states()
 
 	# Drag: ghost always visible
 	if dragging and selected_piece != null:
@@ -2985,11 +3198,18 @@ func _process(delta: float) -> void:
 			_clear_highlight()
 			ghost_root.visible = true
 			ghost_root.global_position = mouse - ghost_bbox_size * 0.5
+			ghost_shake_phase = 0.0
 		else:
 			var top_left = board_panel.global_position + board_start + Vector2(cell.x * cell_size, cell.y * cell_size)
 			ghost_root.visible = true
 			ghost_root.global_position = top_left
 			drag_anchor = cell
+			var is_invalid_anchor = not bool(board.call("CanPlace", selected_piece, cell.x, cell.y))
+			if is_invalid_anchor:
+				ghost_shake_phase += delta * 30.0
+				ghost_root.global_position += Vector2(sin(ghost_shake_phase) * ghost_shake_strength_px, 0)
+			else:
+				ghost_shake_phase = 0.0
 			_highlight_piece(selected_piece, cell.x, cell.y)
 
 		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
@@ -3026,6 +3246,7 @@ func _update_hud() -> void:
 	_update_previews()
 	_update_status_hud()
 	_update_time_slow_overlay()
+	_update_skill_icon_states()
 
 
 # ============================================================
