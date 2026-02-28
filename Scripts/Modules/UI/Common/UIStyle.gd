@@ -91,7 +91,7 @@ static func wrap_popup_content(root_panel: Control) -> MarginContainer:
 		for child in children:
 			if child == margin:
 				continue
-			if String(child.name) == "PopupCloseOverlay" or String(child.name) == "PopupHeaderOverlay":
+			if String(child.name) == "PopupCloseOverlay" or String(child.name) == "PopupHeaderOverlay" or String(child.name) == "PopupChromeOverlay":
 				continue
 			if child is Node and not child.is_queued_for_deletion():
 				root_panel.remove_child(child)
@@ -102,6 +102,105 @@ static func wrap_popup_content(root_panel: Control) -> MarginContainer:
 	margin.add_theme_constant_override("margin_top", POPUP_PAD_TOP)
 	margin.add_theme_constant_override("margin_bottom", POPUP_PAD_BOTTOM)
 	return margin
+
+
+static func apply_popup_vertical_offset(panel: Control) -> void:
+	if panel == null:
+		return
+	panel.anchor_top = 0.60
+	panel.anchor_bottom = 0.60
+	if panel.get_meta("ui_fixed_popup_size", false):
+		return
+	if panel.has_meta("modal_target_size"):
+		var target = panel.get_meta("modal_target_size")
+		if target is Vector2:
+			var size = target as Vector2
+			panel.offset_left = -size.x * 0.5
+			panel.offset_right = size.x * 0.5
+			panel.offset_top = -size.y * 0.5
+			panel.offset_bottom = size.y * 0.5
+
+
+static func ensure_popup_chrome(panel: Control, content_root: Control = null, title_text: String = "", on_close: Callable = Callable(), sfx_hover: Callable = Callable(), sfx_click: Callable = Callable()) -> Control:
+	if panel == null:
+		return null
+	var overlay = panel.get_node_or_null("PopupChromeOverlay") as Control
+	if overlay == null:
+		overlay = Control.new()
+		overlay.name = "PopupChromeOverlay"
+		overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		overlay.offset_left = 0
+		overlay.offset_top = 0
+		overlay.offset_right = 0
+		overlay.offset_bottom = 0
+		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay.z_as_relative = true
+		overlay.z_index = 1000
+		panel.add_child(overlay)
+	if content_root != null:
+		ensure_popup_chrome_with_header(panel, content_root, title_text, on_close, sfx_hover, sfx_click)
+	return overlay
+
+
+static func bind_close_action(close_btn: BaseButton, panel: Control, on_close: Callable = Callable()) -> void:
+	if close_btn == null or panel == null:
+		return
+	for conn in close_btn.pressed.get_connections():
+		close_btn.pressed.disconnect(conn.callable)
+	close_btn.pressed.connect(func() -> void:
+		if on_close.is_valid():
+			on_close.call()
+			return
+		if panel is Window:
+			(panel as Window).hide()
+			return
+		panel.visible = false
+	)
+
+
+static func ensure_popup_close_button(panel: Control, on_close: Callable = Callable(), sfx_hover: Callable = Callable(), sfx_click: Callable = Callable()) -> TextureButton:
+	if panel == null:
+		return null
+	var overlay = ensure_popup_chrome(panel)
+	var close_btn = overlay.get_node_or_null("PopupCloseOverlay") as TextureButton
+	if close_btn == null:
+		close_btn = TextureButton.new()
+		close_btn.name = "PopupCloseOverlay"
+		overlay.add_child(close_btn)
+	close_btn.anchor_left = 1.0
+	close_btn.anchor_right = 1.0
+	close_btn.anchor_top = 0.0
+	close_btn.anchor_bottom = 0.0
+	close_btn.offset_left = -40.0
+	close_btn.offset_right = -8.0
+	close_btn.offset_top = 8.0
+	close_btn.offset_bottom = 40.0
+	close_btn.custom_minimum_size = Vector2(32, 32)
+	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	close_btn.ignore_texture_size = true
+	close_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	close_btn.z_as_relative = true
+	close_btn.z_index = 1001
+	if ResourceLoader.exists(CLOSE_ICON_TRES):
+		var icon_texture = load(CLOSE_ICON_TRES)
+		if icon_texture is Texture2D:
+			close_btn.texture_normal = icon_texture
+			close_btn.texture_hover = icon_texture
+			close_btn.texture_pressed = icon_texture
+			close_btn.texture_focused = icon_texture
+	bind_close_action(close_btn, panel, on_close)
+	if sfx_hover.is_valid():
+		for conn in close_btn.mouse_entered.get_connections():
+			close_btn.mouse_entered.disconnect(conn.callable)
+		close_btn.mouse_entered.connect(func() -> void:
+			sfx_hover.call()
+		)
+	if sfx_click.is_valid():
+		close_btn.pressed.connect(func() -> void:
+			sfx_click.call()
+		)
+	return close_btn
 
 
 static func apply_label_text_palette(label: Label, kind: String = "body") -> void:
@@ -140,9 +239,10 @@ static func apply_close_icon(btn: Button) -> void:
 	btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
-static func ensure_popup_chrome(panel: Control, content_root: Control, title_text: String, on_close: Callable, sfx_hover: Callable = Callable(), sfx_click: Callable = Callable()) -> void:
+static func ensure_popup_chrome_with_header(panel: Control, content_root: Control, title_text: String, on_close: Callable, sfx_hover: Callable = Callable(), sfx_click: Callable = Callable()) -> void:
 	if panel == null or content_root == null:
 		return
+	ensure_popup_chrome(panel)
 	var header = content_root.get_node_or_null("PopupHeader") as HBoxContainer
 	if header == null:
 		header = HBoxContainer.new()
@@ -175,42 +275,7 @@ static func ensure_popup_chrome(panel: Control, content_root: Control, title_tex
 		right_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		header.add_child(right_spacer)
 
-	var close_btn = panel.get_node_or_null("PopupCloseOverlay") as Button
-	if close_btn == null:
-		close_btn = Button.new()
-		close_btn.name = "PopupCloseOverlay"
-		panel.add_child(close_btn)
-	close_btn.anchor_left = 1.0
-	close_btn.anchor_right = 1.0
-	close_btn.anchor_top = 0.0
-	close_btn.anchor_bottom = 0.0
-	close_btn.offset_left = -float(CLOSE_INSET_X + CLOSE_BTN_W)
-	close_btn.offset_top = float(CLOSE_INSET_Y)
-	close_btn.offset_right = -float(CLOSE_INSET_X)
-	close_btn.offset_bottom = float(CLOSE_INSET_Y + CLOSE_BTN_H)
-	close_btn.custom_minimum_size = Vector2(CLOSE_BTN_W, CLOSE_BTN_H)
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	close_btn.z_index = 30
-	apply_button_9slice(close_btn, "small")
-	apply_button_text_palette(close_btn)
-	apply_close_icon(close_btn)
-	for conn in close_btn.pressed.get_connections():
-		close_btn.pressed.disconnect(conn.callable)
-	close_btn.pressed.connect(func():
-		if on_close.is_valid():
-			on_close.call()
-	)
-	if sfx_hover.is_valid():
-		for conn in close_btn.mouse_entered.get_connections():
-			close_btn.mouse_entered.disconnect(conn.callable)
-		close_btn.mouse_entered.connect(func():
-			sfx_hover.call()
-		)
-	if sfx_click.is_valid():
-		close_btn.pressed.connect(func():
-			sfx_click.call()
-		)
+	ensure_popup_close_button(panel, on_close, sfx_hover, sfx_click)
 
 
 static func center_bottom_button(button: Button, width_px: int) -> CenterContainer:
