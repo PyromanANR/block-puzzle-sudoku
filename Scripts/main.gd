@@ -1060,20 +1060,20 @@ func _build_ui() -> void:
 	header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	safe_area_root.add_child(header_row)
 
-	var left_cluster = HBoxContainer.new()
-	left_cluster.name = "left_cluster"
-	left_cluster.size_flags_horizontal = Control.SIZE_FILL
-	left_cluster.size_flags_stretch_ratio = 0.0
-	left_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_cluster.add_theme_constant_override("separation", HEADER_CLUSTER_GAP)
-	left_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(left_cluster)
-
 	var left_button_section = MarginContainer.new()
-	left_button_section.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	left_button_section.add_theme_constant_override("margin_top", 4)
-	left_button_section.add_theme_constant_override("margin_bottom", 4)
-	left_cluster.add_child(left_button_section)
+	left_button_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_button_section.size_flags_stretch_ratio = 1.0
+	left_button_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_button_section.add_theme_constant_override("margin_left", 12)
+	left_button_section.add_theme_constant_override("margin_right", 12)
+	left_button_section.add_theme_constant_override("margin_top", 5)
+	left_button_section.add_theme_constant_override("margin_bottom", 5)
+	left_button_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(left_button_section)
+
+	var exit_center = CenterContainer.new()
+	exit_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left_button_section.add_child(exit_center)
 
 	btn_exit = TextureButton.new()
 	btn_exit.custom_minimum_size = Vector2(EXIT_BUTTON_SIZE, EXIT_BUTTON_SIZE)
@@ -1083,104 +1083,123 @@ func _build_ui() -> void:
 	_apply_header_button_icon(btn_exit, MENU_ICON_BACK_PNG, "←", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
-	left_button_section.add_child(btn_exit)
+	exit_center.add_child(btn_exit)
 
-	var stats_block = VBoxContainer.new()
-	stats_block.name = "stats_block"
-	stats_block.custom_minimum_size = Vector2(300, 0)
-	stats_block.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stats_block.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	stats_block.alignment = BoxContainer.ALIGNMENT_CENTER
-	stats_block.add_theme_constant_override("separation", 2)
-	stats_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stats_block.clip_contents = true
-	left_cluster.add_child(stats_block)
+	var score_section = MarginContainer.new()
+	score_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	score_section.size_flags_stretch_ratio = 1.0
+	score_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	score_section.add_theme_constant_override("margin_left", 12)
+	score_section.add_theme_constant_override("margin_right", 12)
+	score_section.add_theme_constant_override("margin_top", 5)
+	score_section.add_theme_constant_override("margin_bottom", 5)
+	score_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(score_section)
+
+	var score_center = CenterContainer.new()
+	score_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	score_section.add_child(score_center)
 
 	lbl_score = Label.new()
 	lbl_score.text = "Score: 0"
-	lbl_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	lbl_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_score.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl_score.add_theme_font_size_override("font_size", 32)
 	lbl_score.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_score.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl_score.clip_text = true
-	stats_block.add_child(lbl_score)
+	score_center.add_child(lbl_score)
 
-	var stats_subrow = HBoxContainer.new()
-	stats_subrow.name = "stats_subrow"
-	stats_subrow.add_theme_constant_override("separation", 0)
-	stats_subrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stats_block.add_child(stats_subrow)
-	var muted = _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1))
-	muted.a = 0.70
+	var time_section = MarginContainer.new()
+	time_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	time_section.size_flags_stretch_ratio = 1.0
+	time_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	time_section.add_theme_constant_override("margin_left", 12)
+	time_section.add_theme_constant_override("margin_right", 12)
+	time_section.add_theme_constant_override("margin_top", 5)
+	time_section.add_theme_constant_override("margin_bottom", 5)
+	time_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(time_section)
+
+	var time_center = CenterContainer.new()
+	time_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_section.add_child(time_center)
 
 	lbl_time = Label.new()
 	lbl_time.text = "Time: 00:00"
-	lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	lbl_time.custom_minimum_size = Vector2(0, 22)
-	lbl_time.add_theme_font_size_override("font_size", 18)
-	lbl_time.add_theme_color_override("font_color", muted)
-	stats_subrow.add_child(lbl_time)
+	lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_time.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_time.add_theme_font_size_override("font_size", 32)
+	lbl_time.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
+	lbl_time.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl_time.clip_text = true
+	time_center.add_child(lbl_time)
 
-	var sep_1 = Label.new()
-	sep_1.text = " | "
-	sep_1.custom_minimum_size = Vector2(0, 22)
-	sep_1.add_theme_font_size_override("font_size", 18)
-	sep_1.add_theme_color_override("font_color", muted)
-	stats_subrow.add_child(sep_1)
+	var speed_section = MarginContainer.new()
+	speed_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	speed_section.size_flags_stretch_ratio = 1.0
+	speed_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	speed_section.add_theme_constant_override("margin_left", 12)
+	speed_section.add_theme_constant_override("margin_right", 12)
+	speed_section.add_theme_constant_override("margin_top", 5)
+	speed_section.add_theme_constant_override("margin_bottom", 5)
+	speed_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(speed_section)
+
+	var speed_center = CenterContainer.new()
+	speed_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	speed_section.add_child(speed_center)
 
 	lbl_speed = Label.new()
 	lbl_speed.text = "Speed: 1.00"
-	lbl_speed.custom_minimum_size = Vector2(0, 22)
-	lbl_speed.add_theme_font_size_override("font_size", 18)
-	lbl_speed.add_theme_color_override("font_color", muted)
-	stats_subrow.add_child(lbl_speed)
+	lbl_speed.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_speed.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_speed.add_theme_font_size_override("font_size", 32)
+	lbl_speed.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
+	lbl_speed.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl_speed.clip_text = true
+	speed_center.add_child(lbl_speed)
 
-	var sep_2 = Label.new()
-	sep_2.text = " | "
-	sep_2.custom_minimum_size = Vector2(0, 22)
-	sep_2.add_theme_font_size_override("font_size", 18)
-	sep_2.add_theme_color_override("font_color", muted)
-	stats_subrow.add_child(sep_2)
+	var level_section = MarginContainer.new()
+	level_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	level_section.size_flags_stretch_ratio = 1.0
+	level_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	level_section.add_theme_constant_override("margin_left", 12)
+	level_section.add_theme_constant_override("margin_right", 12)
+	level_section.add_theme_constant_override("margin_top", 5)
+	level_section.add_theme_constant_override("margin_bottom", 5)
+	level_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(level_section)
+
+	var level_center = CenterContainer.new()
+	level_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_section.add_child(level_center)
 
 	lbl_level = Label.new()
 	lbl_level.text = "Level: 1"
-	lbl_level.custom_minimum_size = Vector2(0, 22)
-	lbl_level.add_theme_font_size_override("font_size", 18)
-	lbl_level.add_theme_color_override("font_color", muted)
-	stats_subrow.add_child(lbl_level)
-
-	# Spacer to force title to stay centered (left side)
-	var header_spacer_left = Control.new()
-	header_spacer_left.name = "header_spacer_left"
-	header_spacer_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_spacer_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(header_spacer_left)
-
-
-	# Spacer to force title to stay centered (right side)
-	var header_spacer_right = Control.new()
-	header_spacer_right.name = "header_spacer_right"
-	header_spacer_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_spacer_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(header_spacer_right)
-
-
-	var right_cluster = HBoxContainer.new()
-	right_cluster.name = "right_cluster"
-	right_cluster.size_flags_horizontal = Control.SIZE_FILL
-	right_cluster.alignment = BoxContainer.ALIGNMENT_END # push gear to the far right inside its box
-	right_cluster.size_flags_stretch_ratio = 0.0
-	right_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(right_cluster)
+	lbl_level.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_level.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_level.add_theme_font_size_override("font_size", 32)
+	lbl_level.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
+	lbl_level.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl_level.clip_text = true
+	level_center.add_child(lbl_level)
 
 	var right_button_section = MarginContainer.new()
 	header_right_section = right_button_section
-	right_button_section.size_flags_horizontal = Control.SIZE_SHRINK_END
-	right_button_section.add_theme_constant_override("margin_top", 4)
-	right_button_section.add_theme_constant_override("margin_bottom", 4)
-	right_cluster.add_child(right_button_section)
+	right_button_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_button_section.size_flags_stretch_ratio = 1.0
+	right_button_section.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_button_section.add_theme_constant_override("margin_left", 12)
+	right_button_section.add_theme_constant_override("margin_right", 12)
+	right_button_section.add_theme_constant_override("margin_top", 5)
+	right_button_section.add_theme_constant_override("margin_bottom", 5)
+	right_button_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(right_button_section)
+
+	var settings_center = CenterContainer.new()
+	settings_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_button_section.add_child(settings_center)
 
 	btn_settings = TextureButton.new()
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
@@ -1190,7 +1209,7 @@ func _build_ui() -> void:
 	_apply_header_button_icon(btn_settings, MENU_ICON_SETTINGS_TRES, "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
-	right_button_section.add_child(btn_settings)
+	settings_center.add_child(btn_settings)
 
 	var root_margin = MarginContainer.new()
 	root_margin.name = "root_margin"
