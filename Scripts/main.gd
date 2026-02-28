@@ -557,13 +557,13 @@ func _apply_audio_settings() -> void:
 func _audio_setup() -> void:
 	_ensure_sfx("ui_hover", "res://Assets/Audio/ui_hover.wav", -12.0)
 	_ensure_sfx("ui_click", "res://Assets/Audio/ui_click.wav", -10.0)
-	_ensure_sfx("pick", "res://Assets/Audio/pick_piece.wav", -11.0)
-	_ensure_sfx("place", "res://Assets/Audio/place_piece.wav", -9.0)
+	_ensure_sfx("pick", "res://Assets/Audio/pick_piece.wav", -15.0)
+	_ensure_sfx("place", "res://Assets/Audio/place_piece.wav", -17.0)
 	_ensure_sfx("invalid", "res://Assets/Audio/invalid_drop.wav", -9.0)
-	_ensure_sfx("well_enter", "res://Assets/Audio/well_enter.wav", -6.0)
-	_ensure_sfx("clear", "res://Assets/Audio/clear.wav", -7.0)
+	_ensure_sfx("well_enter", "res://Assets/Audio/well_enter.wav", -9.0)
+	_ensure_sfx("clear", "res://Assets/Audio/clear.wav", -9.0)
 	_ensure_sfx("panic", "res://Assets/Audio/panic_tick.wav", -14.0)
-	_ensure_sfx("game_over", GAME_OVER_SFX_PATH, -7.0)
+	_ensure_sfx("game_over", GAME_OVER_SFX_PATH, -12.0)
 	var ts_path = String(core.call("GetTimeSlowReadySfxPath"))
 	if ts_path != "":
 		_ensure_sfx("time_slow", ts_path, -8.0)
