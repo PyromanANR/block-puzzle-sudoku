@@ -3,15 +3,27 @@ class_name MusicManager
 
 const SETTINGS_PATH = "user://settings.cfg"
 const MENU_TRACK_PATH = "res://Assets/Audio/Music/Menu/ags_project-8-bit-219384.ogg"
-const GAME_MUSIC_DIR = "res://Assets/Audio/Music/Game"
 const MUSIC_ATTENUATION_LINEAR = 0.2
+const GAME_TRACK_PATHS: Array[String] = [
+	"res://Assets/Audio/Music/Game/djartmusic-8-bit-console-from-my-childhood-30128.ogg",
+	"res://Assets/Audio/Music/Game/djartmusic-the-return-of-the-8-bit-era-301292.ogg",
+	"res://Assets/Audio/Music/Game/moodmode-8-bit-arcade-mode-158814.ogg",
+	"res://Assets/Audio/Music/Game/moodmode-8-bit-game-158815.ogg",
+	"res://Assets/Audio/Music/Game/nocopyrightsound633-arcade-beat-323176.ogg"
+]
+const GAME_TRACK_STREAMS: Array[AudioStream] = [
+	preload("res://Assets/Audio/Music/Game/djartmusic-8-bit-console-from-my-childhood-30128.ogg"),
+	preload("res://Assets/Audio/Music/Game/djartmusic-the-return-of-the-8-bit-era-301292.ogg"),
+	preload("res://Assets/Audio/Music/Game/moodmode-8-bit-arcade-mode-158814.ogg"),
+	preload("res://Assets/Audio/Music/Game/moodmode-8-bit-game-158815.ogg"),
+	preload("res://Assets/Audio/Music/Game/nocopyrightsound633-arcade-beat-323176.ogg")
+]
 
 var music_player: AudioStreamPlayer = null
 var music_enabled: bool = true
 var music_volume: float = 0.5
 var current_mode: String = "none"
-var game_track_paths: Array = []
-var game_queue: Array = []
+var game_queue: Array[int] = []
 var last_game_track_path: String = ""
 var _saved_pos_sec: float = 0.0
 var _was_playing: bool = false
@@ -75,43 +87,42 @@ func play_menu_music() -> void:
 		stop_music()
 		return
 	if not ResourceLoader.exists(MENU_TRACK_PATH):
+		if OS.is_debug_build():
+			push_error("[MusicManager] Menu track not found: %s" % MENU_TRACK_PATH)
 		stop_music()
 		return
 	var stream = load(MENU_TRACK_PATH)
 	if stream == null:
+		if OS.is_debug_build():
+			push_error("[MusicManager] Failed to load menu track: %s" % MENU_TRACK_PATH)
 		stop_music()
 		return
+	if OS.is_debug_build():
+		print("[MusicManager] Playing menu track: %s" % MENU_TRACK_PATH)
 	music_player.stream = stream
 	music_player.play()
 
-
-func _scan_game_track_paths() -> void:
-	game_track_paths.clear()
-	var dir = DirAccess.open(GAME_MUSIC_DIR)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	while true:
-		var name = dir.get_next()
-		if name == "":
-			break
-		if dir.current_is_dir():
-			continue
-		var lower = name.to_lower()
-		if lower.ends_with(".ogg") or lower.ends_with(".wav") or lower.ends_with(".mp3"):
-			game_track_paths.append("%s/%s" % [GAME_MUSIC_DIR, name])
-	dir.list_dir_end()
-
-
 func _refill_game_queue() -> void:
-	if game_track_paths.is_empty():
-		_scan_game_track_paths()
-	if game_track_paths.is_empty():
+	if GAME_TRACK_STREAMS.is_empty() or GAME_TRACK_PATHS.is_empty():
+		if OS.is_debug_build():
+			push_error("[MusicManager] Game music list is empty")
 		game_queue.clear()
 		return
-	game_queue = game_track_paths.duplicate()
+	if GAME_TRACK_STREAMS.size() != GAME_TRACK_PATHS.size():
+		if OS.is_debug_build():
+			push_error("[MusicManager] Game music streams/paths size mismatch")
+		game_queue.clear()
+		return
+	game_queue.clear()
+	for i in range(GAME_TRACK_STREAMS.size()):
+		if GAME_TRACK_STREAMS[i] != null:
+			game_queue.append(i)
+	if game_queue.is_empty():
+		if OS.is_debug_build():
+			push_error("[MusicManager] No valid game music streams available")
+		return
 	game_queue.shuffle()
-	if game_queue.size() > 1 and String(game_queue[0]) == last_game_track_path:
+	if game_queue.size() > 1 and GAME_TRACK_PATHS[game_queue[0]] == last_game_track_path:
 		var swap_index = 1
 		var tmp = game_queue[swap_index]
 		game_queue[swap_index] = game_queue[0]
@@ -127,15 +138,20 @@ func _play_next_game_track() -> void:
 	if game_queue.is_empty():
 		stop_music()
 		return
-	var path = String(game_queue.pop_front())
-	if not ResourceLoader.exists(path):
+	var track_index = int(game_queue.pop_front())
+	if track_index < 0 or track_index >= GAME_TRACK_STREAMS.size():
 		_play_next_game_track()
 		return
-	var stream = load(path)
+	var path = GAME_TRACK_PATHS[track_index]
+	var stream = GAME_TRACK_STREAMS[track_index]
 	if stream == null:
+		if OS.is_debug_build():
+			push_error("[MusicManager] Failed to load game track stream: %s" % path)
 		_play_next_game_track()
 		return
 	last_game_track_path = path
+	if OS.is_debug_build():
+		print("[MusicManager] Playing game track: %s" % path)
 	music_player.stream = stream
 	music_player.play()
 

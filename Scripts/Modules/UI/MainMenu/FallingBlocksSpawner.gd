@@ -1,8 +1,18 @@
 extends Node2D
 
-@export var source_dirs: Array[String] = [
-	"res://Assets/UI/Background/FallingBlocks/frames",
-	"res://Assets/UI/Background/FallingBlocks"
+const PRELOADED_TEXTURES: Array[Texture2D] = [
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1-0-0.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1-1-0.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1-2-0.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1-3-0.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1-4-0.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_A_6x1-5-0.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1-1-1.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1-2-1.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1-3-1.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1-4-1.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1-5-1.png"),
+	preload("res://Assets/UI/Background/FallingBlocks/frames/tetris_voxel_particles_sheet_B_6x1-6-1.png")
 ]
 
 @export var spawn_delay_min: float = 0.55
@@ -46,7 +56,8 @@ func _ready() -> void:
 	randomize()
 	_load_textures()
 	if textures.is_empty():
-		push_error("[FallingBlocksSpawner] No textures found in FallingBlocks dirs")
+		if OS.is_debug_build():
+			push_error("[FallingBlocksSpawner] No textures found in preloaded list")
 		set_process(false)
 		return
 
@@ -70,29 +81,11 @@ func _init_lanes() -> void:
 
 func _load_textures() -> void:
 	textures.clear()
-	var seen_paths := {}
-	for dir_path in source_dirs:
-		var dir = DirAccess.open(dir_path)
-		if dir == null:
-			continue
-		for file_name in dir.get_files():
-			var lowered = file_name.to_lower()
-			if lowered.ends_with(".import"):
-				continue
-			if not (lowered.ends_with(".png") or lowered.ends_with(".webp") or lowered.ends_with(".jpg")):
-				continue
-			var texture_path = dir_path + "/" + file_name
-			if not ResourceLoader.exists(texture_path):
-				continue
-			var texture = load(texture_path)
-			if not (texture is Texture2D):
-				continue
-			var resource_path = (texture as Texture2D).resource_path
-			if resource_path != "" and seen_paths.has(resource_path):
-				continue
-			if resource_path != "":
-				seen_paths[resource_path] = true
-			textures.append(texture as Texture2D)
+	for texture in PRELOADED_TEXTURES:
+		if texture != null:
+			textures.append(texture)
+	if OS.is_debug_build():
+		print("[FallingBlocksSpawner] Loaded textures: %d" % textures.size())
 
 
 func _on_spawn_timeout() -> void:
