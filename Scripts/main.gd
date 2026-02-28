@@ -890,13 +890,16 @@ func _build_ui() -> void:
 	gapL.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(gapL)
 
-	var left_stats = VBoxContainer.new()
-	left_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	left_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_stats.alignment = BoxContainer.ALIGNMENT_BEGIN
-	left_stats.add_theme_constant_override("separation", 4)
-	left_stats.custom_minimum_size.x = 210
-	header_row.add_child(left_stats)
+	var stats_grid = GridContainer.new()
+	stats_grid.name = "stats_grid"
+	stats_grid.columns = 2
+	stats_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	stats_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stats_grid.add_theme_constant_override("h_separation", 28)
+	stats_grid.add_theme_constant_override("v_separation", 6)
+	stats_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(stats_grid)
+
 
 	var center_section = Control.new()
 	center_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -940,13 +943,6 @@ func _build_ui() -> void:
 			title_texture_rect.visible = true
 			title_label.visible = false
 
-	var right_stats = VBoxContainer.new()
-	right_stats.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	right_stats.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_stats.alignment = BoxContainer.ALIGNMENT_END
-	right_stats.add_theme_constant_override("separation", 4)
-	right_stats.custom_minimum_size.x = 210
-	header_row.add_child(right_stats)
 
 	var gapR = Control.new()
 	gapR.custom_minimum_size = Vector2(10, 0)
@@ -969,10 +965,10 @@ func _build_ui() -> void:
 	_wire_button_sfx(btn_settings)
 	right_button_section.add_child(btn_settings)
 
-	lbl_score = _hud_metric_row(left_stats, "score", "Score", "0")
-	lbl_speed = _hud_metric_row(left_stats, "speed", "Speed", "1.00")
-	lbl_level = _hud_metric_row(right_stats, "level", "Level", "1")
-	lbl_time = _hud_metric_row(right_stats, "time", "Time", "00:00")
+	lbl_score = _hud_metric_cell(stats_grid, "Score", "0", HORIZONTAL_ALIGNMENT_LEFT)
+	lbl_level = _hud_metric_cell(stats_grid, "Level", "1", HORIZONTAL_ALIGNMENT_RIGHT)
+	lbl_speed = _hud_metric_cell(stats_grid, "Speed", "1.00", HORIZONTAL_ALIGNMENT_LEFT)
+	lbl_time = _hud_metric_cell(stats_grid, "Time", "00:00", HORIZONTAL_ALIGNMENT_RIGHT)
 
 	var root_margin = MarginContainer.new()
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1117,6 +1113,10 @@ func _build_ui() -> void:
 	var time_slow_bg = StyleBoxFlat.new()
 	time_slow_bg.bg_color = Color(0.10, 0.12, 0.14, 0.25)
 	bar_time_slow.add_theme_stylebox_override("background", time_slow_bg)
+	# Never show default green fill (make fill fully transparent)
+	var time_slow_fill = StyleBoxFlat.new()
+	time_slow_fill.bg_color = Color(0, 0, 0, 0)
+	bar_time_slow.add_theme_stylebox_override("fill", time_slow_fill)
 	time_slow_stack.add_child(bar_time_slow)
 	_setup_time_slow_future_assets()
 	call_deferred("_sync_time_slow_column_width")
@@ -1351,6 +1351,19 @@ func _hud_metric_row(parent: Control, metric_key: String, prefix: String, value:
 	wrap.add_child(value_label)
 	return value_label
 
+func _hud_metric_cell(parent: Control, prefix: String, value: String, align: int) -> Label:
+	var l = Label.new()
+	l.text = "%s: %s" % [prefix, value]
+	l.horizontal_alignment = align
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# Fixed row height for consistent baseline
+	l.custom_minimum_size = Vector2(220, 24)
+	l.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
+	l.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(l)
+	return l
+
 
 func _load_ui_icon(key: String) -> Texture2D:
 	if not UI_ICON_MAP.has(key):
@@ -1521,7 +1534,8 @@ func _setup_time_slow_future_assets() -> void:
 	time_slow_sand_rect.visible = false
 	time_slow_glass_rect.visible = false
 	time_slow_frame_rect.visible = false
-	bar_time_slow.visible = true
+	# If advanced assets are not available, do NOT show default progress bar
+	bar_time_slow.visible = false
 	if time_slow_sand_shader == null or time_slow_glass_shader == null:
 		return
 	var atlas_png_res = _safe_load_resource(TIME_SLOW_ATLAS_PNG_PATH)
