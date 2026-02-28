@@ -10,7 +10,7 @@ class CooldownRadial extends Control:
 		if progress_remaining_01 <= 0.001:
 			return
 		var center = size * 0.5
-		var radius = min(size.x, size.y) * 0.48
+		var radius = min(size.x, size.y) * 0.52
 		var angle_span = TAU * progress_remaining_01
 		var start_angle = -PI * 0.5
 		var points: PackedVector2Array = PackedVector2Array()
@@ -20,7 +20,7 @@ class CooldownRadial extends Control:
 			var t = float(i) / float(max(1, steps))
 			var a = start_angle + angle_span * t
 			points.append(center + Vector2(cos(a), sin(a)) * radius)
-		draw_colored_polygon(points, Color(0, 0, 0, 0.55))
+		draw_colored_polygon(points, Color(0, 0, 0, 0.85))
 
 const BoardGridOverlay = preload("res://Scripts/BoardGridOverlay.gd")
 const SkillVFXControllerScript = preload("res://Scripts/VFX/SkillVFXController.gd")
@@ -417,7 +417,12 @@ func _apply_balance_well_settings() -> void:
 	danger_start_ratio = float(s.get("danger_start_ratio", danger_start_ratio))
 	danger_end_ratio = float(s.get("danger_end_ratio", danger_end_ratio))
 
-
+func _sync_skill_ready_latches() -> void:
+	var now = Time.get_ticks_msec()
+	prev_freeze_ready = Save.is_unlock_enabled("freeze_unlocked") and not used_freeze_this_round and now >= freeze_cd_until_ms
+	prev_clear_ready = Save.is_unlock_enabled("clear_board_unlocked") and not used_clear_board_this_round and now >= clear_cd_until_ms
+	prev_safe_ready = Save.is_unlock_enabled("safe_well_unlocked") and not used_safe_well_this_round and now >= safe_well_cd_until_ms
+	
 func _start_round() -> void:
 	_close_all_modals(false)
 	is_game_over = false
@@ -474,6 +479,8 @@ func _start_round() -> void:
 	sfx_blocked_by_game_over = false
 	game_over_sfx_played = false
 	_apply_audio_settings()
+	_update_skill_icon_states()
+	_sync_skill_ready_latches()
 	if music_manager != null:
 		music_manager.on_new_run_resume()
 
@@ -497,6 +504,7 @@ func _start_round() -> void:
 	_clear_pending_invalid_piece()
 	time_slow_ui_ready = false
 	call_deferred("_sync_time_slow_column_width")
+
 
 
 func _trigger_game_over() -> void:
@@ -1292,11 +1300,14 @@ func _build_ui() -> void:
 	toast_margin.add_theme_constant_override("margin_bottom", 8)
 	toast_panel.add_child(toast_margin)
 	toast_label = Label.new()
+	toast_label.add_theme_color_override("font_color", Color(0, 0, 0, 1))
+	toast_label.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.85))
+	toast_label.add_theme_constant_override("outline_size", 2)
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	toast_label.add_theme_font_size_override("font_size", 22)
-	toast_label.add_theme_constant_override("outline_size", 2)
+	toast_label.add_theme_font_size_override("font_size", 25)
+	toast_label.add_theme_constant_override("outline_size", 3)
 	toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
 	toast_margin.add_child(toast_label)
 
@@ -1708,16 +1719,18 @@ func _create_skill_overlay(button: TextureButton) -> void:
 	var charges = Label.new()
 	charges.name = "ChargesLabel"
 	charges.text = "1×"
+	# Charges (TOP-RIGHT)
+	charges.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	charges.offset_left = -44   
+	charges.offset_top = -20
+	charges.offset_right = 10
+	charges.offset_bottom = 28   
 	charges.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	charges.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	charges.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	charges.offset_left = -44
-	charges.offset_top = -22
-	charges.offset_right = -4
-	charges.offset_bottom = -4
-	charges.add_theme_font_size_override("font_size", 14)
-	charges.add_theme_constant_override("outline_size", 2)
+	charges.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	charges.add_theme_font_size_override("font_size", 24)
+	charges.add_theme_constant_override("outline_size", 3)
 	charges.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
+	charges.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, 1.0))
 	overlay.add_child(charges)
 
 	var state = Label.new()
@@ -1725,14 +1738,16 @@ func _create_skill_overlay(button: TextureButton) -> void:
 	state.text = "Ready"
 	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	state.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	# State (BOTTOM-CENTER)
 	state.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	state.offset_left = 2
 	state.offset_right = -2
-	state.offset_top = -20
+	state.offset_top = -24
 	state.offset_bottom = -2
-	state.add_theme_font_size_override("font_size", 13)
-	state.add_theme_constant_override("outline_size", 2)
+	state.add_theme_font_size_override("font_size", 24)
+	state.add_theme_constant_override("outline_size", 3)
 	state.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.65))
+	state.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55, 1.0))
 	overlay.add_child(state)
 
 
