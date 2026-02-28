@@ -28,9 +28,9 @@ const UI_ICON_MAX_LARGE = 36
 
 const UI_MARGIN = 16
 const UI_GAP = 8
-const TOPBAR_H = 140
+const TOPBAR_H = 160
 const BOTTOMBAR_H = 140
-const TOPBAR_SIDE_W = 280
+const TOPBAR_SIDE_W = 350
 const TOPBAR_BTN = 95
 const TITLE_FONT = 68
 const SUBTITLE_FONT = 23
@@ -497,7 +497,7 @@ func _build_top_bar() -> void:
 
 	var level_chip = Button.new()
 	level_chip.text = ""
-	level_chip.custom_minimum_size = Vector2(int(TOPBAR_SIDE_W * 0.9), int(TOPBAR_H * 0.9))
+	level_chip.custom_minimum_size = Vector2(int(TOPBAR_SIDE_W * 0.7), int(TOPBAR_H * 0.7))
 	level_chip.anchor_left = 0.0
 	level_chip.anchor_top = 0.0
 	level_chip.anchor_right = 0.0
@@ -512,8 +512,8 @@ func _build_top_bar() -> void:
 
 	var chip_margin = MarginContainer.new()
 	chip_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	chip_margin.add_theme_constant_override("margin_left", 10)
-	chip_margin.add_theme_constant_override("margin_right", 10)
+	chip_margin.add_theme_constant_override("margin_left", 6)
+	chip_margin.add_theme_constant_override("margin_right", 22)
 	chip_margin.add_theme_constant_override("margin_top", 6)
 	chip_margin.add_theme_constant_override("margin_bottom", 6)
 	level_chip.add_child(chip_margin)
@@ -522,7 +522,7 @@ func _build_top_bar() -> void:
 	var cols = HBoxContainer.new()
 	cols.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cols.add_theme_constant_override("separation", 4)
+	cols.add_theme_constant_override("separation", 1)
 	chip_margin.add_child(cols)
 
 	# --- Left column (badge) 40% ---
@@ -546,12 +546,12 @@ func _build_top_bar() -> void:
 	# --- Right column (Level + XP + Rank) 60% ---
 	var right_col = VBoxContainer.new()
 	var top_spacer = Control.new()
-	top_spacer.custom_minimum_size = Vector2(0, 22)
+	top_spacer.custom_minimum_size = Vector2(0, 30)
 	right_col.add_child(top_spacer)
 	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_col.size_flags_stretch_ratio = 0.60
-	right_col.add_theme_constant_override("separation", 1)
+	right_col.add_theme_constant_override("separation", 0)
 	cols.add_child(right_col)
 
 	# Row 1: Level (centered)
@@ -560,14 +560,14 @@ func _build_top_bar() -> void:
 	level_chip_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	level_chip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_chip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	level_chip_label.add_theme_font_size_override("font_size", 14)
+	level_chip_label.add_theme_font_size_override("font_size", 22)
 	level_chip_label.clip_text = true
 	level_chip_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
 	right_col.add_child(level_chip_label)
 
 	# Shared horizontal padding for XP + RANK so they align perfectly
-	var bar_pad_l = 15
-	var bar_pad_r = 15
+	var bar_pad_l = 11
+	var bar_pad_r = 11
 
 	# Row 2: XP bar (shorter, never touches edges)
 	var xp_margin = MarginContainer.new()
@@ -612,7 +612,7 @@ func _build_top_bar() -> void:
 	rank_label.text = "RANK"
 	rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rank_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	rank_label.add_theme_font_size_override("font_size", 16)
+	rank_label.add_theme_font_size_override("font_size", 22)
 	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
 	rank_center.add_child(rank_label)
 
@@ -631,7 +631,11 @@ func _build_top_bar() -> void:
 	right_row.alignment = BoxContainer.ALIGNMENT_END
 	right_row.add_theme_constant_override("separation", 8)
 	right_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_center.add_child(right_row)
+	var right_margin := MarginContainer.new()
+	right_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	right_margin.add_theme_constant_override("margin_right", 12) 
+	right_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_margin.add_child(right_row)
 
 	if _is_debug_panel_visible():
 		var btn_debug = Button.new()
