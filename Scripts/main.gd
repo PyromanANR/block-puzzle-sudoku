@@ -93,7 +93,7 @@ var title_texture_rect: TextureRect
 var board_panel: Panel
 var hud_panel: Panel
 var well_panel: Panel
-var safe_area_root: MarginContainer
+var safe_area_root: Control
 var well_draw: Control
 var drop_zone_panel: Panel
 var well_slots_panel: Panel
@@ -122,6 +122,15 @@ var modal_holder: Control
 var modal_layer: CanvasLayer
 var overlay_dim_modal: ColorRect
 var modal_stack: Array = []
+
+const HEADER_BASE_LEFT := 20
+const HEADER_BASE_RIGHT := 20
+const HEADER_BASE_TOP := 14
+const HEADER_BASE_BOTTOM := 108
+const CONTENT_BASE_LEFT := 24
+const CONTENT_BASE_RIGHT := 24
+const CONTENT_BASE_TOP := 118
+const CONTENT_BASE_BOTTOM := 24
 
 # Game Over overlay
 var overlay_dim: ColorRect
@@ -373,18 +382,51 @@ func _notification(what: int) -> void:
 func _apply_safe_area_margins() -> void:
 	if safe_area_root == null:
 		return
+	var header := safe_area_root.get_node_or_null("header_row") as Control
+	var root_margin := safe_area_root.get_node_or_null("root_margin") as MarginContainer
+	if header == null or root_margin == null:
+		return
+
+	header.offset_left = HEADER_BASE_LEFT
+	header.offset_right = -HEADER_BASE_RIGHT
+	header.offset_top = HEADER_BASE_TOP
+	header.offset_bottom = HEADER_BASE_BOTTOM
+	root_margin.add_theme_constant_override("margin_left", CONTENT_BASE_LEFT)
+	root_margin.add_theme_constant_override("margin_right", CONTENT_BASE_RIGHT)
+	root_margin.add_theme_constant_override("margin_top", CONTENT_BASE_TOP)
+	root_margin.add_theme_constant_override("margin_bottom", CONTENT_BASE_BOTTOM)
+
+	var is_mobile := OS.has_feature("android") or OS.has_feature("ios") or OS.has_feature("mobile")
+	if not is_mobile:
+		return
+
 	var viewport_rect := get_viewport_rect()
+	var win_size := DisplayServer.window_get_size()
+	if viewport_rect.size.x <= 0.0 or viewport_rect.size.y <= 0.0 or win_size.x <= 0 or win_size.y <= 0:
+		return
 	var safe_rect := DisplayServer.get_display_safe_area()
 	if safe_rect.size.x <= 0 or safe_rect.size.y <= 0:
-		safe_rect = Rect2i(Vector2i.ZERO, Vector2i(int(viewport_rect.size.x), int(viewport_rect.size.y)))
-	var left := max(0, safe_rect.position.x)
-	var top := max(0, safe_rect.position.y)
-	var right := max(0, int(viewport_rect.size.x) - (safe_rect.position.x + safe_rect.size.x))
-	var bottom := max(0, int(viewport_rect.size.y) - (safe_rect.position.y + safe_rect.size.y))
-	safe_area_root.add_theme_constant_override("margin_left", left)
-	safe_area_root.add_theme_constant_override("margin_right", right)
-	safe_area_root.add_theme_constant_override("margin_top", top)
-	safe_area_root.add_theme_constant_override("margin_bottom", bottom)
+		return
+	if safe_rect.position == Vector2i.ZERO and safe_rect.size == win_size:
+		return
+
+	var scale_x := viewport_rect.size.x / float(win_size.x)
+	var scale_y := viewport_rect.size.y / float(win_size.y)
+	var safe_left := max(0.0, float(safe_rect.position.x) * scale_x)
+	var safe_top := max(0.0, float(safe_rect.position.y) * scale_y)
+	var safe_right := max(0.0, float(win_size.x - (safe_rect.position.x + safe_rect.size.x)) * scale_x)
+
+	var max_x := viewport_rect.size.x * 0.12
+	var max_y := viewport_rect.size.y * 0.12
+	safe_left = clamp(safe_left, 0.0, max_x)
+	safe_right = clamp(safe_right, 0.0, max_x)
+	safe_top = clamp(safe_top, 0.0, max_y)
+
+	header.offset_left = HEADER_BASE_LEFT + safe_left
+	header.offset_right = -(HEADER_BASE_RIGHT + safe_right)
+	header.offset_top = HEADER_BASE_TOP + safe_top
+	header.offset_bottom = HEADER_BASE_BOTTOM + safe_top
+	root_margin.add_theme_constant_override("margin_top", CONTENT_BASE_TOP + safe_top)
 
 
 func _time_slow_gap_w() -> float:
@@ -951,12 +993,11 @@ func _build_ui() -> void:
 	add_child(root_frame)
 
 
-	safe_area_root = MarginContainer.new()
+	safe_area_root = Control.new()
 	safe_area_root.name = "SafeAreaRoot"
 	safe_area_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	safe_area_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(safe_area_root)
-	_apply_safe_area_margins()
 
 	var header_row = HBoxContainer.new()
 	header_row.name = "header_row"
@@ -1115,6 +1156,7 @@ func _build_ui() -> void:
 	right_button_section.add_child(btn_settings)
 
 	var root_margin = MarginContainer.new()
+	root_margin.name = "root_margin"
 	root_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_margin.add_theme_constant_override("margin_left", 24)
@@ -1122,6 +1164,7 @@ func _build_ui() -> void:
 	root_margin.add_theme_constant_override("margin_top", 118)
 	root_margin.add_theme_constant_override("margin_bottom", 24)
 	safe_area_root.add_child(root_margin)
+	_apply_safe_area_margins()
 
 	var main_v = VBoxContainer.new()
 	main_v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
