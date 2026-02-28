@@ -321,11 +321,16 @@ func _notification(what: int) -> void:
 		call_deferred("_sync_time_slow_column_width")
 
 
+func _time_slow_gap_w() -> float:
+	# Mobile-friendly: clamp by screen width
+	var w = get_viewport_rect().size.x
+	return clamp(w * 0.10, 44.0, 34.0)  
+
+
 func _sync_time_slow_column_width() -> void:
 	if time_slow_mid == null:
 		return
-	const TIME_SLOW_GAP_W = 55.0
-	time_slow_mid.custom_minimum_size.x = TIME_SLOW_GAP_W
+	time_slow_mid.custom_minimum_size.x = _time_slow_gap_w()
 	var p = time_slow_mid.get_parent()
 	if p is Container:
 		(p as Container).queue_sort()
@@ -993,7 +998,7 @@ func _build_ui() -> void:
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
-	const TIME_SLOW_GAP_W = 55.0
+	var TIME_SLOW_GAP_W = _time_slow_gap_w()
 	time_slow_mid = PanelContainer.new()
 	time_slow_mid.name = "time_slow_mid"
 	time_slow_mid.custom_minimum_size = Vector2(TIME_SLOW_GAP_W, 0)
@@ -1033,8 +1038,8 @@ func _build_ui() -> void:
 	time_slow_sand_rect.offset_right = 0
 	time_slow_sand_rect.offset_bottom = 0
 	time_slow_sand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_slow_sand_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	time_slow_sand_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	time_slow_sand_rect.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
+	time_slow_sand_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_sand_rect.visible = false
 	time_slow_stack.add_child(time_slow_sand_rect)
 
@@ -1047,8 +1052,8 @@ func _build_ui() -> void:
 	time_slow_glass_rect.offset_bottom = 0
 	time_slow_glass_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_glass_rect.z_index = 1
-	time_slow_glass_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	time_slow_glass_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	time_slow_glass_rect.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
+	time_slow_glass_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_glass_rect.visible = false
 	time_slow_stack.add_child(time_slow_glass_rect)
 
@@ -1057,8 +1062,8 @@ func _build_ui() -> void:
 	time_slow_frame_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_frame_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_frame_rect.z_index = 2
-	time_slow_frame_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	time_slow_frame_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	time_slow_frame_rect.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
+	time_slow_frame_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	time_slow_frame_rect.visible = false
 	time_slow_stack.add_child(time_slow_frame_rect)
 
