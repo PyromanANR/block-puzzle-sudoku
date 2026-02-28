@@ -500,7 +500,7 @@ func _update_freeze(now: int) -> bool:
 		freeze_vignette_rect.visible = true
 		var v_strength = clamp(0.08 * alpha, 0.0, 1.0)
 		if freeze_vignette_rect is ColorRect:
-			freeze_vignette_rect.color.a = 1.0
+			freeze_vignette_rect.color.a = 0.22 * alpha
 		if freeze_vignette_mat != null:
 			freeze_vignette_mat.set_shader_parameter("u_strength", v_strength)
 	return true
