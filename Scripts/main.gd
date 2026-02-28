@@ -1227,6 +1227,14 @@ func _build_ui() -> void:
 		func() -> void:
 			_play_sfx("ui_click")
 	)
+	
+	# Make Exit popup header bigger (only this popup)
+	var exit_title = exit_v.get_node("PopupHeader/PopupTitle") as Label
+	if exit_title != null:
+		exit_title.add_theme_font_size_override("font_size", 50) # was 30
+
+	# Make subtitle bigger
+	exit_subtitle.add_theme_font_size_override("font_size",  30) # was 22
 
 	exit_v.add_spacer(false)
 
@@ -1237,30 +1245,35 @@ func _build_ui() -> void:
 
 	var btn_restart_popup = Button.new()
 	btn_restart_popup.text = "Restart"
-	btn_restart_popup.custom_minimum_size = Vector2(170, 57)
+	btn_restart_popup.custom_minimum_size = Vector2(200, 62)
 	UIStyle.apply_button_9slice(btn_restart_popup, "small")
 	UIStyle.apply_button_text_palette(btn_restart_popup)
+	btn_restart_popup.add_theme_font_size_override("font_size", 26) 
 	btn_restart_popup.pressed.connect(_on_exit_restart)
 	_wire_button_sfx(btn_restart_popup)
 	exit_buttons.add_child(btn_restart_popup)
 
 	var btn_main_menu_popup = Button.new()
 	btn_main_menu_popup.text = "Main Menu"
-	btn_main_menu_popup.custom_minimum_size = Vector2(170, 57)
+	btn_main_menu_popup.custom_minimum_size = Vector2(200, 62)
 	UIStyle.apply_button_9slice(btn_main_menu_popup, "small")
 	UIStyle.apply_button_text_palette(btn_main_menu_popup)
+	btn_main_menu_popup.add_theme_font_size_override("font_size", 26) 
 	btn_main_menu_popup.pressed.connect(_on_exit_main_menu)
 	_wire_button_sfx(btn_main_menu_popup)
 	exit_buttons.add_child(btn_main_menu_popup)
 
 	var btn_cancel_popup = Button.new()
 	btn_cancel_popup.text = "Cancel"
-	btn_cancel_popup.custom_minimum_size = Vector2(170, 57)
+	btn_cancel_popup.custom_minimum_size = Vector2(200, 62)
 	UIStyle.apply_button_9slice(btn_cancel_popup, "small")
 	UIStyle.apply_button_text_palette(btn_cancel_popup)
+	btn_cancel_popup.add_theme_font_size_override("font_size", 26) 
 	btn_cancel_popup.pressed.connect(_on_exit_cancel)
 	_wire_button_sfx(btn_cancel_popup)
 	exit_buttons.add_child(btn_cancel_popup)
+	
+	
 
 	settings_popup = SettingsPanel.build(modal_holder, Callable(self, "_on_settings_popup_close_requested"), {
 		"wire_button_sfx": Callable(self, "_wire_button_sfx"),

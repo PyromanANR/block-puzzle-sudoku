@@ -45,17 +45,22 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	margin.add_child(settings_v)
 
 	UIStyle.ensure_popup_chrome_with_header(panel, settings_v, "Audio Settings", on_close, sfx_hover, sfx_click)
+
 	UIStyle.apply_popup_vertical_offset(panel)
 
 	var audio_content = VBoxContainer.new()
 	audio_content.name = "AudioContent"
 	audio_content.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	audio_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	audio_content.add_theme_constant_override("separation", 10)
+	audio_content.add_theme_constant_override("separation", 25)
 	settings_v.add_child(audio_content)
 
-	var content_w = min(520.0, max_w - 80.0)
-	audio_content.custom_minimum_size = Vector2(max(content_w, 260.0), 0)
+	# Wider centered content (reduce side margins)
+	var content_w = min(600.0, max_w - 40) # was 520 and -80
+	audio_content.custom_minimum_size = Vector2(max(content_w, 520.0), 0)
+
+	# Ensure it stays centered
+	audio_content.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
 	var chk_music_enabled = CheckBox.new()
 	chk_music_enabled.text = "Music Enabled"
@@ -159,12 +164,55 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 static func _apply_checkbox_style(chk: CheckBox) -> void:
 	if chk == null:
 		return
-	var normal = chk.get_theme_stylebox("normal")
-	if normal != null:
-		chk.add_theme_stylebox_override("normal", normal.duplicate())
-		chk.add_theme_stylebox_override("hover", normal.duplicate())
-		chk.add_theme_stylebox_override("pressed", normal.duplicate())
-		chk.add_theme_stylebox_override("disabled", normal.duplicate())
+
+	# --- 1) Disable focus/hover behavior (mobile UI) ---
+	chk.focus_mode = Control.FOCUS_NONE
+	chk.mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+	# Remove any existing hover handlers that may fade alpha
+	for c in chk.mouse_entered.get_connections():
+		chk.mouse_entered.disconnect(c.callable)
+	for c in chk.mouse_exited.get_connections():
+		chk.mouse_exited.disconnect(c.callable)
+
+	# Force no-fade on hover (keep fully opaque)
+	chk.mouse_entered.connect(func() -> void:
+		chk.modulate = Color(1, 1, 1, 1)
+		chk.self_modulate = Color(1, 1, 1, 1)
+	)
+	chk.mouse_exited.connect(func() -> void:
+		chk.modulate = Color(1, 1, 1, 1)
+		chk.self_modulate = Color(1, 1, 1, 1)
+	)
+
+	# Also set immediately (in case it is already faded)
+	chk.modulate = Color(1, 1, 1, 1)
+	chk.self_modulate = Color(1, 1, 1, 1)
+
+	# --- 2) Make hover styles identical to normal/pressed (backup) ---
+	var sb_normal = chk.get_theme_stylebox("normal")
+	var sb_pressed = chk.get_theme_stylebox("pressed")
+	if sb_pressed == null:
+		sb_pressed = sb_normal
+
+	if sb_normal != null:
+		chk.add_theme_stylebox_override("normal", sb_normal.duplicate())
+		chk.add_theme_stylebox_override("hover", sb_normal.duplicate())
+		chk.add_theme_stylebox_override("focus", sb_normal.duplicate())
+
+	if sb_pressed != null:
+		chk.add_theme_stylebox_override("pressed", sb_pressed.duplicate())
+		chk.add_theme_stylebox_override("hover_pressed", sb_pressed.duplicate())
+
+	# Disabled states too (optional but safe)
+	var sb_disabled = chk.get_theme_stylebox("disabled")
+	if sb_disabled == null:
+		sb_disabled = sb_normal
+	if sb_disabled != null:
+		chk.add_theme_stylebox_override("disabled", sb_disabled.duplicate())
+		chk.add_theme_stylebox_override("disabled_pressed", sb_disabled.duplicate())
+
+	# --- 3) Text colors (keep readable) ---
 	chk.add_theme_color_override("font_color", Color(0.18, 0.12, 0.09, 1.0))
 	chk.add_theme_color_override("font_hover_color", Color(0.18, 0.12, 0.09, 1.0))
 	chk.add_theme_color_override("font_pressed_color", Color(0.18, 0.12, 0.09, 1.0))

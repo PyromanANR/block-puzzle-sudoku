@@ -142,19 +142,31 @@ static func ensure_popup_chrome(panel: Control, content_root: Control = null, ti
 	return overlay
 
 
-static func bind_close_action(close_btn: BaseButton, panel: Control, on_close: Callable = Callable()) -> void:
+static func bind_close_action(close_btn: BaseButton, panel: Node, on_close: Callable) -> void:
 	if close_btn == null or panel == null:
 		return
+
+	# Remove previous pressed connections
 	for conn in close_btn.pressed.get_connections():
 		close_btn.pressed.disconnect(conn.callable)
+
 	close_btn.pressed.connect(func() -> void:
 		if on_close.is_valid():
 			on_close.call()
 			return
+
+		# Godot 4: Window is NOT Control. Handle it separately.
 		if panel is Window:
 			(panel as Window).hide()
 			return
-		panel.visible = false
+
+		# Typical case: popup panel is a Control
+		if panel is CanvasItem:
+			(panel as CanvasItem).visible = false
+			return
+
+		# Fallback: if it's a Node without visibility, remove it
+		panel.queue_free()
 	)
 
 
