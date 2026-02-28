@@ -229,7 +229,7 @@ const TIME_SLOW_SAND_SHADER_PATH = "res://Assets/UI/time_slow/shaders/sand_fill.
 const TIME_SLOW_GLASS_SHADER_PATH = "res://Assets/UI/time_slow/shaders/glass_overlay.gdshader"
 const TIME_SLOW_ATLAS_PNG_PATH = "res://Assets/UI/time_slow/time_slow_atlas.png"
 const SETTINGS_PATH = "user://settings.cfg"
-const MUSIC_ATTENUATION_LINEAR = 0.05
+const MUSIC_ATTENUATION_LINEAR = 0.03
 const GAME_OVER_SFX_PATH = "res://Assets/Audio/SFX/game_over.ogg"
 const MENU_ICON_SETTINGS_TRES = "res://Assets/UI/icons/menu/icon_settings.tres"
 const MENU_ICON_CLOSE_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
@@ -596,7 +596,7 @@ func _audio_setup() -> void:
 	_ensure_sfx("ui_hover", "res://Assets/Audio/ui_hover.wav", -12.0)
 	_ensure_sfx("ui_click", "res://Assets/Audio/ui_click.wav", -10.0)
 	_ensure_sfx("pick", "res://Assets/Audio/pick_piece.wav", -15.0)
-	_ensure_sfx("place", "res://Assets/Audio/place_piece.wav", -17.0)
+	_ensure_sfx("place", "res://Assets/Audio/place_piece.wav", -19.0)
 	_ensure_sfx("invalid", "res://Assets/Audio/invalid_drop.wav", -20.0)
 	_ensure_sfx("well_enter", "res://Assets/Audio/well_enter.wav", -9.0)
 	_ensure_sfx("clear", "res://Assets/Audio/clear.wav", -9.0)

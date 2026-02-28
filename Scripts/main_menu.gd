@@ -21,7 +21,7 @@ const ICON_CLOSE_TRES = "res://Assets/UI/icons/menu/icon_close.tres"
 const ICON_BADGE_TRES = "res://Assets/UI/icons/menu/icon_badge.tres"
 
 const SETTINGS_PATH = "user://settings.cfg"
-const MUSIC_ATTENUATION_LINEAR = 0.05
+const MUSIC_ATTENUATION_LINEAR = 0.03
 
 const UI_ICON_MAX = 28
 const UI_ICON_MAX_LARGE = 36

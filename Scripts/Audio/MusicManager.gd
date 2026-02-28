@@ -4,7 +4,7 @@ class_name MusicManager
 const SETTINGS_PATH = "user://settings.cfg"
 const MENU_TRACK_PATH = "res://Assets/Audio/Music/Menu/ags_project-8-bit-219384.ogg"
 const GAME_MUSIC_DIR = "res://Assets/Audio/Music/Game"
-const MUSIC_ATTENUATION_LINEAR = 0.05
+const MUSIC_ATTENUATION_LINEAR = 0.03
 
 var music_player: AudioStreamPlayer = null
 var music_enabled: bool = true
