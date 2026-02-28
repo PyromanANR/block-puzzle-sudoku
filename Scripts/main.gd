@@ -935,33 +935,32 @@ func _trigger_auto_slow_if_needed() -> void:
 
 
 func _update_status_hud() -> void:
-	if bar_time_slow == null:
-		return
 	var now = Time.get_ticks_msec()
 	var cooldown_sec = float(core.call("GetTimeSlowCooldownSec"))
 	var remaining_ms = max(0, time_slow_cooldown_until_ms - now)
 	var cooldown_remaining = float(remaining_ms) / 1000.0
 	if not time_slow_ui_ready and cooldown_sec > 0.0:
 		time_slow_ui_ready = true
-	var progress01 = clamp(1.0 - (cooldown_remaining / max(0.001, cooldown_sec)), 0.0, 1.0)
-	bar_time_slow.value = progress01 * 100.0
-	if time_slow_sand_mat != null:
-		time_slow_sand_mat.set_shader_parameter("u_fill", progress01)
-	if btn_time_slow != null:
-		if time_slow_ui_ready and remaining_ms <= 0:
-			var t = float(Time.get_ticks_msec()) / 1000.0
-			var wave = 0.5 + 0.5 * sin(TAU * 1.35 * t)
-			var icon_scale = 1.00 + 0.08 * wave
-			btn_time_slow.scale = Vector2(icon_scale, icon_scale)
-			btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.00 - 0.20 * wave)
-		else:
-			btn_time_slow.scale = Vector2.ONE
-			btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.0)
-	bar_time_slow.modulate = Color(1, 1, 1, 1)
-	if time_slow_ui_ready and remaining_ms <= 0:
+	if bar_time_slow != null:
+		var progress01 = clamp(1.0 - (cooldown_remaining / max(0.001, cooldown_sec)), 0.0, 1.0)
+		bar_time_slow.value = progress01 * 100.0
+		if time_slow_sand_mat != null:
+			time_slow_sand_mat.set_shader_parameter("u_fill", progress01)
+		if btn_time_slow != null:
+			if time_slow_ui_ready and remaining_ms <= 0:
+				var t = float(Time.get_ticks_msec()) / 1000.0
+				var wave = 0.5 + 0.5 * sin(TAU * 1.35 * t)
+				var icon_scale = 1.00 + 0.08 * wave
+				btn_time_slow.scale = Vector2(icon_scale, icon_scale)
+				btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.00 - 0.20 * wave)
+			else:
+				btn_time_slow.scale = Vector2.ONE
+				btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		bar_time_slow.modulate = Color(1, 1, 1, 1)
+	if time_slow_ui_ready and now >= time_slow_cooldown_until_ms:
 		_set_drop_status("Time Warp ready", STATUS_GOOD)
 	else:
-		_set_drop_status(_current_drop_status_text())
+		_set_drop_status(_current_drop_status_text(), STATUS_NEUTRAL)
 	_update_skill_icon_states()
 
 
@@ -1434,6 +1433,7 @@ func _build_ui() -> void:
 	status_label.name = "drop_status"
 	status_label.text = ""
 	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_label.custom_minimum_size = Vector2(220, 0)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	status_label.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
@@ -1442,6 +1442,12 @@ func _build_ui() -> void:
 	status_label.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.92, 0.92, 0.92, 1.0)))
 	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	drop_header_row.add_child(status_label)
+
+	var header_spacer = Control.new()
+	header_spacer.name = "status_spacer"
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_header_row.add_child(header_spacer)
 
 	var phase_box = HBoxContainer.new()
 	phase_box.name = "phase_box"
@@ -1472,7 +1478,7 @@ func _build_ui() -> void:
 	phase_box.add_child(phase_progress)
 
 	drop_status_label = status_label
-	_set_drop_status(_current_drop_status_text())
+	_set_drop_status(_current_drop_status_text(), STATUS_NEUTRAL)
 
 	well_slots_draw = Control.new()
 	well_slots_draw.clip_contents = false
@@ -2687,6 +2693,24 @@ func _piece_bbox_cells(piece) -> Vector2i:
 	return Vector2i(max(1, max_x - min_x + 1), max(1, max_y - min_y + 1))
 
 
+# Returns the fitted cell size used to render falling pieces in drop zone.
+func _fall_piece_cell_size(piece) -> int:
+	var geom = _well_geometry()
+	var drop_w = float(geom.get("drop_w", 300.0))
+	var drop_cell = int(clamp(float(cell_size) * 0.98, 18.0, float(cell_size)))
+	var fall_frame = Vector2(drop_w - 20.0, 260.0)
+	return _fitted_cell_size(piece, drop_cell, fall_frame, 0.98)
+
+
+# Returns the rendered height (px) of a falling piece using the same fit logic as _redraw_well().
+func _fall_piece_height_px(piece) -> float:
+	if piece == null:
+		return 0.0
+	var bb = _piece_bbox_cells(piece)
+	var fitted = _fall_piece_cell_size(piece)
+	return float(bb.y * fitted)
+
+
 func _spawn_falling_piece() -> void:
 	fall_piece = core.call("PopNextPieceForBoard", board)
 	if fall_piece == null:
@@ -2696,12 +2720,7 @@ func _spawn_falling_piece() -> void:
 	# Spawn above the visible drop zone so it slides in
 	var geom = _well_geometry()
 	var fall_top = float(geom.get("fall_top", FALL_PAD))
-	var drop_w = float(geom.get("drop_w", 300.0))
-	var drop_cell = int(clamp(float(cell_size) * 0.98, 18.0, float(cell_size)))
-	var fall_frame = Vector2(drop_w - 20.0, 260.0)
-	var fitted = _fitted_cell_size(fall_piece, drop_cell, fall_frame, 0.98)
-	var bb = _piece_bbox_cells(fall_piece)
-	var piece_h_px = float(bb.y * fitted)
+	var piece_h_px = _fall_piece_height_px(fall_piece)
 	# Start above: fully hidden + small gap
 	fall_y = fall_top - piece_h_px - 24.0
 	pending_spawn_piece = false
@@ -2753,23 +2772,13 @@ func _spawn_second_falling_piece() -> void:
 		fall_piece = p2
 		var geom = _well_geometry()
 		var fall_top = float(geom.get("fall_top", FALL_PAD))
-		var drop_w = float(geom.get("drop_w", 300.0))
-		var drop_cell = int(clamp(float(cell_size) * 0.98, 18.0, float(cell_size)))
-		var fall_frame = Vector2(drop_w - 20.0, 260.0)
-		var fitted = _fitted_cell_size(fall_piece, drop_cell, fall_frame, 0.98)
-		var bb = _piece_bbox_cells(fall_piece)
-		var piece_h_px = float(bb.y * fitted)
+		var piece_h_px = _fall_piece_height_px(fall_piece)
 		fall_y = fall_top - piece_h_px - 24.0
 	else:
 		fall_piece_2 = p2
 		var geom2 = _well_geometry()
 		var fall_top_2 = float(geom2.get("fall_top", FALL_PAD))
-		var drop_w_2 = float(geom2.get("drop_w", 300.0))
-		var drop_cell_2 = int(clamp(float(cell_size) * 0.98, 18.0, float(cell_size)))
-		var fall_frame_2 = Vector2(drop_w_2 - 20.0, 260.0)
-		var fitted_2 = _fitted_cell_size(fall_piece_2, drop_cell_2, fall_frame_2, 0.98)
-		var bb_2 = _piece_bbox_cells(fall_piece_2)
-		var piece_h_px_2 = float(bb_2.y * fitted_2)
+		var piece_h_px_2 = _fall_piece_height_px(fall_piece_2)
 		fall_y_2 = fall_top_2 - piece_h_px_2 - 24.0
 	pending_dual_spawn_ms = 0
 	pending_dual_fallback_ms = 0
@@ -3672,11 +3681,21 @@ func _process(delta: float) -> void:
 	var fall_bottom = float(geom["fall_bottom"])
 	if fall_piece != null:
 		fall_y += fall_speed * delta
-		if fall_y > fall_bottom:
+		# Commit when the BOTTOM of the piece touches the bottom boundary.
+		var h1 = _fall_piece_height_px(fall_piece)
+		if (fall_y + h1) >= fall_bottom:
+			# Snap visually to the touch point before commit (avoid 1-frame overshoot).
+			fall_y = fall_bottom - h1
+			if OS.is_debug_build():
+				print("[DROP_COMMIT] slot=1 touch_y=", (fall_y + h1), " fall_bottom=", fall_bottom, " fall_y=", fall_y, " h=", h1)
 			_lock_falling_to_pile()
 	if fall_piece_2 != null:
 		fall_y_2 += fall_speed * delta
-		if fall_y_2 > fall_bottom:
+		var h2 = _fall_piece_height_px(fall_piece_2)
+		if (fall_y_2 + h2) >= fall_bottom:
+			fall_y_2 = fall_bottom - h2
+			if OS.is_debug_build():
+				print("[DROP_COMMIT] slot=2 touch_y=", (fall_y_2 + h2), " fall_bottom=", fall_bottom, " fall_y=", fall_y_2, " h=", h2)
 			_commit_piece_to_well(fall_piece_2)
 			if is_game_over:
 				return
