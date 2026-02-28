@@ -1198,16 +1198,10 @@ func _build_ui() -> void:
 	var exit_panel = PanelContainer.new()
 	exit_panel.custom_minimum_size = Vector2(520, 260)
 	exit_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	UIStyle.apply_panel_9slice(exit_panel, "res://Assets/UI/9patch/panel_default.png")
+	UIStyle.apply_panel_9slice(exit_panel)
 	popup_exit.add_child(exit_panel)
 
-	var exit_margin = MarginContainer.new()
-	exit_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	exit_margin.add_theme_constant_override("margin_left", 24)
-	exit_margin.add_theme_constant_override("margin_right", 24)
-	exit_margin.add_theme_constant_override("margin_top", 24)
-	exit_margin.add_theme_constant_override("margin_bottom", 24)
-	exit_panel.add_child(exit_margin)
+	var exit_margin = UIStyle.wrap_popup_content(exit_panel)
 
 	var exit_v = VBoxContainer.new()
 	exit_v.add_theme_constant_override("separation", 14)
@@ -1235,7 +1229,8 @@ func _build_ui() -> void:
 	var btn_restart_popup = Button.new()
 	btn_restart_popup.text = "Restart"
 	btn_restart_popup.custom_minimum_size = Vector2(130, 44)
-	UIStyle.apply_button_9slice(btn_restart_popup, "small", "res://Assets/UI/9patch/button_primary.png", "res://Assets/UI/9patch/button_small.png")
+	UIStyle.apply_button_9slice(btn_restart_popup, "small")
+	UIStyle.apply_button_text_palette(btn_restart_popup)
 	btn_restart_popup.pressed.connect(_on_exit_restart)
 	_wire_button_sfx(btn_restart_popup)
 	exit_buttons.add_child(btn_restart_popup)
@@ -1243,7 +1238,8 @@ func _build_ui() -> void:
 	var btn_main_menu_popup = Button.new()
 	btn_main_menu_popup.text = "Main Menu"
 	btn_main_menu_popup.custom_minimum_size = Vector2(130, 44)
-	UIStyle.apply_button_9slice(btn_main_menu_popup, "small", "res://Assets/UI/9patch/button_primary.png", "res://Assets/UI/9patch/button_small.png")
+	UIStyle.apply_button_9slice(btn_main_menu_popup, "small")
+	UIStyle.apply_button_text_palette(btn_main_menu_popup)
 	btn_main_menu_popup.pressed.connect(_on_exit_main_menu)
 	_wire_button_sfx(btn_main_menu_popup)
 	exit_buttons.add_child(btn_main_menu_popup)
@@ -1251,7 +1247,8 @@ func _build_ui() -> void:
 	var btn_cancel_popup = Button.new()
 	btn_cancel_popup.text = "Cancel"
 	btn_cancel_popup.custom_minimum_size = Vector2(130, 44)
-	UIStyle.apply_button_9slice(btn_cancel_popup, "small", "res://Assets/UI/9patch/button_primary.png", "res://Assets/UI/9patch/button_small.png")
+	UIStyle.apply_button_9slice(btn_cancel_popup, "small")
+	UIStyle.apply_button_text_palette(btn_cancel_popup)
 	btn_cancel_popup.pressed.connect(_on_exit_cancel)
 	_wire_button_sfx(btn_cancel_popup)
 	exit_buttons.add_child(btn_cancel_popup)
