@@ -1120,7 +1120,7 @@ func _build_ui() -> void:
 	ghost_layer.add_child(ghost_root)
 
 	fx_layer = CanvasLayer.new()
-	fx_layer.layer = -10
+	fx_layer.layer = -20
 	add_child(fx_layer)
 	time_slow_overlay = ColorRect.new()
 	time_slow_overlay.color = Color(0.35, 0.70, 1.0, 0.0)
@@ -1207,17 +1207,24 @@ func _build_ui() -> void:
 	exit_v.add_theme_constant_override("separation", 18)
 	exit_margin.add_child(exit_v)
 
-	var exit_title = Label.new()
-	exit_title.text = "Exit"
-	exit_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	exit_title.add_theme_font_size_override("font_size", 39)
-	exit_v.add_child(exit_title)
 
 	var exit_subtitle = Label.new()
 	exit_subtitle.text = "What would you like to do?"
 	exit_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	exit_subtitle.add_theme_font_size_override("font_size", _skin_font_size("small", 21))
+	exit_subtitle.add_theme_font_size_override("font_size", _skin_font_size("small", 22))
+	UIStyle.apply_label_text_palette(exit_subtitle, "subtitle")
 	exit_v.add_child(exit_subtitle)
+
+	UIStyle.ensure_popup_chrome(
+		exit_panel,
+		exit_v,
+		"Exit",
+		Callable(self, "_on_exit_cancel"),
+		func() -> void:
+			_play_sfx("ui_hover"),
+		func() -> void:
+			_play_sfx("ui_click")
+	)
 
 	exit_v.add_spacer(false)
 
@@ -1255,6 +1262,10 @@ func _build_ui() -> void:
 
 	settings_popup = SettingsPanel.build(modal_holder, Callable(self, "_on_settings_popup_close_requested"), {
 		"wire_button_sfx": Callable(self, "_wire_button_sfx"),
+		"sfx_hover": func() -> void:
+			_play_sfx("ui_hover"),
+		"sfx_click": func() -> void:
+			_play_sfx("ui_click"),
 		"state_getter": Callable(self, "_get_audio_settings_state"),
 		"on_music_enabled": Callable(self, "_on_music_enabled_toggled"),
 		"on_sfx_enabled": Callable(self, "_on_sfx_enabled_toggled"),
