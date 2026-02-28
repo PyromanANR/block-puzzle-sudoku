@@ -126,6 +126,10 @@ var modal_holder: Control
 var modal_layer: CanvasLayer
 var overlay_dim_modal: ColorRect
 var modal_stack: Array = []
+var drop_status_label: Label
+var drop_status_text := ""
+var drop_status_tween: Tween
+var drop_status_locked_until_ms := 0
 
 const HEADER_BASE_LEFT := 20
 const HEADER_BASE_RIGHT := 20
@@ -185,6 +189,8 @@ const SLOT_GAP := 6
 const HEADER_BUTTON_SIZE := 76.0
 const EXIT_BUTTON_SIZE := 84.0
 const HEADER_BUTTON_MARGIN := 20.0
+const HEADER_CLUSTER_GAP := 16
+const DROP_STATUS_RESERVED_H := 30.0
 
 var toast_hide_at_ms = 0
 
@@ -311,7 +317,8 @@ var time_slow_mid: PanelContainer = null
 var time_slow_sand_mat: ShaderMaterial = null
 var time_slow_glass_mat: ShaderMaterial = null
 
-const TIME_SLOW_W_COLLAPSED := 1.0
+const TIME_SLOW_W_COLLAPSED := 34.0
+const TIME_SLOW_W_MIN_VISIBLE := 34.0
 const TIME_SLOW_W_EXPAND_MIN := 34.0
 const TIME_SLOW_W_EXPAND_MAX := 44.0
 
@@ -447,8 +454,8 @@ func _time_slow_gap_w() -> float:
 	var expanded = clamp(w * 0.10, TIME_SLOW_W_EXPAND_MIN, TIME_SLOW_W_EXPAND_MAX)
 	var now_ms = Time.get_ticks_msec()
 	if _is_time_slow_column_expanded(now_ms):
-		return expanded
-	return TIME_SLOW_W_COLLAPSED
+		return max(expanded, TIME_SLOW_W_MIN_VISIBLE)
+	return max(TIME_SLOW_W_COLLAPSED, TIME_SLOW_W_MIN_VISIBLE)
 
 
 func _is_time_slow_column_expanded(now_ms: int) -> bool:
@@ -469,16 +476,18 @@ func _sync_time_slow_column_width() -> void:
 	var w = _time_slow_gap_w()
 	time_slow_mid.custom_minimum_size.x = w
 
-	# When collapsed, hide detailed hourglass layers so it doesn't look like a bug.
-	var expanded = w > TIME_SLOW_W_COLLAPSED + 1.0
+	var has_frame_assets := time_slow_frame_rect != null and time_slow_frame_rect.texture != null
+	var has_glass_assets := time_slow_glass_rect != null and time_slow_glass_rect.material != null
+	var has_sand_assets := time_slow_sand_rect != null and time_slow_sand_rect.material != null
+	var has_advanced_assets := has_frame_assets and has_glass_assets and has_sand_assets
 	if time_slow_frame_rect != null:
-		time_slow_frame_rect.visible = expanded and time_slow_frame_rect.texture != null
+		time_slow_frame_rect.visible = has_frame_assets
 	if time_slow_glass_rect != null:
-		time_slow_glass_rect.visible = expanded and time_slow_glass_rect.material != null
+		time_slow_glass_rect.visible = has_glass_assets
 	if time_slow_sand_rect != null:
-		time_slow_sand_rect.visible = expanded and time_slow_sand_rect.material != null
+		time_slow_sand_rect.visible = has_sand_assets
 	if bar_time_slow != null:
-		bar_time_slow.visible = expanded
+		bar_time_slow.visible = not has_advanced_assets
 
 	var p = time_slow_mid.get_parent()
 	if p is Container:
@@ -531,6 +540,8 @@ func _start_round() -> void:
 	panic_sfx_cooldown_ms = 0
 	well_header_pulse_left = 0.0
 	time_scale_reason = "Normal"
+	drop_status_locked_until_ms = 0
+	drop_status_text = ""
 	time_slow_cooldown_until_ms = 0
 	time_slow_overlay_until_ms = 0
 	time_slow_overlay_input_release_ms = 0
@@ -569,6 +580,7 @@ func _start_round() -> void:
 
 	selected_piece = null
 	selected_from_pile_index = -1
+	_set_drop_status(_current_drop_status_text())
 	dragging = false
 	auto_snap_cooldown_until_ms = 0
 	drag_trail.clear()
@@ -941,6 +953,10 @@ func _update_status_hud() -> void:
 			btn_time_slow.scale = Vector2.ONE
 			btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	bar_time_slow.modulate = Color(1, 1, 1, 1)
+	if time_slow_ui_ready and remaining_ms <= 0:
+		_set_drop_status("Time Warp ready")
+	else:
+		_set_drop_status(_current_drop_status_text())
 	_update_skill_icon_states()
 
 
@@ -1022,24 +1038,23 @@ func _build_ui() -> void:
 	header_row.offset_right = -20
 	header_row.offset_top = 14
 	header_row.offset_bottom = 108
-	header_row.add_theme_constant_override("separation", 16)
-	header_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	header_row.add_theme_constant_override("separation", 14)
 	header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	safe_area_root.add_child(header_row)
 
-	var left_group = HBoxContainer.new()
-	left_group.name = "left_group"
-	left_group.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	left_group.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_group.add_theme_constant_override("separation", 80)
-	left_group.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(left_group)
+	var left_cluster = HBoxContainer.new()
+	left_cluster.name = "left_cluster"
+	left_cluster.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_cluster.add_theme_constant_override("separation", HEADER_CLUSTER_GAP)
+	left_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(left_cluster)
 
 	var left_button_section = MarginContainer.new()
 	left_button_section.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	left_button_section.add_theme_constant_override("margin_top", 4)
 	left_button_section.add_theme_constant_override("margin_bottom", 4)
-	left_group.add_child(left_button_section)
+	left_cluster.add_child(left_button_section)
 
 	btn_exit = TextureButton.new()
 	btn_exit.custom_minimum_size = Vector2(EXIT_BUTTON_SIZE, EXIT_BUTTON_SIZE)
@@ -1053,13 +1068,14 @@ func _build_ui() -> void:
 
 	var stats_block = VBoxContainer.new()
 	stats_block.name = "stats_block"
-	stats_block.custom_minimum_size = Vector2(360, 0)
+	stats_block.custom_minimum_size = Vector2(300, 0)
 	stats_block.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stats_block.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	stats_block.alignment = BoxContainer.ALIGNMENT_CENTER
 	stats_block.add_theme_constant_override("separation", 2)
 	stats_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left_group.add_child(stats_block)
+	stats_block.clip_contents = true
+	left_cluster.add_child(stats_block)
 
 	lbl_score = Label.new()
 	lbl_score.text = "Score: 0"
@@ -1068,6 +1084,7 @@ func _build_ui() -> void:
 	lbl_score.add_theme_font_size_override("font_size", 32)
 	lbl_score.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_score.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl_score.clip_text = true
 	stats_block.add_child(lbl_score)
 
 	var stats_subrow = HBoxContainer.new()
@@ -1114,20 +1131,17 @@ func _build_ui() -> void:
 	lbl_level.add_theme_color_override("font_color", muted)
 	stats_subrow.add_child(lbl_level)
 
-	var mid_spacer = Control.new()
-	mid_spacer.name = "mid_spacer"
-	mid_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mid_spacer.custom_minimum_size = Vector2(16, 0)
-	mid_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(mid_spacer)
+	var center_cluster = Control.new()
+	center_cluster.name = "center_cluster"
+	center_cluster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(center_cluster)
 
-	var right_group = HBoxContainer.new()
-	right_group.name = "right_group"
-	right_group.size_flags_horizontal = Control.SIZE_SHRINK_END
-	right_group.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_group.add_theme_constant_override("separation", 12)
-	right_group.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(right_group)
+	var title_center = CenterContainer.new()
+	title_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	title_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center_cluster.add_child(title_center)
 
 	var title_block = Control.new()
 	title_block.name = "title_block"
@@ -1170,14 +1184,22 @@ func _build_ui() -> void:
 			title_texture_rect.visible = true
 			title_label.visible = false
 
-	right_group.add_child(title_block)
+	title_center.add_child(title_block)
+
+	var right_cluster = HBoxContainer.new()
+	right_cluster.name = "right_cluster"
+	right_cluster.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_cluster.add_theme_constant_override("separation", HEADER_CLUSTER_GAP)
+	right_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_row.add_child(right_cluster)
 
 	var right_button_section = MarginContainer.new()
 	header_right_section = right_button_section
 	right_button_section.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right_button_section.add_theme_constant_override("margin_top", 4)
 	right_button_section.add_theme_constant_override("margin_bottom", 4)
-	right_group.add_child(right_button_section)
+	right_cluster.add_child(right_button_section)
 
 	btn_settings = TextureButton.new()
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
@@ -2642,7 +2664,7 @@ func _well_geometry() -> Dictionary:
 		}
 
 	var fall_top = FALL_PAD
-	var fall_bottom = drop_h - 120.0
+	var fall_bottom = drop_h - (120.0 + DROP_STATUS_RESERVED_H)
 	if fall_bottom < fall_top + 40.0:
 		fall_bottom = fall_top + 40.0
 
@@ -2663,6 +2685,7 @@ func _redraw_well() -> void:
 		ch.queue_free()
 	for ch in well_slots_draw.get_children():
 		ch.queue_free()
+	drop_status_label = null
 
 	var g = _well_geometry()
 	var drop_w = float(g["drop_w"])
@@ -2677,26 +2700,59 @@ func _redraw_well() -> void:
 	var now_ms = Time.get_ticks_msec()
 	var neon_speed = float(core.call("GetWellNeonPulseSpeed"))
 	var neon = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
-	
-	var drop_header = Label.new()
-	drop_header.text = "DROP ZONE"
-	drop_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	drop_header.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	drop_header.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	drop_header.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
-	drop_header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# Full-width top strip (centered)
-	drop_header.anchor_left = 0.0
-	drop_header.anchor_right = 1.0
-	drop_header.anchor_top = 0.0
-	drop_header.anchor_bottom = 0.0
-	drop_header.offset_left = 0
-	drop_header.offset_right = 0
-	drop_header.offset_top = 4
-	drop_header.offset_bottom = 28
+	var drop_header_row = HBoxContainer.new()
+	drop_header_row.position = Vector2(0, 4)
+	drop_header_row.size = Vector2(drop_w, 28)
+	drop_header_row.add_theme_constant_override("separation", 8)
+	drop_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_zone_draw.add_child(drop_header_row)
 
-	drop_zone_draw.add_child(drop_header)
+	var drop_header_left = Label.new()
+	drop_header_left.text = "DROP"
+	drop_header_left.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	drop_header_left.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
+	drop_header_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_header_row.add_child(drop_header_left)
+
+	var drop_header_spacer = Control.new()
+	drop_header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	drop_header_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_header_row.add_child(drop_header_spacer)
+
+	var phase_box = HBoxContainer.new()
+	phase_box.add_theme_constant_override("separation", 6)
+	phase_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_header_row.add_child(phase_box)
+
+	var elapsed_min = float(core.call("GetElapsedMinutesForDebug"))
+	var phase_label = Label.new()
+	phase_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
+	phase_label.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
+	phase_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var phase_progress = ProgressBar.new()
+	phase_progress.custom_minimum_size = Vector2(58, 12)
+	phase_progress.max_value = 1.0
+	phase_progress.show_percentage = false
+	phase_progress.value = 0.0
+	phase_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var phase_bg = StyleBoxFlat.new()
+	phase_bg.bg_color = Color(0.10, 0.12, 0.14, 0.35)
+	phase_progress.add_theme_stylebox_override("background", phase_bg)
+	var phase_fill = StyleBoxFlat.new()
+	phase_fill.bg_color = Color(0.92, 0.70, 0.30, 0.95)
+	phase_progress.add_theme_stylebox_override("fill", phase_fill)
+	if elapsed_min < 3.0:
+		phase_label.text = "CALM"
+		phase_progress.value = clamp(elapsed_min / 3.0, 0.0, 1.0)
+	elif elapsed_min < 6.0:
+		phase_label.text = "FAST"
+		phase_progress.value = clamp((elapsed_min - 3.0) / 3.0, 0.0, 1.0)
+	else:
+		phase_label.text = "INSANE"
+		phase_progress.value = clamp((elapsed_min - 6.0) / 4.0, 0.0, 1.0)
+	phase_box.add_child(phase_label)
+	phase_box.add_child(phase_progress)
 
 	var drop_marker = ColorRect.new()
 	drop_marker.color = Color(1.0, 1.0, 1.0, 0.10)
@@ -2705,6 +2761,26 @@ func _redraw_well() -> void:
 	drop_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	drop_zone_draw.add_child(drop_marker)
 
+	var status_label = Label.new()
+	status_label.name = "drop_status"
+	status_label.anchor_left = 0.0
+	status_label.anchor_right = 1.0
+	status_label.anchor_top = 1.0
+	status_label.anchor_bottom = 1.0
+	status_label.offset_left = 0
+	status_label.offset_right = 0
+	status_label.offset_top = -30
+	status_label.offset_bottom = -6
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 13))
+	var status_col = _skin_color("text_muted", Color(0.84, 0.84, 0.84))
+	status_col.a = 0.85
+	status_label.add_theme_color_override("font_color", status_col)
+	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_zone_draw.add_child(status_label)
+	drop_status_label = status_label
+	_set_drop_status(_current_drop_status_text())
 
 	var slots_header_row = HBoxContainer.new()
 	slots_header_row.position = Vector2(14, 4)
@@ -2740,39 +2816,47 @@ func _redraw_well() -> void:
 
 	var slots_top = max(pile_top, 58.0)
 	var slot_w = max(0.0, slots_w - 28.0)
-	var active_count = min(pile_selectable, pile_max)
+	var active_count = clamp(pile_selectable, 0, pile_max)
+	var locked_count = max(0, pile_max - active_count)
 	var available_h = max(140.0, pile_bottom - slots_top)
-
-	# Allocate more height to active slots for touch comfort
-	var active_h = clamp(available_h * 0.18, 84.0, 132.0) # each active slot height target
-	var locked_count = pile_max - active_count
-	var locked_total_h = max(0.0, available_h - (active_h * active_count) - (SLOT_GAP * float(pile_max - 1)))
+	var total_gap_h = SLOT_GAP * float(max(0, pile_max - 1))
+	var content_h = max(1.0, available_h - total_gap_h)
+	var active_h = 0.0
 	var locked_h = 0.0
-	if locked_count > 0:
-		locked_h = clamp(locked_total_h / float(locked_count), 54.0, 110.0)
+	if active_count <= 0:
+		locked_h = clamp(content_h / float(max(1, pile_max)), 54.0, 132.0)
+	else:
+		var active_weight = 1.35
+		var locked_weight = 1.0
+		var total_weight = float(active_count) * active_weight + float(locked_count) * locked_weight
+		var base_unit = content_h / max(0.001, total_weight)
+		active_h = clamp(base_unit * active_weight, 54.0, 132.0)
+		locked_h = clamp(base_unit * locked_weight, 54.0, 132.0)
+		var used_h = active_h * float(active_count) + locked_h * float(locked_count)
+		var residual = content_h - used_h
+		if abs(residual) > 0.01:
+			if locked_count > 0:
+				locked_h = clamp(locked_h + residual / float(locked_count), 54.0, 132.0)
+			else:
+				active_h = clamp(active_h + residual / float(max(1, active_count)), 54.0, 132.0)
 
-	# Place from bottom upwards
-	var y_cursor = pile_bottom
+	var total_stack_h = active_h * float(active_count) + locked_h * float(locked_count) + total_gap_h
+	var y_cursor = slots_top + max(0.0, available_h - total_stack_h)
 
 	var slot_preview_cell = int(clamp(float(cell_size) * 0.95, 14.0, 52.0))
 	var neon_min = float(core.call("GetWellNeonMinAlpha"))
 	var neon_max = float(core.call("GetWellNeonMaxAlpha"))
 
 	for slot_i in range(pile_max):
-		var is_active = slot_i < active_count
+		var is_active = active_count > 0 and slot_i < active_count
 		var h = active_h if is_active else locked_h
-
-		# Step up
-		y_cursor -= h
 
 		var slot = Panel.new()
 		slot.size = Vector2(slot_w, h)
 		slot.position = Vector2(14, y_cursor)
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
 		well_slots_draw.add_child(slot)
-
-		# Gap for next
-		y_cursor -= SLOT_GAP
+		y_cursor += h + SLOT_GAP
 
 		var pile_index = (pile.size() - 1) - slot_i
 
@@ -2816,17 +2900,18 @@ func _redraw_well() -> void:
 				neon_style.corner_radius_bottom_right = 8
 				neon_frame.add_theme_stylebox_override("panel", neon_style)
 				slot.add_child(neon_frame)
-		elif is_active:
-			pass
 
 	if fall_piece != null and not is_game_over:
-		var drop_cell_size = int(clamp(float(cell_size) * 1.0, 18.0, 54.0))
-		var fall_frame_w = min(drop_w - 20.0, 300.0)
-		var fall_frame = Vector2(fall_frame_w, 170)
-		var fitted_drop_cell = _fitted_cell_size(fall_piece, drop_cell_size, fall_frame, 0.97)
+		var drop_cell_size = int(clamp(float(cell_size), 18.0, 54.0))
+		var frame_w = min(drop_w - 20.0, max(300.0, float(cell_size) * 6.5))
+		var frame_h = min((fall_bottom - fall_top) + 40.0, max(240.0, float(cell_size) * 6.5))
+		var fall_frame = Vector2(frame_w, frame_h)
+		var fitted_drop_cell = _fitted_cell_size(fall_piece, drop_cell_size, fall_frame, 0.98)
 		var fall = _make_piece_preview(fall_piece, fitted_drop_cell, fall_frame)
 		var fx = (drop_w - fall.size.x) * 0.5
-		var fy = clamp(fall_y, fall_top, fall_bottom)
+		var center_y = (fall_top + fall_bottom) * 0.5
+		var fy = clamp(fall_y, center_y - 40.0, center_y + 40.0)
+		fy = clamp(fy, fall_top, fall_bottom)
 		fall.position = Vector2(fx, fy)
 		var block_fall_1 = pending_invalid_piece != null and pending_invalid_source_slot == 1 and (pending_invalid_piece_id < 0 or int(fall_piece.get_meta("piece_id", -1)) == pending_invalid_piece_id)
 		if block_fall_1:
@@ -2838,13 +2923,16 @@ func _redraw_well() -> void:
 		drop_zone_draw.add_child(fall)
 
 	if fall_piece_2 != null and not is_game_over:
-		var drop_cell_size_2 = int(clamp(float(cell_size) * 1.0, 18.0, 54.0))
-		var fall_frame_w_2 = min(drop_w - 20.0, 300.0)
-		var fall_frame_2 = Vector2(fall_frame_w_2, 170)
-		var fitted_drop_cell_2 = _fitted_cell_size(fall_piece_2, drop_cell_size_2, fall_frame_2, 0.97)
+		var drop_cell_size_2 = int(clamp(float(cell_size), 18.0, 54.0))
+		var frame_w_2 = min(drop_w - 20.0, max(300.0, float(cell_size) * 6.5))
+		var frame_h_2 = min((fall_bottom - fall_top) + 40.0, max(240.0, float(cell_size) * 6.5))
+		var fall_frame_2 = Vector2(frame_w_2, frame_h_2)
+		var fitted_drop_cell_2 = _fitted_cell_size(fall_piece_2, drop_cell_size_2, fall_frame_2, 0.98)
 		var fall2 = _make_piece_preview(fall_piece_2, fitted_drop_cell_2, fall_frame_2)
 		var fx2 = (drop_w - fall2.size.x) * 0.5
-		var fy2 = clamp(fall_y_2, fall_top, fall_bottom)
+		var center_y_2 = (fall_top + fall_bottom) * 0.5
+		var fy2 = clamp(fall_y_2, center_y_2 - 40.0, center_y_2 + 40.0)
+		fy2 = clamp(fy2, fall_top, fall_bottom)
 		fall2.position = Vector2(fx2, fy2)
 		var block_fall_2 = pending_invalid_piece != null and pending_invalid_source_slot == 2 and (pending_invalid_piece_id < 0 or int(fall_piece_2.get_meta("piece_id", -1)) == pending_invalid_piece_id)
 		if block_fall_2:
@@ -2854,6 +2942,40 @@ func _redraw_well() -> void:
 			fall2.mouse_filter = Control.MOUSE_FILTER_STOP
 			fall2.gui_input.connect(func(ev): _on_falling_piece_input(ev, 2))
 		drop_zone_draw.add_child(fall2)
+
+
+func _current_drop_status_text() -> String:
+	var now_ms = Time.get_ticks_msec()
+	if now_ms < drop_status_locked_until_ms and drop_status_text != "":
+		return drop_status_text
+	if dragging:
+		return "Dragging…"
+	if rescue_from_well_pending and now_ms <= rescue_eligible_until_ms:
+		return "Rescue ready"
+	if time_slow_ui_ready and now_ms >= time_slow_cooldown_until_ms:
+		return "Time Warp ready"
+	return "Tap to grab"
+
+
+func _set_drop_status(text: String, flash: bool = false) -> void:
+	drop_status_text = text
+	if drop_status_label == null or not is_instance_valid(drop_status_label):
+		return
+	if drop_status_tween != null and is_instance_valid(drop_status_tween):
+		drop_status_tween.kill()
+	var changed = drop_status_label.text != text
+	drop_status_label.text = text
+	if changed:
+		drop_status_label.modulate.a = 0.0
+		drop_status_tween = create_tween()
+		drop_status_tween.tween_property(drop_status_label, "modulate:a", 1.0, 0.12)
+	if flash:
+		drop_status_locked_until_ms = Time.get_ticks_msec() + 750
+		if drop_status_tween == null or not is_instance_valid(drop_status_tween):
+			drop_status_tween = create_tween()
+		drop_status_tween.tween_property(drop_status_label, "scale", Vector2(1.05, 1.05), 0.08)
+		drop_status_tween.tween_property(drop_status_label, "scale", Vector2.ONE, 0.10)
+
 
 func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
 	if _is_gameplay_input_blocked():
@@ -2908,6 +3030,7 @@ func _start_drag_selected() -> void:
 	drag_trail.append(get_viewport().get_mouse_position())
 	_build_ghost_for_piece(selected_piece)
 	ghost_root.visible = true
+	_set_drop_status("Dragging…")
 
 
 func _finish_drag() -> void:
@@ -2950,6 +3073,7 @@ func _finish_drag() -> void:
 	# Only play invalid here if we ended up not placed AND auto-snap didn't succeed.
 	if was_selected and not placed and (not auto_snapped or not auto_snap_succeeded):
 		_play_sfx("invalid")
+		_set_drop_status("Invalid", true)
 		core.call("RegisterCancelledDrag")
 		_spawn_pending_invalid_piece(selected_snapshot, source_snapshot, release_mouse)
 
@@ -2958,6 +3082,7 @@ func _finish_drag() -> void:
 
 	selected_piece = null
 	selected_from_pile_index = -1
+	_set_drop_status(_current_drop_status_text())
 
 
 
@@ -3277,6 +3402,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	if not bool(board.call("CanPlace", piece, ax, ay)):
 		if not suppress_invalid_sfx_once:
 			_play_sfx("invalid")
+			_set_drop_status("Invalid", true)
 		else:
 			suppress_invalid_sfx_once = false # consume the suppression
 		return false
@@ -3336,6 +3462,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		_play_sfx("clear")
 		clear_flash_left = 0.20
 		clear_flash_cells = cleared
+		_set_drop_status("Nice!", true)
 	if rescue_from_well_pending and Time.get_ticks_msec() <= rescue_eligible_until_ms:
 		score += int(core.call("GetRescueScoreBonus"))
 		core.call("TriggerRescueStability")
