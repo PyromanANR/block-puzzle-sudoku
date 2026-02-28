@@ -993,7 +993,7 @@ func _build_ui() -> void:
 	drop_zone_panel.add_theme_stylebox_override("panel", _style_preview_box())
 	well_draw.add_child(drop_zone_panel)
 
-	const TIME_SLOW_GAP_W = 24.0
+	const TIME_SLOW_GAP_W = 55.0
 	time_slow_mid = PanelContainer.new()
 	time_slow_mid.name = "time_slow_mid"
 	time_slow_mid.custom_minimum_size = Vector2(TIME_SLOW_GAP_W, 0)
@@ -1022,6 +1022,7 @@ func _build_ui() -> void:
 	time_slow_stack.name = "time_slow_stack"
 	time_slow_stack.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	time_slow_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_slow_stack.clip_contents = true
 	time_slow_frame_panel.add_child(time_slow_stack)
 
 	time_slow_sand_rect = TextureRect.new()
@@ -1033,7 +1034,7 @@ func _build_ui() -> void:
 	time_slow_sand_rect.offset_bottom = 0
 	time_slow_sand_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_sand_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	time_slow_sand_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	time_slow_sand_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	time_slow_sand_rect.visible = false
 	time_slow_stack.add_child(time_slow_sand_rect)
 
@@ -1047,7 +1048,7 @@ func _build_ui() -> void:
 	time_slow_glass_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_glass_rect.z_index = 1
 	time_slow_glass_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	time_slow_glass_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	time_slow_glass_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	time_slow_glass_rect.visible = false
 	time_slow_stack.add_child(time_slow_glass_rect)
 
@@ -1057,7 +1058,7 @@ func _build_ui() -> void:
 	time_slow_frame_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	time_slow_frame_rect.z_index = 2
 	time_slow_frame_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	time_slow_frame_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	time_slow_frame_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	time_slow_frame_rect.visible = false
 	time_slow_stack.add_child(time_slow_frame_rect)
 
@@ -1198,6 +1199,7 @@ func _build_ui() -> void:
 	var exit_panel = PanelContainer.new()
 	exit_panel.custom_minimum_size = Vector2(676, 338)
 	exit_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	UIStyle.apply_popup_vertical_offset(exit_panel)
 	UIStyle.apply_panel_9slice(exit_panel)
 	popup_exit.add_child(exit_panel)
 
@@ -1215,7 +1217,7 @@ func _build_ui() -> void:
 	UIStyle.apply_label_text_palette(exit_subtitle, "subtitle")
 	exit_v.add_child(exit_subtitle)
 
-	UIStyle.ensure_popup_chrome(
+	UIStyle.ensure_popup_chrome_with_header(
 		exit_panel,
 		exit_v,
 		"Exit",

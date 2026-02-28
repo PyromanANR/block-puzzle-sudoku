@@ -976,6 +976,7 @@ func _create_modal_panel(title_text: String) -> Panel:
 	panel.offset_top = -max_h * 0.5
 	panel.offset_right = max_w * 0.5
 	panel.offset_bottom = max_h * 0.5
+	UIStyle.apply_popup_vertical_offset(panel)
 	panel.visible = false
 	modal_layer.add_child(panel)
 	_apply_panel_style(panel)
@@ -1003,7 +1004,7 @@ func _ensure_panel_content(panel: Panel) -> VBoxContainer:
 	body.add_theme_constant_override("separation", 12)
 	margin.add_child(body)
 
-	UIStyle.ensure_popup_chrome(
+	UIStyle.ensure_popup_chrome_with_header(
 		panel,
 		body,
 		String(panel.get_meta("title_text", "")),
@@ -1460,6 +1461,7 @@ func _apply_safe_area() -> void:
 		panel.offset_right = max_w * 0.5
 		panel.offset_top = -max_h * 0.5
 		panel.offset_bottom = max_h * 0.5
+		UIStyle.apply_popup_vertical_offset(panel)
 
 
 func _difficulty_color(difficulty: String) -> Color:

@@ -44,15 +44,27 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	settings_v.add_theme_constant_override("separation", 10)
 	margin.add_child(settings_v)
 
-	UIStyle.ensure_popup_chrome(panel, settings_v, "Audio Settings", on_close, sfx_hover, sfx_click)
+	UIStyle.ensure_popup_chrome_with_header(panel, settings_v, "Audio Settings", on_close, sfx_hover, sfx_click)
+	UIStyle.apply_popup_vertical_offset(panel)
+
+	var audio_content = VBoxContainer.new()
+	audio_content.name = "AudioContent"
+	audio_content.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	audio_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	audio_content.add_theme_constant_override("separation", 10)
+	settings_v.add_child(audio_content)
+
+	var content_w = min(520.0, max_w - 80.0)
+	audio_content.custom_minimum_size = Vector2(max(content_w, 260.0), 0)
 
 	var chk_music_enabled = CheckBox.new()
 	chk_music_enabled.text = "Music Enabled"
-	settings_v.add_child(chk_music_enabled)
+	audio_content.add_child(chk_music_enabled)
 
 	var music_row = HBoxContainer.new()
+	music_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	music_row.add_theme_constant_override("separation", 8)
-	settings_v.add_child(music_row)
+	audio_content.add_child(music_row)
 	var music_lbl = Label.new()
 	music_lbl.text = "Music Volume"
 	UIStyle.apply_label_text_palette(music_lbl, "body")
@@ -67,11 +79,12 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 
 	var chk_sfx_enabled = CheckBox.new()
 	chk_sfx_enabled.text = "SFX Enabled"
-	settings_v.add_child(chk_sfx_enabled)
+	audio_content.add_child(chk_sfx_enabled)
 
 	var sfx_row = HBoxContainer.new()
+	sfx_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sfx_row.add_theme_constant_override("separation", 8)
-	settings_v.add_child(sfx_row)
+	audio_content.add_child(sfx_row)
 	var sfx_lbl = Label.new()
 	sfx_lbl.text = "SFX Volume"
 	UIStyle.apply_label_text_palette(sfx_lbl, "body")
@@ -134,6 +147,25 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 			config["on_sfx_volume"].call(value)
 	)
 
+
+	_apply_checkbox_style(chk_music_enabled)
+	_apply_checkbox_style(chk_sfx_enabled)
+
 	panel.set_meta("sync_settings", sync_state)
 	sync_state.call()
 	return panel
+
+
+static func _apply_checkbox_style(chk: CheckBox) -> void:
+	if chk == null:
+		return
+	var normal = chk.get_theme_stylebox("normal")
+	if normal != null:
+		chk.add_theme_stylebox_override("normal", normal.duplicate())
+		chk.add_theme_stylebox_override("hover", normal.duplicate())
+		chk.add_theme_stylebox_override("pressed", normal.duplicate())
+		chk.add_theme_stylebox_override("disabled", normal.duplicate())
+	chk.add_theme_color_override("font_color", Color(0.18, 0.12, 0.09, 1.0))
+	chk.add_theme_color_override("font_hover_color", Color(0.18, 0.12, 0.09, 1.0))
+	chk.add_theme_color_override("font_pressed_color", Color(0.18, 0.12, 0.09, 1.0))
+	chk.add_theme_color_override("font_disabled_color", Color(0.18, 0.12, 0.09, 0.7))
