@@ -93,6 +93,7 @@ var title_texture_rect: TextureRect
 var board_panel: Panel
 var hud_panel: Panel
 var well_panel: Panel
+var safe_area_root: MarginContainer
 var well_draw: Control
 var drop_zone_panel: Panel
 var well_slots_panel: Panel
@@ -130,6 +131,8 @@ var fx_layer: CanvasLayer
 var time_slow_overlay: ColorRect
 var pending_invalid_piece = null
 var pending_invalid_from_pile_index: int = -1
+var pending_invalid_source_slot := 0
+var pending_invalid_piece_id := -1
 var pending_invalid_root: Control
 var pending_invalid_until_ms = 0
 var pending_invalid_timer: Timer
@@ -263,9 +266,9 @@ const SAFE_WELL_CD_MS := 60000
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
 var freeze_uses_left: int = 1
-var freeze_charges_max := 2
+var freeze_charges_max := 3
 var freeze_charges_current := 1
-var clear_charges_max := 1
+var clear_charges_max := 2
 var clear_charges_current := 1
 var safe_well_charges_max := 1
 var safe_well_charges_current := 1
@@ -363,7 +366,25 @@ func _ready() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
+		call_deferred("_apply_safe_area_margins")
 		call_deferred("_sync_time_slow_column_width")
+
+
+func _apply_safe_area_margins() -> void:
+	if safe_area_root == null:
+		return
+	var viewport_rect := get_viewport_rect()
+	var safe_rect := DisplayServer.get_display_safe_area()
+	if safe_rect.size.x <= 0 or safe_rect.size.y <= 0:
+		safe_rect = Rect2i(Vector2i.ZERO, Vector2i(int(viewport_rect.size.x), int(viewport_rect.size.y)))
+	var left := max(0, safe_rect.position.x)
+	var top := max(0, safe_rect.position.y)
+	var right := max(0, int(viewport_rect.size.x) - (safe_rect.position.x + safe_rect.size.x))
+	var bottom := max(0, int(viewport_rect.size.y) - (safe_rect.position.y + safe_rect.size.y))
+	safe_area_root.add_theme_constant_override("margin_left", left)
+	safe_area_root.add_theme_constant_override("margin_right", right)
+	safe_area_root.add_theme_constant_override("margin_top", top)
+	safe_area_root.add_theme_constant_override("margin_bottom", bottom)
 
 
 func _time_slow_gap_w() -> float:
@@ -421,9 +442,9 @@ var skill_ready_sfx_armed := false
 
 func _sync_skill_ready_latches() -> void:
 	var now = Time.get_ticks_msec()
-	prev_freeze_ready = Save.is_unlock_enabled("freeze_unlocked") and not used_freeze_this_round and now >= freeze_cd_until_ms
-	prev_clear_ready = Save.is_unlock_enabled("clear_board_unlocked") and not used_clear_board_this_round and now >= clear_cd_until_ms
-	prev_safe_ready = Save.is_unlock_enabled("safe_well_unlocked") and not used_safe_well_this_round and now >= safe_well_cd_until_ms
+	prev_freeze_ready = Save.is_unlock_enabled("freeze_unlocked") and freeze_charges_current > 0 and now >= freeze_cd_until_ms
+	prev_clear_ready = Save.is_unlock_enabled("clear_board_unlocked") and clear_charges_current > 0 and now >= clear_cd_until_ms
+	prev_safe_ready = Save.is_unlock_enabled("safe_well_unlocked") and safe_well_charges_current > 0 and now >= safe_well_cd_until_ms
 	
 func _start_round() -> void:
 	_close_all_modals(false)
@@ -929,6 +950,14 @@ func _build_ui() -> void:
 	root_frame.add_theme_stylebox_override("panel", _style_cartridge_frame())
 	add_child(root_frame)
 
+
+	safe_area_root = MarginContainer.new()
+	safe_area_root.name = "SafeAreaRoot"
+	safe_area_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	safe_area_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_frame.add_child(safe_area_root)
+	_apply_safe_area_margins()
+
 	var header_row = HBoxContainer.new()
 	header_row.name = "header_row"
 	header_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
@@ -939,7 +968,7 @@ func _build_ui() -> void:
 	header_row.add_theme_constant_override("separation", 16)
 	header_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root_frame.add_child(header_row)
+	safe_area_root.add_child(header_row)
 
 	var left_button_section = MarginContainer.new()
 	left_button_section.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -1092,7 +1121,7 @@ func _build_ui() -> void:
 	root_margin.add_theme_constant_override("margin_right", 24)
 	root_margin.add_theme_constant_override("margin_top", 118)
 	root_margin.add_theme_constant_override("margin_bottom", 24)
-	root_frame.add_child(root_margin)
+	safe_area_root.add_child(root_margin)
 
 	var main_v = VBoxContainer.new()
 	main_v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1873,13 +1902,12 @@ func try_use_clear_board() -> bool:
 	if not Save.is_unlock_enabled("clear_board_unlocked"):
 		show_toast("Reach player level 10", 1.9)
 		return false
-	if used_clear_board_this_round:
-		show_toast("Clear Board already used this round", 1.9)
+	if clear_charges_current <= 0:
+		show_toast("No Clear Board charges", 1.9)
 		return false
 	var filled_cells = _clear_board_bulk()
 	if skill_vfx_controller != null:
 		skill_vfx_controller.on_clear_board_cast()
-	used_clear_board_this_round = true
 	clear_charges_current = max(0, clear_charges_current - 1)
 	clear_cd_until_ms = Time.get_ticks_msec() + CLEAR_CD_MS
 	if filled_cells > 0:
@@ -1899,14 +1927,13 @@ func try_use_safe_well() -> bool:
 	if not Save.is_unlock_enabled("safe_well_unlocked"):
 		show_toast("Reach player level 20", 1.9)
 		return false
-	if used_safe_well_this_round:
-		show_toast("Safe Well already used this round", 1.9)
+	if safe_well_charges_current <= 0:
+		show_toast("No Safe Well charges", 1.9)
 		return false
 	pile.clear()
 	apply_safe_well(SAFE_WELL_DURATION_MS)
 	if skill_vfx_controller != null:
 		skill_vfx_controller.on_safe_well_cast(SAFE_WELL_DURATION_MS)
-	used_safe_well_this_round = true
 	safe_well_charges_current = max(0, safe_well_charges_current - 1)
 	safe_well_cd_until_ms = Time.get_ticks_msec() + SAFE_WELL_CD_MS
 	show_toast("Safe Well active for 7s", 1.6)
@@ -1933,7 +1960,7 @@ func _skill_locked_tooltip(required_level: int) -> String:
 	return "Reach Level %d (current %d)" % [required_level, current_level]
 
 
-func _set_skill_button_state(button: TextureButton, unlock_key: String, used_this_round: bool, _default_tooltip: String) -> void:
+func _set_skill_button_state(button: TextureButton, unlock_key: String, _used_this_round: bool, _default_tooltip: String) -> void:
 	if button == null:
 		return
 	var now = Time.get_ticks_msec()
@@ -1973,7 +2000,7 @@ func _set_skill_button_state(button: TextureButton, unlock_key: String, used_thi
 		state_text = "Active"
 		button.disabled = false
 		alpha = 1.0
-	elif used_this_round:
+	elif charges <= 0:
 		state_text = "Used"
 		button.disabled = true
 		alpha = 0.45
@@ -1993,9 +2020,9 @@ func _update_skill_icon_states() -> void:
 	_set_skill_button_state(btn_skill_clear, "clear_board_unlocked", used_clear_board_this_round, "")
 	_set_skill_button_state(btn_skill_invuln, "safe_well_unlocked", used_safe_well_this_round, "")
 	var now = Time.get_ticks_msec()
-	var freeze_ready = Save.is_unlock_enabled("freeze_unlocked") and not used_freeze_this_round and now >= freeze_cd_until_ms
-	var clear_ready = Save.is_unlock_enabled("clear_board_unlocked") and not used_clear_board_this_round and now >= clear_cd_until_ms
-	var safe_ready = Save.is_unlock_enabled("safe_well_unlocked") and not used_safe_well_this_round and now >= safe_well_cd_until_ms
+	var freeze_ready = Save.is_unlock_enabled("freeze_unlocked") and freeze_charges_current > 0 and now >= freeze_cd_until_ms
+	var clear_ready = Save.is_unlock_enabled("clear_board_unlocked") and clear_charges_current > 0 and now >= clear_cd_until_ms
+	var safe_ready = Save.is_unlock_enabled("safe_well_unlocked") and safe_well_charges_current > 0 and now >= safe_well_cd_until_ms
 	if skill_ready_sfx_armed:
 		if not prev_freeze_ready and freeze_ready:
 			_play_sfx("skill_ready")
@@ -2720,8 +2747,13 @@ func _redraw_well() -> void:
 		var fx = (drop_w - fall.size.x) * 0.5
 		var fy = clamp(fall_y, fall_top, fall_bottom)
 		fall.position = Vector2(fx, fy)
-		fall.mouse_filter = Control.MOUSE_FILTER_STOP
-		fall.gui_input.connect(func(ev): _on_falling_piece_input(ev, 1))
+		var block_fall_1 = pending_invalid_piece != null and pending_invalid_source_slot == 1 and (pending_invalid_piece_id < 0 or int(fall_piece.get_meta("piece_id", -1)) == pending_invalid_piece_id)
+		if block_fall_1:
+			fall.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			fall.modulate = Color(1, 1, 1, 0.55)
+		else:
+			fall.mouse_filter = Control.MOUSE_FILTER_STOP
+			fall.gui_input.connect(func(ev): _on_falling_piece_input(ev, 1))
 		drop_zone_draw.add_child(fall)
 
 	if fall_piece_2 != null and not is_game_over:
@@ -2733,8 +2765,13 @@ func _redraw_well() -> void:
 		var fx2 = (drop_w - fall2.size.x) * 0.5
 		var fy2 = clamp(fall_y_2, fall_top, fall_bottom)
 		fall2.position = Vector2(fx2, fy2)
-		fall2.mouse_filter = Control.MOUSE_FILTER_STOP
-		fall2.gui_input.connect(func(ev): _on_falling_piece_input(ev, 2))
+		var block_fall_2 = pending_invalid_piece != null and pending_invalid_source_slot == 2 and (pending_invalid_piece_id < 0 or int(fall_piece_2.get_meta("piece_id", -1)) == pending_invalid_piece_id)
+		if block_fall_2:
+			fall2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			fall2.modulate = Color(1, 1, 1, 0.55)
+		else:
+			fall2.mouse_filter = Control.MOUSE_FILTER_STOP
+			fall2.gui_input.connect(func(ev): _on_falling_piece_input(ev, 2))
 		drop_zone_draw.add_child(fall2)
 
 func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
@@ -2750,6 +2787,12 @@ func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
 func _on_falling_piece_input(event: InputEvent, slot: int) -> void:
 	if _is_gameplay_input_blocked():
 		return
+	if pending_invalid_piece != null and pending_invalid_source_slot == slot:
+		if pending_invalid_piece_id < 0:
+			return
+		var slot_piece = fall_piece if slot == 1 else fall_piece_2
+		if slot_piece == null or int(slot_piece.get_meta("piece_id", -1)) == pending_invalid_piece_id:
+			return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if slot == 1:
 			selected_piece = fall_piece
@@ -2799,6 +2842,12 @@ func _finish_drag() -> void:
 	var placed := false
 	if anchor.x != -999 and was_selected:
 		placed = _try_place_piece(selected_piece, anchor.x, anchor.y)
+		if not placed and source_snapshot < 0:
+			var snapped = _find_best_snap_anchor(selected_piece, anchor, 1)
+			if snapped.x < 0:
+				snapped = _find_best_snap_anchor(selected_piece, anchor, 2)
+			if snapped.x >= 0:
+				placed = _try_place_piece(selected_piece, snapped.x, snapped.y)
 
 	if was_selected and not placed:
 		_play_sfx("invalid")
@@ -2809,6 +2858,33 @@ func _finish_drag() -> void:
 
 	selected_piece = null
 	selected_from_pile_index = -1
+
+
+
+func _find_best_snap_anchor(piece, preferred: Vector2i, max_radius: int) -> Vector2i:
+	if piece == null:
+		return Vector2i(-1, -1)
+	if preferred.x < 0 or preferred.x >= BOARD_SIZE or preferred.y < 0 or preferred.y >= BOARD_SIZE:
+		return Vector2i(-1, -1)
+	var best := Vector2i(-1, -1)
+	var best_score := 1 << 30
+	for radius in range(max(0, max_radius) + 1):
+		for y in range(max(0, preferred.y - radius), min(BOARD_SIZE - 1, preferred.y + radius) + 1):
+			for x in range(max(0, preferred.x - radius), min(BOARD_SIZE - 1, preferred.x + radius) + 1):
+				var ring_distance = abs(x - preferred.x) + abs(y - preferred.y)
+				if ring_distance > radius:
+					continue
+				if not bool(board.call("CanPlace", piece, x, y)):
+					continue
+				var dx = x - preferred.x
+				var dy = y - preferred.y
+				var score = dx * dx + dy * dy
+				if score < best_score:
+					best_score = score
+					best = Vector2i(x, y)
+		if best.x >= 0:
+			return best
+	return best
 
 func _ensure_piece_state(piece) -> void:
 	if piece == null:
@@ -2951,6 +3027,17 @@ func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2)
 	_assert_piece_state_invariant(piece)
 	pending_invalid_piece = piece
 	pending_invalid_from_pile_index = source_index
+	pending_invalid_source_slot = 0
+	pending_invalid_piece_id = -1
+	if source_index >= 0:
+		pending_invalid_source_slot = 3
+	else:
+		if piece == fall_piece:
+			pending_invalid_source_slot = 1
+		elif piece == fall_piece_2:
+			pending_invalid_source_slot = 2
+		if pending_invalid_source_slot == 1 or pending_invalid_source_slot == 2:
+			pending_invalid_piece_id = int(piece.get_meta("piece_id", -1))
 	pending_invalid_until_ms = Time.get_ticks_msec() + int(float(core.call("GetInvalidDropGraceSec")) * 1000.0)
 	grace_piece_by_id[int(piece.get_meta("piece_id", -1))] = piece
 	if pending_invalid_timer != null and is_instance_valid(pending_invalid_timer):
@@ -2995,6 +3082,8 @@ func _clear_pending_invalid_piece() -> void:
 	pending_invalid_root = null
 	pending_invalid_piece = null
 	pending_invalid_from_pile_index = -1
+	pending_invalid_source_slot = 0
+	pending_invalid_piece_id = -1
 	pending_invalid_until_ms = 0
 
 
