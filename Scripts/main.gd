@@ -1034,6 +1034,7 @@ func _build_ui() -> void:
 	var header_row = HBoxContainer.new()
 	header_row.name = "header_row"
 	header_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	header_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	header_row.offset_left = 20
 	header_row.offset_right = -20
 	header_row.offset_top = 14
@@ -1045,6 +1046,7 @@ func _build_ui() -> void:
 	var left_cluster = HBoxContainer.new()
 	left_cluster.name = "left_cluster"
 	left_cluster.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left_cluster.size_flags_stretch_ratio = 0.0
 	left_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_cluster.add_theme_constant_override("separation", HEADER_CLUSTER_GAP)
 	left_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1134,6 +1136,7 @@ func _build_ui() -> void:
 	var center_cluster = Control.new()
 	center_cluster.name = "center_cluster"
 	center_cluster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_cluster.size_flags_stretch_ratio = 1.0
 	center_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(center_cluster)
@@ -1189,6 +1192,7 @@ func _build_ui() -> void:
 	var right_cluster = HBoxContainer.new()
 	right_cluster.name = "right_cluster"
 	right_cluster.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_cluster.size_flags_stretch_ratio = 0.0
 	right_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_cluster.add_theme_constant_override("separation", HEADER_CLUSTER_GAP)
 	right_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1381,6 +1385,92 @@ func _build_ui() -> void:
 	drop_zone_draw.offset_bottom = -14
 	drop_zone_draw.mouse_filter = Control.MOUSE_FILTER_STOP
 	drop_zone_panel.add_child(drop_zone_draw)
+
+	var dz_static = Control.new()
+	dz_static.name = "dz_static"
+	dz_static.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dz_static.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_zone_draw.add_child(dz_static)
+
+	var dz_dynamic = Control.new()
+	dz_dynamic.name = "dz_dynamic"
+	dz_dynamic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dz_dynamic.mouse_filter = Control.MOUSE_FILTER_STOP
+	drop_zone_draw.add_child(dz_dynamic)
+
+	var drop_header_row = HBoxContainer.new()
+	drop_header_row.name = "drop_header_row"
+	drop_header_row.position = Vector2(0, 4)
+	drop_header_row.size = Vector2(drop_zone_draw.size.x, 28)
+	drop_header_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	drop_header_row.offset_left = 0
+	drop_header_row.offset_right = 0
+	drop_header_row.offset_top = 4
+	drop_header_row.offset_bottom = 32
+	drop_header_row.add_theme_constant_override("separation", 8)
+	drop_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dz_static.add_child(drop_header_row)
+
+	var drop_header_left = Label.new()
+	drop_header_left.text = "DROP"
+	drop_header_left.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	drop_header_left.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
+	drop_header_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_header_row.add_child(drop_header_left)
+
+	var drop_header_spacer = Control.new()
+	drop_header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	drop_header_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_header_row.add_child(drop_header_spacer)
+
+	var phase_box = HBoxContainer.new()
+	phase_box.name = "phase_box"
+	phase_box.add_theme_constant_override("separation", 6)
+	phase_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drop_header_row.add_child(phase_box)
+
+	var phase_label = Label.new()
+	phase_label.name = "phase_label"
+	phase_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
+	phase_label.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
+	phase_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	phase_box.add_child(phase_label)
+
+	var phase_progress = ProgressBar.new()
+	phase_progress.name = "phase_progress"
+	phase_progress.custom_minimum_size = Vector2(58, 12)
+	phase_progress.max_value = 1.0
+	phase_progress.show_percentage = false
+	phase_progress.value = 0.0
+	phase_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var phase_bg = StyleBoxFlat.new()
+	phase_bg.bg_color = Color(0.10, 0.12, 0.14, 0.35)
+	phase_progress.add_theme_stylebox_override("background", phase_bg)
+	var phase_fill = StyleBoxFlat.new()
+	phase_fill.bg_color = Color(0.92, 0.70, 0.30, 0.95)
+	phase_progress.add_theme_stylebox_override("fill", phase_fill)
+	phase_box.add_child(phase_progress)
+
+	var status_label = Label.new()
+	status_label.name = "drop_status"
+	status_label.anchor_left = 0.0
+	status_label.anchor_right = 1.0
+	status_label.anchor_top = 1.0
+	status_label.anchor_bottom = 1.0
+	status_label.offset_left = 0
+	status_label.offset_right = 0
+	status_label.offset_top = -30
+	status_label.offset_bottom = -6
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 13))
+	var status_col = _skin_color("text_muted", Color(0.84, 0.84, 0.84))
+	status_col.a = 0.85
+	status_label.add_theme_color_override("font_color", status_col)
+	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dz_static.add_child(status_label)
+	drop_status_label = status_label
+	_set_drop_status(_current_drop_status_text())
 
 	well_slots_draw = Control.new()
 	well_slots_draw.clip_contents = false
@@ -2681,11 +2771,14 @@ func _well_geometry() -> Dictionary:
 
 
 func _redraw_well() -> void:
-	for ch in drop_zone_draw.get_children():
+	var dz_static := drop_zone_draw.get_node_or_null("dz_static") as Control
+	var dz_dynamic := drop_zone_draw.get_node_or_null("dz_dynamic") as Control
+	if dz_static == null or dz_dynamic == null:
+		return
+	for ch in dz_dynamic.get_children():
 		ch.queue_free()
 	for ch in well_slots_draw.get_children():
 		ch.queue_free()
-	drop_status_label = null
 
 	var g = _well_geometry()
 	var drop_w = float(g["drop_w"])
@@ -2701,86 +2794,26 @@ func _redraw_well() -> void:
 	var neon_speed = float(core.call("GetWellNeonPulseSpeed"))
 	var neon = 0.5 + 0.5 * sin(float(now_ms) / 1000.0 * TAU * neon_speed)
 
-	var drop_header_row = HBoxContainer.new()
-	drop_header_row.position = Vector2(0, 4)
-	drop_header_row.size = Vector2(drop_w, 28)
-	drop_header_row.add_theme_constant_override("separation", 8)
-	drop_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	drop_zone_draw.add_child(drop_header_row)
-
-	var drop_header_left = Label.new()
-	drop_header_left.text = "DROP"
-	drop_header_left.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
-	drop_header_left.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
-	drop_header_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	drop_header_row.add_child(drop_header_left)
-
-	var drop_header_spacer = Control.new()
-	drop_header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	drop_header_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	drop_header_row.add_child(drop_header_spacer)
-
-	var phase_box = HBoxContainer.new()
-	phase_box.add_theme_constant_override("separation", 6)
-	phase_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	drop_header_row.add_child(phase_box)
-
 	var elapsed_min = float(core.call("GetElapsedMinutesForDebug"))
-	var phase_label = Label.new()
-	phase_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
-	phase_label.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
-	phase_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var phase_progress = ProgressBar.new()
-	phase_progress.custom_minimum_size = Vector2(58, 12)
-	phase_progress.max_value = 1.0
-	phase_progress.show_percentage = false
-	phase_progress.value = 0.0
-	phase_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var phase_bg = StyleBoxFlat.new()
-	phase_bg.bg_color = Color(0.10, 0.12, 0.14, 0.35)
-	phase_progress.add_theme_stylebox_override("background", phase_bg)
-	var phase_fill = StyleBoxFlat.new()
-	phase_fill.bg_color = Color(0.92, 0.70, 0.30, 0.95)
-	phase_progress.add_theme_stylebox_override("fill", phase_fill)
-	if elapsed_min < 3.0:
-		phase_label.text = "CALM"
-		phase_progress.value = clamp(elapsed_min / 3.0, 0.0, 1.0)
-	elif elapsed_min < 6.0:
-		phase_label.text = "FAST"
-		phase_progress.value = clamp((elapsed_min - 3.0) / 3.0, 0.0, 1.0)
-	else:
-		phase_label.text = "INSANE"
-		phase_progress.value = clamp((elapsed_min - 6.0) / 4.0, 0.0, 1.0)
-	phase_box.add_child(phase_label)
-	phase_box.add_child(phase_progress)
+	var phase_label = dz_static.get_node_or_null("drop_header_row/phase_box/phase_label") as Label
+	var phase_progress = dz_static.get_node_or_null("drop_header_row/phase_box/phase_progress") as ProgressBar
+	if phase_label != null and phase_progress != null:
+		if elapsed_min < 3.0:
+			phase_label.text = "CALM"
+			phase_progress.value = clamp(elapsed_min / 3.0, 0.0, 1.0)
+		elif elapsed_min < 6.0:
+			phase_label.text = "FAST"
+			phase_progress.value = clamp((elapsed_min - 3.0) / 3.0, 0.0, 1.0)
+		else:
+			phase_label.text = "INSANE"
+			phase_progress.value = clamp((elapsed_min - 6.0) / 4.0, 0.0, 1.0)
 
 	var drop_marker = ColorRect.new()
 	drop_marker.color = Color(1.0, 1.0, 1.0, 0.10)
 	drop_marker.position = Vector2(0, fall_top - 10)
 	drop_marker.size = Vector2(drop_w, 8)
 	drop_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	drop_zone_draw.add_child(drop_marker)
-
-	var status_label = Label.new()
-	status_label.name = "drop_status"
-	status_label.anchor_left = 0.0
-	status_label.anchor_right = 1.0
-	status_label.anchor_top = 1.0
-	status_label.anchor_bottom = 1.0
-	status_label.offset_left = 0
-	status_label.offset_right = 0
-	status_label.offset_top = -30
-	status_label.offset_bottom = -6
-	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	status_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 13))
-	var status_col = _skin_color("text_muted", Color(0.84, 0.84, 0.84))
-	status_col.a = 0.85
-	status_label.add_theme_color_override("font_color", status_col)
-	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	drop_zone_draw.add_child(status_label)
-	drop_status_label = status_label
-	_set_drop_status(_current_drop_status_text())
+	dz_dynamic.add_child(drop_marker)
 
 	var slots_header_row = HBoxContainer.new()
 	slots_header_row.position = Vector2(14, 4)
@@ -2902,16 +2935,12 @@ func _redraw_well() -> void:
 				slot.add_child(neon_frame)
 
 	if fall_piece != null and not is_game_over:
-		var drop_cell_size = int(clamp(float(cell_size), 18.0, 54.0))
-		var frame_w = min(drop_w - 20.0, max(300.0, float(cell_size) * 6.5))
-		var frame_h = min((fall_bottom - fall_top) + 40.0, max(240.0, float(cell_size) * 6.5))
-		var fall_frame = Vector2(frame_w, frame_h)
-		var fitted_drop_cell = _fitted_cell_size(fall_piece, drop_cell_size, fall_frame, 0.98)
-		var fall = _make_piece_preview(fall_piece, fitted_drop_cell, fall_frame)
+		var drop_cell = int(clamp(float(cell_size) * 0.98, 18.0, float(cell_size)))
+		var fall_frame = Vector2(drop_w - 20.0, (fall_bottom - fall_top) + 40.0)
+		var fitted = _fitted_cell_size(fall_piece, drop_cell, fall_frame, 0.98)
+		var fall = _make_piece_preview(fall_piece, fitted, fall_frame)
 		var fx = (drop_w - fall.size.x) * 0.5
-		var center_y = (fall_top + fall_bottom) * 0.5
-		var fy = clamp(fall_y, center_y - 40.0, center_y + 40.0)
-		fy = clamp(fy, fall_top, fall_bottom)
+		var fy = clamp(fall_y, fall_top, fall_bottom)
 		fall.position = Vector2(fx, fy)
 		var block_fall_1 = pending_invalid_piece != null and pending_invalid_source_slot == 1 and (pending_invalid_piece_id < 0 or int(fall_piece.get_meta("piece_id", -1)) == pending_invalid_piece_id)
 		if block_fall_1:
@@ -2920,19 +2949,15 @@ func _redraw_well() -> void:
 		else:
 			fall.mouse_filter = Control.MOUSE_FILTER_STOP
 			fall.gui_input.connect(func(ev): _on_falling_piece_input(ev, 1))
-		drop_zone_draw.add_child(fall)
+		dz_dynamic.add_child(fall)
 
 	if fall_piece_2 != null and not is_game_over:
-		var drop_cell_size_2 = int(clamp(float(cell_size), 18.0, 54.0))
-		var frame_w_2 = min(drop_w - 20.0, max(300.0, float(cell_size) * 6.5))
-		var frame_h_2 = min((fall_bottom - fall_top) + 40.0, max(240.0, float(cell_size) * 6.5))
-		var fall_frame_2 = Vector2(frame_w_2, frame_h_2)
-		var fitted_drop_cell_2 = _fitted_cell_size(fall_piece_2, drop_cell_size_2, fall_frame_2, 0.98)
-		var fall2 = _make_piece_preview(fall_piece_2, fitted_drop_cell_2, fall_frame_2)
+		var drop_cell_2 = int(clamp(float(cell_size) * 0.98, 18.0, float(cell_size)))
+		var fall_frame_2 = Vector2(drop_w - 20.0, (fall_bottom - fall_top) + 40.0)
+		var fitted_2 = _fitted_cell_size(fall_piece_2, drop_cell_2, fall_frame_2, 0.98)
+		var fall2 = _make_piece_preview(fall_piece_2, fitted_2, fall_frame_2)
 		var fx2 = (drop_w - fall2.size.x) * 0.5
-		var center_y_2 = (fall_top + fall_bottom) * 0.5
-		var fy2 = clamp(fall_y_2, center_y_2 - 40.0, center_y_2 + 40.0)
-		fy2 = clamp(fy2, fall_top, fall_bottom)
+		var fy2 = clamp(fall_y_2, fall_top, fall_bottom)
 		fall2.position = Vector2(fx2, fy2)
 		var block_fall_2 = pending_invalid_piece != null and pending_invalid_source_slot == 2 and (pending_invalid_piece_id < 0 or int(fall_piece_2.get_meta("piece_id", -1)) == pending_invalid_piece_id)
 		if block_fall_2:
@@ -2941,7 +2966,7 @@ func _redraw_well() -> void:
 		else:
 			fall2.mouse_filter = Control.MOUSE_FILTER_STOP
 			fall2.gui_input.connect(func(ev): _on_falling_piece_input(ev, 2))
-		drop_zone_draw.add_child(fall2)
+		dz_dynamic.add_child(fall2)
 
 
 func _current_drop_status_text() -> String:
