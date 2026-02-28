@@ -706,7 +706,7 @@ func _build_play_card() -> void:
 	var play_button = Button.new()
 	play_button.text = ""  # texture already has PLAY
 	play_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	play_button.custom_minimum_size = Vector2(560, PLAYCARD_BUTTON_H + 45)
+	play_button.custom_minimum_size = Vector2(560, PLAYCARD_BUTTON_H + 65)
 	play_button.clip_text = true
 	play_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	play_button.mouse_entered.connect(func(): _play_sfx("ui_hover"))

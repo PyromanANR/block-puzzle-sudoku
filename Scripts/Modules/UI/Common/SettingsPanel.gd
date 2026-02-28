@@ -45,7 +45,6 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	margin.add_child(settings_v)
 
 	UIStyle.ensure_popup_chrome_with_header(panel, settings_v, "Audio Settings", on_close, sfx_hover, sfx_click)
-
 	UIStyle.apply_popup_vertical_offset(panel)
 
 	var audio_content = VBoxContainer.new()
@@ -76,6 +75,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	music_lbl.custom_minimum_size = Vector2(120, 0)
 	music_row.add_child(music_lbl)
 	var slider_music_volume = HSlider.new()
+	_apply_slider_style(slider_music_volume)
 	slider_music_volume.min_value = 0
 	slider_music_volume.max_value = 100
 	slider_music_volume.step = 1
@@ -102,6 +102,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	slider_sfx_volume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sfx_row.add_child(slider_sfx_volume)
 
+
 	var close_btn = Button.new()
 	close_btn.text = "Cancel"
 	close_btn.custom_minimum_size = Vector2(260, 57)
@@ -125,6 +126,12 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	)
 	var close_center = UIStyle.center_bottom_button(close_btn, 260)
 	settings_v.add_child(close_center)
+	
+	chk_music_enabled.add_theme_font_size_override("font_size", 26)
+	music_lbl.add_theme_font_size_override("font_size", 24)
+	chk_sfx_enabled.add_theme_font_size_override("font_size", 26)
+	sfx_lbl.add_theme_font_size_override("font_size", 24)
+	close_btn.add_theme_font_size_override("font_size", 26)
 
 	var sync_state = func() -> void:
 		var state = {}
@@ -152,15 +159,85 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 			config["on_sfx_volume"].call(value)
 	)
 
-
+	_apply_slider_style(slider_sfx_volume)
 	_apply_checkbox_style(chk_music_enabled)
 	_apply_checkbox_style(chk_sfx_enabled)
 
 	panel.set_meta("sync_settings", sync_state)
 	sync_state.call()
 	return panel
+	
+static func _apply_slider_style(sl: HSlider) -> void:
+	if sl == null:
+		return
+
+	# Make the control taller (track thickness)
+	sl.custom_minimum_size.y = 34
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	# Background of the whole slider track
+	var sb_slider := StyleBoxFlat.new()
+	sb_slider.bg_color = Color(0.22, 0.24, 0.26, 0.35)
+	sb_slider.border_color = Color(0.10, 0.12, 0.14, 0.55)
+	sb_slider.corner_radius_top_left = 10
+	sb_slider.corner_radius_top_right = 10
+	sb_slider.corner_radius_bottom_left = 10
+	sb_slider.corner_radius_bottom_right = 10
+	sb_slider.content_margin_left = 10
+	sb_slider.content_margin_right = 10
+	sb_slider.content_margin_top = 12
+	sb_slider.content_margin_bottom = 12
+	sl.add_theme_stylebox_override("slider", sb_slider)
+
+	# Filled part (left of grabber) - green
+	var sb_fill := StyleBoxFlat.new()
+	sb_fill.bg_color = Color(0.16, 0.78, 0.88, 0.95)
+	sb_fill.corner_radius_top_left = 10
+	sb_fill.corner_radius_top_right = 10
+	sb_fill.corner_radius_bottom_left = 10
+	sb_fill.corner_radius_bottom_right = 10
+	sl.add_theme_stylebox_override("grabber_area", sb_fill)
+
+	# Keep highlight same (so it doesn't turn weird on focus/hover)
+	var sb_fill_hi := sb_fill.duplicate()
+	sl.add_theme_stylebox_override("grabber_area_highlight", sb_fill_hi)
+
+	# Optional: remove focus outline if you don’t want mobile “focus” visuals
+	sl.focus_mode = Control.FOCUS_NONE
+	
+	# --- Grabber (thumb) as a bigger black circle (no external assets) ---
+	var grabber_tex = _make_circle_texture(22, 14, Color(0.10, 0.16, 0.22, 1.0), Color(0.10, 0.16, 0.22, 1.0), 2)
+	var grabber_hi_tex = _make_circle_texture(32, 16, Color(0.10, 0.16, 0.22, 1.0), Color(0.10, 0.16, 0.22, 1.0), 2)
+
+	sl.add_theme_icon_override("grabber", grabber_tex)
+	sl.add_theme_icon_override("grabber_highlight", grabber_hi_tex)
+	sl.add_theme_icon_override("grabber_disabled", grabber_tex)
 
 
+
+static func _make_circle_texture(size_px: int, radius_px: int, fill: Color, outline: Color, outline_px: int) -> Texture2D:
+	var img := Image.create(size_px, size_px, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.10, 0.16, 0.22, 1.0))
+
+	var cx := (size_px - 1) * 0.5
+	var cy := (size_px - 1) * 0.5
+	var r2 := radius_px * radius_px
+	var r_in2 = max(0, radius_px - outline_px) * max(0, radius_px - outline_px)
+
+	for y in range(size_px):
+		for x in range(size_px):
+			var dx := float(x) - cx
+			var dy := float(y) - cy
+			var d2 := dx * dx + dy * dy
+			if d2 <= r2:
+				# Outline ring
+				if outline_px > 0 and d2 >= r_in2:
+					img.set_pixel(x, y, outline)
+				else:
+					img.set_pixel(x, y, fill)
+
+	return ImageTexture.create_from_image(img)
+	
 static func _apply_checkbox_style(chk: CheckBox) -> void:
 	if chk == null:
 		return
