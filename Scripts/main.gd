@@ -1071,19 +1071,20 @@ func _build_ui() -> void:
 	left_button_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(left_button_section)
 
-	var exit_center = CenterContainer.new()
-	exit_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left_button_section.add_child(exit_center)
-
 	btn_exit = TextureButton.new()
 	btn_exit.custom_minimum_size = Vector2(EXIT_BUTTON_SIZE, EXIT_BUTTON_SIZE)
 	btn_exit.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_exit.ignore_texture_size = true
+	btn_exit.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	btn_exit.offset_left = -EXIT_BUTTON_SIZE * 0.5
+	btn_exit.offset_top = -EXIT_BUTTON_SIZE * 0.5
+	btn_exit.offset_right = EXIT_BUTTON_SIZE * 0.5
+	btn_exit.offset_bottom = EXIT_BUTTON_SIZE * 0.5
 	btn_exit.mouse_filter = Control.MOUSE_FILTER_STOP
 	_apply_header_button_icon(btn_exit, MENU_ICON_BACK_PNG, "←", 34)
 	btn_exit.pressed.connect(_on_exit)
 	_wire_button_sfx(btn_exit)
-	exit_center.add_child(btn_exit)
+	left_button_section.add_child(btn_exit)
 
 	var score_section = MarginContainer.new()
 	score_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1096,19 +1097,18 @@ func _build_ui() -> void:
 	score_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(score_section)
 
-	var score_center = CenterContainer.new()
-	score_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	score_section.add_child(score_center)
-
 	lbl_score = Label.new()
 	lbl_score.text = "Score: 0"
+	lbl_score.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	lbl_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_score.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_score.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl_score.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lbl_score.add_theme_font_size_override("font_size", 32)
 	lbl_score.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_score.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl_score.clip_text = true
-	score_center.add_child(lbl_score)
+	score_section.add_child(lbl_score)
 
 	var time_section = MarginContainer.new()
 	time_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1121,19 +1121,18 @@ func _build_ui() -> void:
 	time_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(time_section)
 
-	var time_center = CenterContainer.new()
-	time_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	time_section.add_child(time_center)
-
 	lbl_time = Label.new()
 	lbl_time.text = "Time: 00:00"
+	lbl_time.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	lbl_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_time.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_time.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl_time.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lbl_time.add_theme_font_size_override("font_size", 32)
 	lbl_time.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_time.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl_time.clip_text = true
-	time_center.add_child(lbl_time)
+	time_section.add_child(lbl_time)
 
 	var speed_section = MarginContainer.new()
 	speed_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1146,19 +1145,18 @@ func _build_ui() -> void:
 	speed_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(speed_section)
 
-	var speed_center = CenterContainer.new()
-	speed_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	speed_section.add_child(speed_center)
-
 	lbl_speed = Label.new()
 	lbl_speed.text = "Speed: 1.00"
+	lbl_speed.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	lbl_speed.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_speed.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_speed.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl_speed.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lbl_speed.add_theme_font_size_override("font_size", 32)
 	lbl_speed.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_speed.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl_speed.clip_text = true
-	speed_center.add_child(lbl_speed)
+	speed_section.add_child(lbl_speed)
 
 	var level_section = MarginContainer.new()
 	level_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1171,19 +1169,18 @@ func _build_ui() -> void:
 	level_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(level_section)
 
-	var level_center = CenterContainer.new()
-	level_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	level_section.add_child(level_center)
-
 	lbl_level = Label.new()
 	lbl_level.text = "Level: 1"
+	lbl_level.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	lbl_level.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_level.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_level.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl_level.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lbl_level.add_theme_font_size_override("font_size", 32)
 	lbl_level.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_level.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl_level.clip_text = true
-	level_center.add_child(lbl_level)
+	level_section.add_child(lbl_level)
 
 	var right_button_section = MarginContainer.new()
 	header_right_section = right_button_section
@@ -1197,19 +1194,20 @@ func _build_ui() -> void:
 	right_button_section.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(right_button_section)
 
-	var settings_center = CenterContainer.new()
-	settings_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_button_section.add_child(settings_center)
-
 	btn_settings = TextureButton.new()
 	btn_settings.custom_minimum_size = Vector2(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
 	btn_settings.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn_settings.ignore_texture_size = true
+	btn_settings.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	btn_settings.offset_left = -HEADER_BUTTON_SIZE * 0.5
+	btn_settings.offset_top = -HEADER_BUTTON_SIZE * 0.5
+	btn_settings.offset_right = HEADER_BUTTON_SIZE * 0.5
+	btn_settings.offset_bottom = HEADER_BUTTON_SIZE * 0.5
 	btn_settings.mouse_filter = Control.MOUSE_FILTER_STOP
 	_apply_header_button_icon(btn_settings, MENU_ICON_SETTINGS_TRES, "⚙", 40)
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
-	settings_center.add_child(btn_settings)
+	right_button_section.add_child(btn_settings)
 
 	var root_margin = MarginContainer.new()
 	root_margin.name = "root_margin"
