@@ -92,8 +92,11 @@ var btn_skill_freeze: TextureButton
 var btn_skill_clear: TextureButton
 var btn_skill_invuln: TextureButton
 var board_overlay_right: Control
-var exit_dialog: AcceptDialog
 var settings_popup: Control
+var popup_exit: Control
+var modal_holder: Control
+var overlay_dim_modal: ColorRect
+var modal_stack: Array = []
 
 # Game Over overlay
 var overlay_dim: ColorRect
@@ -337,6 +340,7 @@ func _apply_balance_well_settings() -> void:
 
 
 func _start_round() -> void:
+	_close_all_modals(false)
 	is_game_over = false
 	score = 0
 	level = 1
@@ -410,6 +414,7 @@ func _start_round() -> void:
 func _trigger_game_over() -> void:
 	if is_game_over:
 		return
+	_close_all_modals(false)
 	is_game_over = true
 	pending_spawn_piece = false
 	spawn_wait_until_ms = 0
@@ -1157,6 +1162,20 @@ func _build_ui() -> void:
 	overlay_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(overlay_dim)
 
+	overlay_dim_modal = ColorRect.new()
+	overlay_dim_modal.color = Color(0, 0, 0, 0.55)
+	overlay_dim_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay_dim_modal.visible = false
+	overlay_dim_modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay_dim_modal.gui_input.connect(_on_modal_overlay_input)
+	root_frame.add_child(overlay_dim_modal)
+
+	modal_holder = Control.new()
+	modal_holder.name = "ModalHolder"
+	modal_holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	modal_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_frame.add_child(modal_holder)
+
 	overlay_text = Label.new()
 	overlay_text.text = "GAME OVER"
 	overlay_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1168,16 +1187,72 @@ func _build_ui() -> void:
 	overlay_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_frame.add_child(overlay_text)
 
-	exit_dialog = AcceptDialog.new()
-	exit_dialog.title = "Exit"
-	exit_dialog.dialog_text = "What would you like to do?"
-	exit_dialog.add_button("Main Menu", false, "main_menu")
-	exit_dialog.add_button("Restart", false, "restart")
-	exit_dialog.add_button("Cancel", true, "cancel")
-	exit_dialog.custom_action.connect(_on_exit_dialog_action)
-	root_frame.add_child(exit_dialog)
+	popup_exit = CenterContainer.new()
+	popup_exit.name = "ExitPopup"
+	popup_exit.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup_exit.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup_exit.visible = false
+	modal_holder.add_child(popup_exit)
 
-	settings_popup = SettingsPanel.build(root_frame, Callable(), {
+	var exit_panel = PanelContainer.new()
+	exit_panel.custom_minimum_size = Vector2(520, 260)
+	exit_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	exit_panel.add_theme_stylebox_override("panel", _style_preview_box())
+	popup_exit.add_child(exit_panel)
+
+	var exit_margin = MarginContainer.new()
+	exit_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	exit_margin.add_theme_constant_override("margin_left", 24)
+	exit_margin.add_theme_constant_override("margin_right", 24)
+	exit_margin.add_theme_constant_override("margin_top", 24)
+	exit_margin.add_theme_constant_override("margin_bottom", 24)
+	exit_panel.add_child(exit_margin)
+
+	var exit_v = VBoxContainer.new()
+	exit_v.add_theme_constant_override("separation", 14)
+	exit_margin.add_child(exit_v)
+
+	var exit_title = Label.new()
+	exit_title.text = "Exit"
+	exit_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	exit_title.add_theme_font_size_override("font_size", 30)
+	exit_v.add_child(exit_title)
+
+	var exit_subtitle = Label.new()
+	exit_subtitle.text = "What would you like to do?"
+	exit_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	exit_subtitle.add_theme_font_size_override("font_size", _skin_font_size("small", 16))
+	exit_v.add_child(exit_subtitle)
+
+	exit_v.add_spacer(false)
+
+	var exit_buttons = HBoxContainer.new()
+	exit_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	exit_buttons.add_theme_constant_override("separation", 12)
+	exit_v.add_child(exit_buttons)
+
+	var btn_restart_popup = Button.new()
+	btn_restart_popup.text = "Restart"
+	btn_restart_popup.custom_minimum_size = Vector2(130, 44)
+	btn_restart_popup.pressed.connect(_on_exit_restart)
+	_wire_button_sfx(btn_restart_popup)
+	exit_buttons.add_child(btn_restart_popup)
+
+	var btn_main_menu_popup = Button.new()
+	btn_main_menu_popup.text = "Main Menu"
+	btn_main_menu_popup.custom_minimum_size = Vector2(130, 44)
+	btn_main_menu_popup.pressed.connect(_on_exit_main_menu)
+	_wire_button_sfx(btn_main_menu_popup)
+	exit_buttons.add_child(btn_main_menu_popup)
+
+	var btn_cancel_popup = Button.new()
+	btn_cancel_popup.text = "Cancel"
+	btn_cancel_popup.custom_minimum_size = Vector2(130, 44)
+	btn_cancel_popup.pressed.connect(_on_exit_cancel)
+	_wire_button_sfx(btn_cancel_popup)
+	exit_buttons.add_child(btn_cancel_popup)
+
+	settings_popup = SettingsPanel.build(modal_holder, Callable(self, "_on_settings_popup_close_requested"), {
 		"state_getter": Callable(self, "_get_audio_settings_state"),
 		"on_music_enabled": Callable(self, "_on_music_enabled_toggled"),
 		"on_sfx_enabled": Callable(self, "_on_sfx_enabled_toggled"),
@@ -1639,14 +1714,78 @@ func _hide_game_over_overlay() -> void:
 	overlay_text.visible = false
 
 
+func _is_modal_open() -> bool:
+	return modal_stack.size() > 0
+
+
+func _is_gameplay_input_blocked() -> bool:
+	return is_game_over or _is_modal_open()
+
+
+func _pause_gameplay_for_modal() -> void:
+	if dragging:
+		_force_cancel_drag("ModalOpen", true)
+	set_process(false)
+
+
+func _resume_gameplay_after_modal() -> void:
+	if is_game_over:
+		return
+	set_process(true)
+
+
+func _open_modal(panel: Control) -> void:
+	if panel == null or is_game_over or _is_modal_open():
+		return
+	overlay_dim_modal.visible = true
+	panel.visible = true
+	modal_stack.append(panel)
+	_pause_gameplay_for_modal()
+
+
+func _close_modal(panel: Control) -> void:
+	if panel == null:
+		return
+	panel.visible = false
+	modal_stack.erase(panel)
+	if modal_stack.is_empty():
+		overlay_dim_modal.visible = false
+		_resume_gameplay_after_modal()
+
+
+func _close_all_modals(resume_gameplay: bool = true) -> void:
+	if settings_popup != null:
+		settings_popup.visible = false
+	if popup_exit != null:
+		popup_exit.visible = false
+	modal_stack.clear()
+	if overlay_dim_modal != null:
+		overlay_dim_modal.visible = false
+	if resume_gameplay:
+		_resume_gameplay_after_modal()
+
+
+func _on_modal_overlay_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if modal_stack.is_empty():
+			return
+		var panel = modal_stack[modal_stack.size() - 1]
+		if panel == settings_popup or panel == popup_exit:
+			_close_modal(panel)
+
+
+func _on_settings_popup_close_requested() -> void:
+	_close_modal(settings_popup)
+
+
 func _on_settings() -> void:
-	if settings_popup == null:
+	if settings_popup == null or _is_gameplay_input_blocked():
 		return
 	if settings_popup.has_meta("sync_settings"):
 		var sync_settings = settings_popup.get_meta("sync_settings")
 		if sync_settings is Callable:
 			(sync_settings as Callable).call()
-	settings_popup.visible = true
+	_open_modal(settings_popup)
 
 
 
@@ -1683,19 +1822,27 @@ func _on_sfx_volume_changed(value: float) -> void:
 
 
 func _on_exit() -> void:
-	exit_dialog.popup_centered(Vector2i(380, 180))
+	if _is_gameplay_input_blocked():
+		return
+	_open_modal(popup_exit)
 
 
-func _on_exit_dialog_action(action: StringName) -> void:
-	if action == "main_menu":
-		get_tree().change_scene_to_file(MAIN_MENU_SCENE)
-	elif action == "restart":
-		if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == MAIN_SCENE:
-			get_tree().reload_current_scene()
-		else:
-			_start_round()
-			set_process(true)
-	exit_dialog.hide()
+func _on_exit_restart() -> void:
+	_close_modal(popup_exit)
+	if get_tree().current_scene != null and get_tree().current_scene.scene_file_path == MAIN_SCENE:
+		get_tree().reload_current_scene()
+	else:
+		_start_round()
+		set_process(true)
+
+
+func _on_exit_main_menu() -> void:
+	_close_modal(popup_exit)
+	get_tree().change_scene_to_file(MAIN_MENU_SCENE)
+
+
+func _on_exit_cancel() -> void:
+	_close_modal(popup_exit)
 
 
 # ============================================================
@@ -2240,7 +2387,7 @@ func _redraw_well() -> void:
 		drop_zone_draw.add_child(fall2)
 
 func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
-	if is_game_over:
+	if _is_gameplay_input_blocked():
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		selected_piece = pile[pile_index]
@@ -2250,7 +2397,7 @@ func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
 
 
 func _on_falling_piece_input(event: InputEvent, slot: int) -> void:
-	if is_game_over:
+	if _is_gameplay_input_blocked():
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if slot == 1:
@@ -2631,7 +2778,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 
 
 func _on_board_cell_input(event: InputEvent, x: int, y: int) -> void:
-	if is_game_over:
+	if _is_gameplay_input_blocked():
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if selected_piece != null:
