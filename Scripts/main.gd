@@ -75,6 +75,8 @@ var selected_from_pile_index: int = -1
 var dragging: bool = false
 var drag_anchor: Vector2i = Vector2i(-999, -999)
 var drag_start_ms: int = 0
+var auto_snap_cooldown_until_ms: int = 0
+var drag_trail: PackedVector2Array = PackedVector2Array()
 
 # ----------------------------
 # Ghost (always visible)
@@ -82,6 +84,7 @@ var drag_start_ms: int = 0
 var ghost_layer: Control
 var ghost_root: Control
 var ghost_bbox_size := Vector2.ZERO
+var ghost_valid_state: int = 0
 
 # ----------------------------
 # UI nodes
@@ -271,6 +274,11 @@ const MENU_ICON_BACK_PNG = "res://Assets/UI/icons/menu/icon_back.png"
 const FREEZE_CD_MS := 30000
 const CLEAR_CD_MS := 45000
 const SAFE_WELL_CD_MS := 60000
+const AUTO_SNAP_COOLDOWN_MS := 5000
+const AUTO_SNAP_RADIUS := 1
+const AUTO_SNAP_TRAIL_POINTS := 8
+const AUTO_SNAP_MIN_DRAG_PX_FACTOR := 0.35
+const AUTO_SNAP_MIN_DOT := 0.65
 
 # Per-round perks (optional: keep buttons later if you want)
 var reroll_uses_left: int = 1
@@ -557,6 +565,9 @@ func _start_round() -> void:
 	selected_piece = null
 	selected_from_pile_index = -1
 	dragging = false
+	auto_snap_cooldown_until_ms = 0
+	drag_trail.clear()
+	ghost_valid_state = 0
 	ghost_root.visible = false
 	_clear_highlight()
 
@@ -1845,7 +1856,11 @@ func _set_skill_overlay(button: TextureButton, state_text: String, charges_value
 		state.modulate = Color(1, 1, 1, color_alpha)
 	var radial = overlay.get_node_or_null("CooldownRadial") as CooldownRadial
 	if radial != null:
-		radial.progress_remaining_01 = radial_remaining_01
+		if charges_value <= 0:
+			radial.progress_remaining_01 = 0.0
+			radial.visible = false
+		else:
+			radial.progress_remaining_01 = radial_remaining_01
 	button.tooltip_text = ""
 
 
@@ -2866,6 +2881,8 @@ func _start_drag_selected() -> void:
 	dragging = true
 	drag_anchor = Vector2i(-999, -999)
 	drag_start_ms = Time.get_ticks_msec()
+	drag_trail.clear()
+	drag_trail.append(get_viewport().get_mouse_position())
 	_build_ghost_for_piece(selected_piece)
 	ghost_root.visible = true
 
@@ -2883,16 +2900,20 @@ func _finish_drag() -> void:
 
 	var was_selected := selected_piece != null
 	var placed := false
+	var auto_snapped := false
+	var auto_snap_succeeded := false
 	if anchor.x != -999 and was_selected:
 		placed = _try_place_piece(selected_piece, anchor.x, anchor.y)
 		if not placed and source_snapshot < 0:
-			var snapped = _find_best_snap_anchor(selected_piece, anchor, 1)
-			if snapped.x < 0:
-				snapped = _find_best_snap_anchor(selected_piece, anchor, 2)
-			if snapped.x >= 0:
+			var snapped = _find_best_snap_anchor(selected_piece, anchor, AUTO_SNAP_RADIUS)
+			if snapped.x >= 0 and _auto_snap_trajectory_allows(release_mouse, snapped):
+				auto_snapped = true
 				placed = _try_place_piece(selected_piece, snapped.x, snapped.y)
+				auto_snap_succeeded = placed
+				if auto_snap_succeeded:
+					auto_snap_cooldown_until_ms = Time.get_ticks_msec() + AUTO_SNAP_COOLDOWN_MS
 
-	if was_selected and not placed:
+	if was_selected and not placed and (not auto_snapped or not auto_snap_succeeded):
 		_play_sfx("invalid")
 		core.call("RegisterCancelledDrag")
 		_spawn_pending_invalid_piece(selected_snapshot, source_snapshot, release_mouse)
@@ -2928,6 +2949,37 @@ func _find_best_snap_anchor(piece, preferred: Vector2i, max_radius: int) -> Vect
 		if best.x >= 0:
 			return best
 	return best
+
+
+func _auto_snap_trajectory_allows(release_mouse: Vector2, target_cell: Vector2i) -> bool:
+	if Time.get_ticks_msec() < auto_snap_cooldown_until_ms:
+		return false
+	if drag_trail.size() < 2:
+		return false
+	var dir = drag_trail[drag_trail.size() - 1] - drag_trail[0]
+	if dir.length() < float(cell_size) * AUTO_SNAP_MIN_DRAG_PX_FACTOR:
+		return false
+	var target_world = board_panel.global_position + board_start + Vector2(target_cell.x * cell_size, target_cell.y * cell_size)
+	var target_center = target_world + Vector2(cell_size, cell_size) * 0.5
+	var to_target = target_center - release_mouse
+	if to_target.length() < 0.001:
+		return false
+	var dot = dir.normalized().dot(to_target.normalized())
+	return dot >= AUTO_SNAP_MIN_DOT
+
+
+func _set_ghost_validity(is_valid: bool) -> void:
+	if ghost_root == null:
+		return
+	var desired = 1 if is_valid else -1
+	if ghost_valid_state == desired:
+		return
+	ghost_valid_state = desired
+	var tint = Color(0.35, 1.00, 0.45, 0.70) if is_valid else Color(1.00, 0.25, 0.25, 0.78)
+	for ch in ghost_root.get_children():
+		if ch is CanvasItem:
+			(ch as CanvasItem).modulate = tint
+
 
 func _ensure_piece_state(piece) -> void:
 	if piece == null:
@@ -3095,7 +3147,7 @@ func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2)
 	piece.set_meta("grace_timer", pending_invalid_timer)
 	pending_invalid_timer.start()
 
-	var frame = Vector2(max(48.0, float(cell_size) * 2.0), max(48.0, float(cell_size) * 2.0))
+	var frame = Vector2(max(72.0, float(cell_size) * 2.8), max(72.0, float(cell_size) * 2.8))
 	pending_invalid_root = Control.new()
 	pending_invalid_root.size = frame
 	pending_invalid_root.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -3104,7 +3156,7 @@ func _spawn_pending_invalid_piece(piece, source_index: int, screen_pos: Vector2)
 	pending_invalid_root.position = screen_pos - frame * 0.5
 	pending_invalid_root.gui_input.connect(_on_pending_invalid_input)
 
-	var pv = _make_piece_preview(piece, max(16, int(float(cell_size) * 0.78)), frame)
+	var pv = _make_piece_preview(piece, max(18, int(float(cell_size) * 0.92)), frame)
 	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pending_invalid_root.add_child(pv)
 	root_frame.add_child(pending_invalid_root)
@@ -3344,11 +3396,22 @@ func _process(delta: float) -> void:
 	# Drag: ghost always visible
 	if dragging and selected_piece != null:
 		var mouse = get_viewport().get_mouse_position()
+		if drag_trail.is_empty():
+			drag_trail.append(mouse)
+		elif mouse.distance_to(drag_trail[drag_trail.size() - 1]) >= 6.0:
+			drag_trail.append(mouse)
+		while drag_trail.size() > AUTO_SNAP_TRAIL_POINTS:
+			drag_trail.remove_at(0)
 		var cell = _mouse_to_board_cell(mouse)
 
 		if cell.x == -1:
 			drag_anchor = Vector2i(-999, -999)
 			_clear_highlight()
+			if ghost_valid_state != 0:
+				ghost_valid_state = 0
+				for ch in ghost_root.get_children():
+					if ch is CanvasItem:
+						(ch as CanvasItem).modulate = Color(1, 1, 1, 1)
 			ghost_root.visible = true
 			ghost_root.global_position = mouse - ghost_bbox_size * 0.5
 			ghost_shake_phase = 0.0
@@ -3363,6 +3426,7 @@ func _process(delta: float) -> void:
 				ghost_root.global_position += Vector2(sin(ghost_shake_phase) * ghost_shake_strength_px, 0)
 			else:
 				ghost_shake_phase = 0.0
+			_set_ghost_validity(not is_invalid_anchor)
 			_highlight_piece(selected_piece, cell.x, cell.y)
 
 		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
@@ -3449,8 +3513,9 @@ func _build_ghost_for_piece(piece) -> void:
 	var h_cells := (max_y - min_y + 1)
 	ghost_bbox_size = Vector2(float(w_cells * cell_size), float(h_cells * cell_size))
 
+	ghost_valid_state = 0
 	var base_col := _color_for_kind(String(piece.get("Kind")))
-	var ghost_col := Color(base_col.r, base_col.g, base_col.b, 0.35)
+	var ghost_col := Color(base_col.r, base_col.g, base_col.b, 0.55)
 
 	for c in piece.get("Cells"):
 		var px := int(c.x) - min_x
