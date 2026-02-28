@@ -291,13 +291,16 @@ func _skin_piece_color(kind: String) -> Color:
 # Entry
 # ============================================================
 func _ready() -> void:
-	var mm = get_node_or_null("/root/MusicManager")
-	if mm != null:
-		mm.play_game_music()
 	core = get_node_or_null("/root/Core")
 	if core == null:
 		push_error("Core autoload not found.")
 		return
+
+	music_manager = get_node_or_null("/root/Music")
+	if music_manager != null:
+		music_manager.play_game_music()
+	else:
+		push_error("MusicManager autoload not found at /root/MusicManager")
 
 	_apply_balance_well_settings()
 
@@ -306,26 +309,17 @@ func _ready() -> void:
 
 	start_ms = Time.get_ticks_msec()
 	_load_audio_settings()
-	if music_manager == null:
-		music_manager = get_node_or_null("/root/MusicManager")
-		if music_manager == null:
-			music_manager = MusicManagerScript.new()
-			music_manager.name = "MusicManager"
-			get_tree().root.add_child(music_manager) 
+
 	_audio_setup()
 	_apply_audio_settings()
-	if music_manager != null:
-		music_manager.play_game_music()
 
 	_build_ui()
-	# HUD is built from this single path during startup; no secondary HUD builder runs after this.
 	await get_tree().process_frame
 	_build_board_grid()
 	_setup_skill_vfx_controller()
 
 	_start_round()
 	set_process(true)
-
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
@@ -1941,6 +1935,8 @@ func _on_exit_restart() -> void:
 
 func _on_exit_main_menu() -> void:
 	_close_modal(popup_exit)
+	if music_manager != null:
+		music_manager.play_menu_music() 
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE)
 
 

@@ -24,6 +24,7 @@ AudioManager="*res://Scripts/Modules/Audio/AudioManager.gd"
 AdsManager="*res://Scripts/Modules/Ads/AdsManager.gd"
 IAPManager="*res://Scripts/Modules/IAP/IAPManager.gd"
 ProgressManager="*res://Scripts/Modules/Progress/ProgressManager.gd"
+Music="*res://Scripts/Audio/MusicManager.gd"
 
 [display]
 

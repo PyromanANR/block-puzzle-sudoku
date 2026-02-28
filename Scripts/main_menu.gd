@@ -104,7 +104,6 @@ var _no_mercy_sparks_missing_logged: bool = false
 var _play_idle_tween: Tween = null
 var current_nav: String = ""
 var nav_buttons: Dictionary = {}
-
 var rewards_panel: Panel
 var rewards_level_label: Label
 var rewards_status_labels: Dictionary = {}
@@ -124,12 +123,13 @@ var chk_admin_mode_no_ads: CheckBox
 func _ready() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
-	if music_manager == null:
-		music_manager = MusicManagerScript.new()
-		add_child(music_manager)
+	music_manager = get_node_or_null("/root/Music")
+	if music_manager != null:
+		music_manager.play_menu_music()
+	else:
+		push_error("MusicManager autoload not found at /root/MusicManager")
 	_load_audio_settings()
 	_apply_audio_settings()
-	music_manager.play_menu_music()
 	_audio_setup()
 	_build_ui()
 	_refresh_all_ui()
@@ -462,6 +462,7 @@ func _sync_particles_to_viewport() -> void:
 			var pollen_material = no_mercy_sparks_pollen.process_material as ParticleProcessMaterial
 			pollen_material.emission_box_extents = Vector3(viewport_size.x * 0.5, viewport_size.y * 0.5, 0.0)
 
+
 func _build_top_bar() -> void:
 	var top = Control.new()
 	top.name = "TopBar"
@@ -551,7 +552,7 @@ func _build_top_bar() -> void:
 	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right_col.size_flags_stretch_ratio = 0.60
-	right_col.add_theme_constant_override("separation", 0)
+	right_col.add_theme_constant_override("separation", 1)
 	cols.add_child(right_col)
 
 	# Row 1: Level (centered)
@@ -622,20 +623,23 @@ func _build_top_bar() -> void:
 	center_spacer.custom_minimum_size = Vector2(0, TOPBAR_H)
 	center_slot.add_child(center_spacer)
 
-	var right_center = CenterContainer.new()
-	right_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	right_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_slot.add_child(right_center)
+	var right_pad = MarginContainer.new()
+	right_pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	right_pad.add_theme_constant_override("margin_top", 6)
+	right_pad.add_theme_constant_override("margin_bottom", 6)
+	right_pad.add_theme_constant_override("margin_left", 0)
+	right_pad.add_theme_constant_override("margin_right", 0)
+	right_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right_slot.add_child(right_pad)
 
 	var right_row = HBoxContainer.new()
 	right_row.alignment = BoxContainer.ALIGNMENT_END
 	right_row.add_theme_constant_override("separation", 8)
 	right_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var right_margin := MarginContainer.new()
-	right_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	right_margin.add_theme_constant_override("margin_right", 12) 
-	right_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right_margin.add_child(right_row)
+	right_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+
+	right_pad.add_child(right_row)
 
 	if _is_debug_panel_visible():
 		var btn_debug = Button.new()
@@ -659,7 +663,8 @@ func _build_top_bar() -> void:
 	btn_settings.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_settings.pressed.connect(func(): _open_panel(settings_panel))
 	right_row.add_child(btn_settings)
-
+	
+	
 
 func _build_play_card() -> void:
 	var card = Panel.new()
@@ -1414,7 +1419,6 @@ func _apply_safe_area() -> void:
 	var max_play_center = usable_bottom - play_card_half_h
 	play_card_center_y = clamp(play_card_center_y, min_play_center, max_play_center)
 	var max_title_center = play_card_center_y - (title_half_h + play_card_half_h + title_to_play_gap)
-	title_center_y = min(title_center_y, max_title_center)
 
 	if hero_title != null:
 		hero_title.anchor_left = 0.5
@@ -1426,6 +1430,10 @@ func _apply_safe_area() -> void:
 		hero_title.offset_right = title_zone_w * 0.5
 		hero_title.offset_top = title_center_y - title_half_h
 		hero_title.offset_bottom = title_center_y + title_half_h
+		var desired_gap := 16.0 * UI_GAP 
+		var desired_play_top = hero_title.offset_bottom + desired_gap
+		play_card_center_y = desired_play_top + play_card_half_h
+		play_card_center_y = clamp(play_card_center_y, min_play_center, max_play_center)
 		if hero_subtitle_label != null:
 			if hero_subtitle_label.label_settings != null:
 				hero_subtitle_label.label_settings.font_size = SUBTITLE_FONT
@@ -1471,6 +1479,7 @@ func _apply_safe_area() -> void:
 		panel.offset_top = -max_h * 0.5
 		panel.offset_bottom = max_h * 0.5
 		UIStyle.apply_popup_vertical_offset(panel)
+		
 
 
 func _difficulty_color(difficulty: String) -> Color:

@@ -5,14 +5,14 @@ const SETTINGS_PATH = "user://settings.cfg"
 const MENU_TRACK_PATH = "res://Assets/Audio/Music/Menu/ags_project-8-bit-219384.ogg"
 const MUSIC_ATTENUATION_LINEAR = 0.2
 const GAME_TRACK_PATHS: Array[String] = [
-	"res://Assets/Audio/Music/Game/djartmusic-8-bit-console-from-my-childhood-30128.ogg",
+	"res://Assets/Audio/Music/Game/djartmusic-8-bit-console-from-my-childhood-301286.ogg",
 	"res://Assets/Audio/Music/Game/djartmusic-the-return-of-the-8-bit-era-301292.ogg",
 	"res://Assets/Audio/Music/Game/moodmode-8-bit-arcade-mode-158814.ogg",
 	"res://Assets/Audio/Music/Game/moodmode-8-bit-game-158815.ogg",
 	"res://Assets/Audio/Music/Game/nocopyrightsound633-arcade-beat-323176.ogg"
 ]
 const GAME_TRACK_STREAMS: Array[AudioStream] = [
-	preload("res://Assets/Audio/Music/Game/djartmusic-8-bit-console-from-my-childhood-30128.ogg"),
+	preload("res://Assets/Audio/Music/Game/djartmusic-8-bit-console-from-my-childhood-301286.ogg"),
 	preload("res://Assets/Audio/Music/Game/djartmusic-the-return-of-the-8-bit-era-301292.ogg"),
 	preload("res://Assets/Audio/Music/Game/moodmode-8-bit-arcade-mode-158814.ogg"),
 	preload("res://Assets/Audio/Music/Game/moodmode-8-bit-game-158815.ogg"),
