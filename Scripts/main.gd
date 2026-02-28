@@ -933,7 +933,25 @@ func _trigger_auto_slow_if_needed() -> void:
 		var dur = float(core.call("GetAutoSlowDurationSec"))
 		auto_slow_until_ms = Time.get_ticks_msec() + int(dur * 1000.0)
 
+const STATUS_UPDATE_INTERVAL_MS := 120
+var _next_status_update_ms := 0
+var _last_status_sent := ""
 
+func _maybe_update_drop_status(force: bool = false) -> void:
+	var now = Time.get_ticks_msec()
+	if now < drop_status_locked_until_ms:
+		return
+	if not force and now < _next_status_update_ms:
+		return
+	_next_status_update_ms = now + STATUS_UPDATE_INTERVAL_MS
+
+	var t = _current_drop_status_text()
+	if not force and t == _last_status_sent:
+		return
+
+	_last_status_sent = t
+	_set_drop_status(t, STATUS_NEUTRAL)	
+	
 func _update_status_hud() -> void:
 	var now = Time.get_ticks_msec()
 	var cooldown_sec = float(core.call("GetTimeSlowCooldownSec"))
@@ -957,10 +975,6 @@ func _update_status_hud() -> void:
 				btn_time_slow.scale = Vector2.ONE
 				btn_time_slow.modulate = Color(1.0, 1.0, 1.0, 1.0)
 		bar_time_slow.modulate = Color(1, 1, 1, 1)
-	if time_slow_ui_ready and now >= time_slow_cooldown_until_ms:
-		_set_drop_status("Time Warp ready", STATUS_GOOD)
-	else:
-		_set_drop_status(_current_drop_status_text(), STATUS_NEUTRAL)
 	_update_skill_icon_states()
 
 
@@ -1048,7 +1062,6 @@ func _build_ui() -> void:
 
 	var left_cluster = HBoxContainer.new()
 	left_cluster.name = "left_cluster"
-	left_cluster.custom_minimum_size.x = 420
 	left_cluster.size_flags_horizontal = Control.SIZE_FILL
 	left_cluster.size_flags_stretch_ratio = 0.0
 	left_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1144,55 +1157,6 @@ func _build_ui() -> void:
 	header_spacer_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(header_spacer_left)
 
-	# Title block (centered between two expanders)
-	var title_block = Control.new()
-	title_block.name = "title_block"
-	title_block.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	title_block.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	title_block.custom_minimum_size = Vector2(420, 0)
-	title_block.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header_row.add_child(title_block)
-
-	title_label = Label.new()
-	title_label.text = "TETRIS SUDOKU"
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title_label.visible = true
-	title_label.z_index = 50
-	title_label.self_modulate = Color(1, 1, 1, 1)
-	title_label.custom_minimum_size = Vector2(0, 0)
-	title_label.clip_text = true
-	var fs = int(_skin_font_size("title", 44))
-	if fs <= 0:
-		fs = 44
-	title_label.add_theme_font_size_override("font_size", fs)
-	title_label.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10)))
-	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	title_label.clip_text = false
-	title_block.add_child(title_label)
-
-	title_texture_rect = TextureRect.new()
-	title_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_texture_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	title_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	title_texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	title_texture_rect.visible = false
-	title_block.add_child(title_texture_rect)
-	var title_image_path = "res://Assets/UI/Title/Title_Tetris.png"
-	if ResourceLoader.exists(title_image_path):
-		var title_texture = load(title_image_path)
-		if title_texture != null:
-			title_texture_rect.texture = title_texture
-			title_texture_rect.visible = true
-			title_label.visible = false
-
-	# Safety: ensure title is not accidentally invisible
-	if title_label != null:
-		title_label.visible = (title_texture_rect == null or not title_texture_rect.visible)
-		title_label.modulate.a = 1.0
-	if title_texture_rect != null:
-		title_texture_rect.modulate.a = 1.0
 
 	# Spacer to force title to stay centered (right side)
 	var header_spacer_right = Control.new()
@@ -1204,12 +1168,10 @@ func _build_ui() -> void:
 
 	var right_cluster = HBoxContainer.new()
 	right_cluster.name = "right_cluster"
-	right_cluster.custom_minimum_size.x = 420
 	right_cluster.size_flags_horizontal = Control.SIZE_FILL
 	right_cluster.alignment = BoxContainer.ALIGNMENT_END # push gear to the far right inside its box
 	right_cluster.size_flags_stretch_ratio = 0.0
 	right_cluster.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_cluster.add_theme_constant_override("separation", HEADER_CLUSTER_GAP)
 	right_cluster.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header_row.add_child(right_cluster)
 
@@ -1436,7 +1398,7 @@ func _build_ui() -> void:
 	status_label.custom_minimum_size = Vector2(220, 0)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	status_label.add_theme_font_size_override("font_size", _skin_font_size("small", 18))
+	status_label.add_theme_font_size_override("font_size", 25)
 	status_label.add_theme_constant_override("outline_size", 3)
 	status_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	status_label.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.92, 0.92, 0.92, 1.0)))
@@ -1457,7 +1419,7 @@ func _build_ui() -> void:
 
 	var phase_label = Label.new()
 	phase_label.name = "phase_label"
-	phase_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 12))
+	phase_label.add_theme_font_size_override("font_size", _skin_font_size("tiny", 22))
 	phase_label.add_theme_color_override("font_color", _skin_color("text_muted", Color(0.84, 0.84, 0.84)))
 	phase_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	phase_box.add_child(phase_label)
@@ -2711,6 +2673,26 @@ func _fall_piece_height_px(piece) -> float:
 	return float(bb.y * fitted)
 
 
+# Compute a visually consistent spawn Y so different piece heights appear to enter similarly.
+func _compute_spawn_y_for_piece(piece, fall_top: float) -> float:
+	if piece == null:
+		return fall_top - 24.0
+
+	var fitted = _fall_piece_cell_size(piece)
+	var piece_h = _fall_piece_height_px(piece)
+
+	# Target center position above the visible area (tuned with fitted size)
+	var target_center_y = fall_top - 24.0 - float(fitted) * 1.25 - 60
+
+	# Place piece so its center matches target_center_y
+	var y = target_center_y - piece_h * 0.5
+
+	# Ensure the piece starts fully hidden (at least 8px above)
+	var fully_hidden_y = fall_top - piece_h - 8.0
+	y = min(y, fully_hidden_y)
+	return y
+
+
 func _spawn_falling_piece() -> void:
 	fall_piece = core.call("PopNextPieceForBoard", board)
 	if fall_piece == null:
@@ -2720,9 +2702,8 @@ func _spawn_falling_piece() -> void:
 	# Spawn above the visible drop zone so it slides in
 	var geom = _well_geometry()
 	var fall_top = float(geom.get("fall_top", FALL_PAD))
-	var piece_h_px = _fall_piece_height_px(fall_piece)
 	# Start above: fully hidden + small gap
-	fall_y = fall_top - piece_h_px - 24.0
+	fall_y = _compute_spawn_y_for_piece(fall_piece, fall_top)
 	pending_spawn_piece = false
 	if dual_drop_cycle_pending:
 		var speed_mul = float(core.call("GetDisplayedFallSpeed")) / max(0.001, float(core.call("GetBaseFallSpeed")))
@@ -2779,7 +2760,7 @@ func _spawn_second_falling_piece() -> void:
 		var geom2 = _well_geometry()
 		var fall_top_2 = float(geom2.get("fall_top", FALL_PAD))
 		var piece_h_px_2 = _fall_piece_height_px(fall_piece_2)
-		fall_y_2 = fall_top_2 - piece_h_px_2 - 24.0
+		fall_y_2 = _compute_spawn_y_for_piece(fall_piece_2, fall_top_2)
 	pending_dual_spawn_ms = 0
 	pending_dual_fallback_ms = 0
 	dual_drop_waiting_for_gap = false
@@ -3052,15 +3033,26 @@ func _current_drop_status_text() -> String:
 		return "Dragging…"
 	if rescue_from_well_pending and now_ms <= rescue_eligible_until_ms:
 		return "Rescue ready"
-	if time_slow_ui_ready and now_ms >= time_slow_cooldown_until_ms:
-		return "Time Warp ready"
 	return "Tap to grab"
+
+const STATUS_EVENT_HOLD_MS := 700 
+
+func _show_status_for_ms(text: String, kind: int, hold_ms: int = STATUS_EVENT_HOLD_MS) -> void:
+	drop_status_locked_until_ms = Time.get_ticks_msec() + max(0, hold_ms)
+	_set_drop_status(text, kind)
+	_last_status_sent = text
+	_next_status_update_ms = Time.get_ticks_msec() + STATUS_UPDATE_INTERVAL_MS
 
 
 func _set_drop_status(text: String, kind: int = STATUS_NEUTRAL) -> void:
 	drop_status_text = text
 	if drop_status_label == null or not is_instance_valid(drop_status_label):
 		return
+
+	# Always keep it alive/visible (tweens or theme changes must not "hide" it)
+	drop_status_label.visible = true
+	if drop_status_label.modulate.a <= 0.001:
+		drop_status_label.modulate.a = 1.0
 
 	# Cache base position once (for shake restore)
 	if drop_status_base_pos == Vector2.ZERO:
@@ -3071,36 +3063,38 @@ func _set_drop_status(text: String, kind: int = STATUS_NEUTRAL) -> void:
 		drop_status_anim_tween.kill()
 	drop_status_anim_tween = null
 
-	# Set text
 	var changed = (drop_status_label.text != text)
 	drop_status_label.text = text
 
 	# Base style
+	var tap_col = Color(1.0, 0.92, 0.35, 1.0) # bright yellow
 	var neutral_col = _skin_color("text_muted", Color(0.92, 0.92, 0.92, 1.0))
-	var good_col = Color(0.35, 1.0, 0.45, 1.0)
-	var bad_col = Color(1.0, 0.30, 0.30, 1.0)
+	var good_col = Color(0.10, 1.00, 0.20, 1.0) # vivid green
+	var bad_col  = Color(1.00, 0.15, 0.15, 1.0) # vivid red
 
 	# Reset transforms
 	drop_status_label.position = drop_status_base_pos
 	drop_status_label.scale = Vector2.ONE
 	drop_status_label.rotation = 0.0
 
-	# Fade-in on change
-	if changed:
+	var idle_texts = ["Tap to grab", "Tap to drag"]
+	var is_idle = text in idle_texts
+
+	if changed and not is_idle:
 		drop_status_label.modulate.a = 0.0
 		drop_status_anim_tween = create_tween()
 		drop_status_anim_tween.tween_property(drop_status_label, "modulate:a", 1.0, 0.12)
+	else:
+		drop_status_label.modulate.a = 1.0
 
 	# Apply kind effects
 	if kind == STATUS_GOOD:
 		drop_status_label.add_theme_color_override("font_color", good_col)
-		# Pulse scale quickly
 		var tw = create_tween()
 		tw.tween_property(drop_status_label, "scale", Vector2(1.08, 1.08), 0.08)
 		tw.tween_property(drop_status_label, "scale", Vector2.ONE, 0.12)
 	elif kind == STATUS_BAD:
 		drop_status_label.add_theme_color_override("font_color", bad_col)
-		# Shake horizontally
 		var tw2 = create_tween()
 		var a = drop_status_base_pos
 		tw2.tween_property(drop_status_label, "position", a + Vector2(-6, 0), 0.04)
@@ -3109,9 +3103,11 @@ func _set_drop_status(text: String, kind: int = STATUS_NEUTRAL) -> void:
 		tw2.tween_property(drop_status_label, "position", a + Vector2(4, 0), 0.04)
 		tw2.tween_property(drop_status_label, "position", a, 0.05)
 	else:
-		drop_status_label.add_theme_color_override("font_color", neutral_col)
-
-
+		if text in idle_texts:
+			drop_status_label.add_theme_color_override("font_color", tap_col)
+		else:
+			drop_status_label.add_theme_color_override("font_color", neutral_col)
+			
 func _on_pile_slot_input(event: InputEvent, pile_index: int) -> void:
 	if _is_gameplay_input_blocked():
 		return
@@ -3208,7 +3204,7 @@ func _finish_drag() -> void:
 	# Only play invalid here if we ended up not placed AND auto-snap didn't succeed.
 	if was_selected and not placed and (not auto_snapped or not auto_snap_succeeded):
 		_play_sfx("invalid")
-		_set_drop_status("Invalid", STATUS_BAD)
+		_show_status_for_ms("Invalid", STATUS_BAD, 900)
 		core.call("RegisterCancelledDrag")
 		_spawn_pending_invalid_piece(selected_snapshot, source_snapshot, release_mouse)
 
@@ -3217,8 +3213,6 @@ func _finish_drag() -> void:
 
 	selected_piece = null
 	selected_from_pile_index = -1
-	_set_drop_status(_current_drop_status_text())
-
 
 
 func _find_best_snap_anchor(piece, preferred: Vector2i, max_radius: int) -> Vector2i:
@@ -3537,7 +3531,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	if not bool(board.call("CanPlace", piece, ax, ay)):
 		if not suppress_invalid_sfx_once:
 			_play_sfx("invalid")
-			_set_drop_status("Invalid", STATUS_BAD)
+			_show_status_for_ms("Invalid", STATUS_BAD, 900)
 		else:
 			suppress_invalid_sfx_once = false # consume the suppression
 		return false
@@ -3597,7 +3591,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		_play_sfx("clear")
 		clear_flash_left = 0.20
 		clear_flash_cells = cleared
-		_set_drop_status("Nice!", STATUS_GOOD)
+		_show_status_for_ms("Nice!", STATUS_GOOD, 750)
 	if rescue_from_well_pending and Time.get_ticks_msec() <= rescue_eligible_until_ms:
 		score += int(core.call("GetRescueScoreBonus"))
 		core.call("TriggerRescueStability")
@@ -3702,6 +3696,7 @@ func _process(delta: float) -> void:
 
 	_redraw_well()
 	_update_status_hud()
+	_maybe_update_drop_status(false)
 	_update_time_slow_overlay()
 	_update_skill_icon_states()
 
