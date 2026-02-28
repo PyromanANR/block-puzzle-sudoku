@@ -600,6 +600,8 @@ func _audio_setup() -> void:
 	_ensure_sfx("invalid", "res://Assets/Audio/invalid_drop.wav", -20.0)
 	_ensure_sfx("well_enter", "res://Assets/Audio/well_enter.wav", -9.0)
 	_ensure_sfx("clear", "res://Assets/Audio/clear.wav", -9.0)
+	_ensure_sfx("skill_freeze", "res://Assets/Audio/skill_freeze.wav", -14.0)
+	_ensure_sfx("skill_safe_well", "res://Assets/Audio/skill_safe_well.wav", -14.0)
 	_ensure_sfx("panic", "res://Assets/Audio/panic_tick.wav", -14.0)
 	_ensure_sfx("game_over", GAME_OVER_SFX_PATH, -17.0)
 	var ts_path = String(core.call("GetTimeSlowReadySfxPath"))
@@ -1651,6 +1653,7 @@ func try_use_freeze() -> bool:
 	used_freeze_this_round = true
 	_update_skill_icon_states()
 	show_toast("Freeze active for 5s", 1.6)
+	_play_sfx("skill_freeze")
 	_play_sfx("ui_click")
 	return true
 
@@ -1712,6 +1715,7 @@ func try_use_safe_well() -> bool:
 		skill_vfx_controller.on_safe_well_cast(SAFE_WELL_DURATION_MS)
 	used_safe_well_this_round = true
 	show_toast("Safe Well active for 7s", 1.6)
+	_play_sfx("skill_safe_well")
 	_play_sfx("ui_click")
 	_redraw_well()
 	_update_skill_icon_states()
