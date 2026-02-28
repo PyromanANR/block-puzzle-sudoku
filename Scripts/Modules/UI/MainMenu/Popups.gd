@@ -17,10 +17,7 @@ static func build_difficulty_popup(root: Control, menu_owner: Control, on_hover:
 	v.add_theme_constant_override("separation", 10)
 	margin.add_child(v)
 
-	var t = Label.new()
-	t.text = "Difficulty"
-	t.add_theme_font_size_override("font_size", 26)
-	v.add_child(t)
+	UIStyle.ensure_popup_chrome(popup_difficulty, v, "Difficulty", func(): popup_difficulty.hide(), on_hover, on_click)
 
 	var opt_difficulty = OptionButton.new()
 	opt_difficulty.add_item("Easy")
@@ -39,6 +36,7 @@ static func build_difficulty_popup(root: Control, menu_owner: Control, on_hover:
 	var lbl_no_mercy_help = Label.new()
 	lbl_no_mercy_help.text = "No Mercy removes all reserve slots (TopSelectable=0)."
 	lbl_no_mercy_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	UIStyle.apply_label_text_palette(lbl_no_mercy_help, "body")
 	v.add_child(lbl_no_mercy_help)
 
 	var btns = HBoxContainer.new()
@@ -84,12 +82,10 @@ static func build_rewards_popup(root: Control, on_hover: Callable, on_click: Cal
 	v.add_theme_constant_override("separation", 8)
 	margin.add_child(v)
 
-	var title = Label.new()
-	title.text = "Rewards"
-	title.add_theme_font_size_override("font_size", 26)
-	v.add_child(title)
+	UIStyle.ensure_popup_chrome(rewards_popup, v, "Rewards", func(): rewards_popup.hide(), on_hover, on_click)
 
 	var rewards_level_label = Label.new()
+	UIStyle.apply_label_text_palette(rewards_level_label, "body")
 	v.add_child(rewards_level_label)
 
 	var rewards_status_labels: Dictionary = {}
@@ -97,6 +93,7 @@ static func build_rewards_popup(root: Control, on_hover: Callable, on_click: Cal
 	for m in milestones:
 		var line = Label.new()
 		line.name = "milestone_%d" % m
+		UIStyle.apply_label_text_palette(line, "body")
 		v.add_child(line)
 		rewards_status_labels[m] = line
 
@@ -129,10 +126,7 @@ static func build_leaderboards_popup(root: Control, menu_owner: Control, on_hove
 	v.add_theme_constant_override("separation", 8)
 	margin.add_child(v)
 
-	var title = Label.new()
-	title.text = "Leaderboards"
-	title.add_theme_font_size_override("font_size", 26)
-	v.add_child(title)
+	UIStyle.ensure_popup_chrome(popup_leaderboards, v, "Leaderboards", func(): popup_leaderboards.hide(), on_hover, on_click)
 
 	v.add_child(_leaderboard_button("Easy", "easy", menu_owner, on_hover, on_click))
 	v.add_child(_leaderboard_button("Medium", "medium", menu_owner, on_hover, on_click))

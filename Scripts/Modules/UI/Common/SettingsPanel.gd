@@ -19,6 +19,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	parent.add_child(panel)
 	UIStyle.apply_panel_9slice(panel)
 	panel.set_meta("ui_fixed_popup_size", true)
+	panel.set_meta("lock_modal_size", true)
 
 	var vp = parent.get_viewport_rect().size
 	var max_w = min(TARGET_W, vp.x - 64.0)
@@ -29,8 +30,11 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	panel.offset_top = -max_h * 0.5
 	panel.offset_right = max_w * 0.5
 	panel.offset_bottom = max_h * 0.5
+	panel.set_meta("modal_target_size", Vector2(max_w, max_h))
 
 	var wire_button_sfx = config.get("wire_button_sfx", Callable()) as Callable
+	var sfx_hover = config.get("sfx_hover", Callable()) as Callable
+	var sfx_click = config.get("sfx_click", Callable()) as Callable
 
 	var margin = UIStyle.wrap_popup_content(panel)
 	var settings_v = VBoxContainer.new()
@@ -40,7 +44,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	settings_v.add_theme_constant_override("separation", 10)
 	margin.add_child(settings_v)
 
-	UIStyle.ensure_popup_header(settings_v, "Audio Settings", on_close, wire_button_sfx)
+	UIStyle.ensure_popup_chrome(panel, settings_v, "Audio Settings", on_close, sfx_hover, sfx_click)
 
 	var chk_music_enabled = CheckBox.new()
 	chk_music_enabled.text = "Music Enabled"
@@ -51,6 +55,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	settings_v.add_child(music_row)
 	var music_lbl = Label.new()
 	music_lbl.text = "Music Volume"
+	UIStyle.apply_label_text_palette(music_lbl, "body")
 	music_lbl.custom_minimum_size = Vector2(120, 0)
 	music_row.add_child(music_lbl)
 	var slider_music_volume = HSlider.new()
@@ -69,6 +74,7 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 	settings_v.add_child(sfx_row)
 	var sfx_lbl = Label.new()
 	sfx_lbl.text = "SFX Volume"
+	UIStyle.apply_label_text_palette(sfx_lbl, "body")
 	sfx_lbl.custom_minimum_size = Vector2(120, 0)
 	sfx_row.add_child(sfx_lbl)
 	var slider_sfx_volume = HSlider.new()
@@ -80,18 +86,27 @@ static func build(parent: Control, on_close: Callable, config: Dictionary = {}) 
 
 	var close_btn = Button.new()
 	close_btn.text = "Cancel"
-	close_btn.custom_minimum_size = Vector2(170, 57)
+	close_btn.custom_minimum_size = Vector2(260, 57)
 	UIStyle.apply_button_9slice(close_btn, "small")
 	UIStyle.apply_button_text_palette(close_btn)
 	if wire_button_sfx.is_valid():
 		wire_button_sfx.call(close_btn)
+	if sfx_hover.is_valid():
+		close_btn.mouse_entered.connect(func():
+			sfx_hover.call()
+		)
+	if sfx_click.is_valid():
+		close_btn.pressed.connect(func():
+			sfx_click.call()
+		)
 	close_btn.pressed.connect(func():
 		if on_close.is_valid():
 			on_close.call()
 		else:
 			panel.visible = false
 	)
-	settings_v.add_child(close_btn)
+	var close_center = UIStyle.center_bottom_button(close_btn, 260)
+	settings_v.add_child(close_center)
 
 	var sync_state = func() -> void:
 		var state = {}

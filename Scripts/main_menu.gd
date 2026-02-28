@@ -937,6 +937,10 @@ func _build_modal_layer() -> void:
 
 	settings_panel = SettingsPanel.build(modal_layer, Callable(self, "_close_all_panels"), {
 		"wire_button_sfx": Callable(self, "_wire_button_sfx_menu"),
+		"sfx_hover": func() -> void:
+			_play_sfx("ui_hover"),
+		"sfx_click": func() -> void:
+			_play_sfx("ui_click"),
 		"state_getter": func() -> Dictionary:
 			return {
 				"music_enabled": music_enabled,
@@ -999,28 +1003,16 @@ func _ensure_panel_content(panel: Panel) -> VBoxContainer:
 	body.add_theme_constant_override("separation", 12)
 	margin.add_child(body)
 
-	var header = HBoxContainer.new()
-	header.name = "Header"
-	header.add_theme_constant_override("separation", 10)
-	body.add_child(header)
-
-	var title = Label.new()
-	title.text = String(panel.get_meta("title_text", ""))
-	title.add_theme_font_size_override("font_size", 30)
-	title.modulate = _palette_color("text_primary", Color(0.96, 0.96, 1.0, 1.0))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-
-	var close_btn = Button.new()
-	close_btn.custom_minimum_size = Vector2(56, 48)
-	close_btn.text = "✕"
-	UIStyle.apply_button_9slice(close_btn, "small")
-	UIStyle.apply_button_text_palette(close_btn)
-	UIStyle.apply_close_icon(close_btn)
-	close_btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
-	close_btn.pressed.connect(func(): _play_sfx("ui_click"))
-	close_btn.pressed.connect(func(): _close_all_panels())
-	header.add_child(close_btn)
+	UIStyle.ensure_popup_chrome(
+		panel,
+		body,
+		String(panel.get_meta("title_text", "")),
+		Callable(self, "_close_all_panels"),
+		func() -> void:
+			_play_sfx("ui_hover"),
+		func() -> void:
+			_play_sfx("ui_click")
+	)
 
 	var scroll = ScrollContainer.new()
 	scroll.name = "Scroll"
@@ -1043,9 +1035,11 @@ func _build_rewards_content(panel: Panel) -> void:
 		push_error("Menu panel content is null: " + panel.name)
 		return
 	rewards_level_label = Label.new()
+	UIStyle.apply_label_text_palette(rewards_level_label, "body")
 	content.add_child(rewards_level_label)
 	for m in [5, 10, 20, 50]:
 		var line = Label.new()
+		UIStyle.apply_label_text_palette(line, "body")
 		content.add_child(line)
 		rewards_status_labels[m] = line
 
@@ -1072,6 +1066,7 @@ func _build_leaderboard_content(panel: Panel) -> void:
 	var msg = Label.new()
 	msg.text = "Rank  Name        Score\n1     ---         ---\n2     ---         ---\n3     ---         ---"
 	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	UIStyle.apply_label_text_palette(msg, "body")
 	content.add_child(msg)
 
 	var sign_in = Button.new()
@@ -1094,6 +1089,7 @@ func _build_quests_content(panel: Panel) -> void:
 		content.add_child(wrap)
 		var q = Label.new()
 		q.text = quest_name
+		UIStyle.apply_label_text_palette(q, "body")
 		wrap.add_child(q)
 		var p = ProgressBar.new()
 		p.max_value = 100
@@ -1102,7 +1098,7 @@ func _build_quests_content(panel: Panel) -> void:
 		wrap.add_child(p)
 		var state = Label.new()
 		state.text = "In progress"
-		state.modulate = Color(0.8, 0.9, 1.0, 0.9)
+		UIStyle.apply_label_text_palette(state, "subtitle")
 		wrap.add_child(state)
 
 
@@ -1121,6 +1117,7 @@ func _build_shop_content(panel: Panel) -> void:
 		label.offset_left = 12
 		label.offset_top = 12
 		label.text = "%s\nComing soon" % item_name
+		UIStyle.apply_label_text_palette(label, "body")
 		card.add_child(label)
 
 
@@ -1173,6 +1170,7 @@ func _build_debug_content(panel: Panel) -> void:
 		push_error("Menu panel content is null: " + panel.name)
 		return
 	lbl_cloud_status = Label.new()
+	UIStyle.apply_label_text_palette(lbl_cloud_status, "body")
 	content.add_child(lbl_cloud_status)
 
 	chk_admin_mode_no_ads = CheckBox.new()
@@ -1451,6 +1449,8 @@ func _apply_safe_area() -> void:
 		if panel == null:
 			continue
 		if panel.has_meta("ui_fixed_popup_size") and bool(panel.get_meta("ui_fixed_popup_size", false)):
+			continue
+		if panel.has_meta("lock_modal_size") and bool(panel.get_meta("lock_modal_size", false)):
 			continue
 		var max_w = min(920.0, vp.size.x - (safe_left + safe_right + 32.0))
 		var max_h = min(980.0, vp.size.y - (safe_top + safe_bottom + 32.0))
