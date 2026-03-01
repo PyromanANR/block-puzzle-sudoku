@@ -11,7 +11,7 @@ public partial class BoardModel : Resource
 	public const int CellFilled = 1;
 	public const int CellStone = 2;
 
-	public class PendingStickyEffect : RefCounted
+	public partial class PendingStickyEffect : RefCounted
 	{
 		public int RemainingMoves;
 		public Array<Vector2I> FootprintCells = new();
