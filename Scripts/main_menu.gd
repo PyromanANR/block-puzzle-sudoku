@@ -62,6 +62,16 @@ const NINEPATCH_TOP_CHIP_PATH = "res://Assets/UI/9patch/top_chip.png"
 const XP_BAR_BG_PATH = "res://Assets/UI/9patch/xp_bar_bg.tres"
 const XP_BAR_FILL_PATH = "res://Assets/UI/9patch/xp_bar_fill.tres"
 
+const FAQ_PAD_L = 18
+const FAQ_PAD_R = 18
+const FAQ_PAD_T = 16
+const FAQ_PAD_B = 16
+const FAQ_SWIPE_THRESHOLD = 60.0
+const FAQ_IMAGE_H = 230
+const SKINS_PREVIEW_W = 120
+const SKINS_PREVIEW_H = 68
+
+
 var music_manager: MusicManager = null
 var sfx_players = {}
 var missing_sfx_warned = {}
@@ -120,6 +130,12 @@ var notify_overlay: ColorRect
 var notify_panel: Panel
 var notify_label: Label
 var notify_hide_at_ms: int = 0
+
+var faq_tab_host: TabContainer
+var faq_dots: Array = []
+var faq_swipe_start = Vector2.ZERO
+var faq_swipe_active: bool = false
+
 
 var debug_body: VBoxContainer
 var lbl_cloud_status: Label
@@ -631,15 +647,35 @@ func _build_top_bar() -> void:
 	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
 	rank_center.add_child(rank_label)
 
+	var under_level_chip_row = HBoxContainer.new()
+	under_level_chip_row.name = "UnderLevelChipRow"
+	under_level_chip_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	under_level_chip_row.add_theme_constant_override("separation", 0)
+	left_v.add_child(under_level_chip_row)
+
+	var skins_slot = Control.new()
+	skins_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skins_slot.size_flags_stretch_ratio = 0.40
+	under_level_chip_row.add_child(skins_slot)
+
+	var skins_spacer = Control.new()
+	skins_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	skins_spacer.size_flags_stretch_ratio = 0.60
+	under_level_chip_row.add_child(skins_spacer)
+
+	var skins_center = CenterContainer.new()
+	skins_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	skins_slot.add_child(skins_center)
+
 	var btn_skins = Button.new()
-	btn_skins.custom_minimum_size = Vector2(int(TOPBAR_SIDE_W * 0.7), 52)
+	btn_skins.custom_minimum_size = Vector2(int(TOPBAR_BTN * 0.7), int(TOPBAR_BTN * 0.7))
 	btn_skins.text = ""
 	_apply_button_style(btn_skins, "small")
 	_set_button_icon(btn_skins, "res://Assets/UI/icons/menu/skin.png", "🎨", "Skins", 28)
 	btn_skins.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	btn_skins.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_skins.pressed.connect(func(): _open_panel(skins_panel))
-	left_v.add_child(btn_skins)
+	skins_center.add_child(btn_skins)
 
 	var center_spacer = Control.new()
 	center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -657,6 +693,7 @@ func _build_top_bar() -> void:
 
 	var right_v = VBoxContainer.new()
 	right_v.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_v.alignment = BoxContainer.ALIGNMENT_END
 	right_v.add_theme_constant_override("separation", 6)
 	right_v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	right_pad.add_child(right_v)
@@ -693,13 +730,15 @@ func _build_top_bar() -> void:
 	right_row.add_child(btn_settings)
 
 	var btn_faq = Button.new()
-	btn_faq.custom_minimum_size = Vector2(int(TOPBAR_SIDE_W * 0.7), 52)
-	btn_faq.text = ""
-	_apply_button_style(btn_faq, "small")
-	_set_button_icon(btn_faq, "res://Assets/UI/icons/menu/faq.png", "?", "FAQ", 28)
+	btn_faq.custom_minimum_size = Vector2(TOPBAR_BTN, TOPBAR_BTN)
+	_apply_top_icon_button_style(btn_faq)
+	_set_button_icon(btn_faq, "res://Assets/UI/icons/menu/faq.png", "?", "FAQ", TOPBAR_BTN - 12)
+	btn_faq.expand_icon = true
+	btn_faq.add_theme_constant_override("icon_max_width", TOPBAR_BTN - 12)
 	btn_faq.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	btn_faq.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_faq.pressed.connect(func(): _open_panel(faq_panel))
+	btn_faq.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right_v.add_child(btn_faq)
 
 
@@ -1222,10 +1261,109 @@ func _build_skins_content(panel: Panel) -> void:
 	if content == null:
 		push_error("Menu panel content is null: " + panel.name)
 		return
+
+	content.add_theme_constant_override("separation", 12)
+
+	var intro = Label.new()
+	intro.text = "Select visual style presets. Apply/remove actions are placeholders for now."
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	UIStyle.apply_label_text_palette(intro, "body")
+	content.add_child(intro)
+
+	_build_skin_section(content, "Sudoku Style Skin", "Classic Sudoku-inspired look", "sudoku")
+	_build_skin_section(content, "Legacy of Rome", "Roman-themed visual set", "rome")
+
+
+func _build_skin_section(content: VBoxContainer, section_title: String, section_subtitle: String, section_key: String) -> void:
+	if content == null:
+		return
+	var card = Panel.new()
+	card.custom_minimum_size = Vector2(0, 0)
+	_apply_panel_style(card)
+	content.add_child(card)
+
+	var margin = MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", FAQ_PAD_L)
+	margin.add_theme_constant_override("margin_top", FAQ_PAD_T)
+	margin.add_theme_constant_override("margin_right", FAQ_PAD_R)
+	margin.add_theme_constant_override("margin_bottom", FAQ_PAD_B)
+	card.add_child(margin)
+
+	var v = VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 10)
+	margin.add_child(v)
+
+	var title = Label.new()
+	title.text = section_title
+	title.add_theme_font_size_override("font_size", 30)
+	UIStyle.apply_label_text_palette(title, "body")
+	v.add_child(title)
+
+	var subtitle = Label.new()
+	subtitle.text = section_subtitle
+	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	UIStyle.apply_label_text_palette(subtitle, "subtitle")
+	v.add_child(subtitle)
+
+	_build_skin_item_row(v, "Title art", "res://Assets/UI/skins/%s/title.png" % section_key)
+	_build_skin_item_row(v, "Game background", "res://Assets/UI/skins/%s/bg.png" % section_key)
+	_build_skin_item_row(v, "Block pieces", "res://Assets/UI/skins/%s/blocks.png" % section_key)
+	_build_skin_item_row(v, "Board background", "res://Assets/UI/skins/%s/board.png" % section_key)
+	_build_skin_item_row(v, "Well + Drop Zone background", "res://Assets/UI/skins/%s/well.png" % section_key)
+
+
+func _build_skin_item_row(parent: VBoxContainer, item_name: String, preview_path: String) -> void:
+	if parent == null:
+		return
+	var row = HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 10)
+	parent.add_child(row)
+
 	var label = Label.new()
-	label.text = "Coming soon"
+	label.text = item_name
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	UIStyle.apply_label_text_palette(label, "body")
-	content.add_child(label)
+	row.add_child(label)
+
+	var preview = Panel.new()
+	preview.custom_minimum_size = Vector2(SKINS_PREVIEW_W, SKINS_PREVIEW_H)
+	preview.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_apply_panel_style(preview)
+	row.add_child(preview)
+
+	var preview_tex = TextureRect.new()
+	preview_tex.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	preview_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	preview.add_child(preview_tex)
+
+	var tex = _load_icon_any(preview_path)
+	if tex != null:
+		preview_tex.texture = tex
+	else:
+		var ph = Label.new()
+		ph.text = "Missing preview"
+		ph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ph.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		UIStyle.apply_label_text_palette(ph, "subtitle")
+		preview.add_child(ph)
+
+	var btn = Button.new()
+	btn.text = "Equip"
+	btn.custom_minimum_size = Vector2(96, 44)
+	_apply_button_style(btn, "small")
+	btn.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	btn.pressed.connect(func(): _play_sfx("ui_click"))
+	btn.pressed.connect(func():
+		_show_message("Skin action pending: %s" % item_name)
+	)
+	row.add_child(btn)
 
 
 func _build_faq_content(panel: Panel) -> void:
@@ -1233,10 +1371,206 @@ func _build_faq_content(panel: Panel) -> void:
 	if content == null:
 		push_error("Menu panel content is null: " + panel.name)
 		return
-	var label = Label.new()
-	label.text = "Coming soon"
-	UIStyle.apply_label_text_palette(label, "body")
-	content.add_child(label)
+
+	faq_dots.clear()
+
+	var scroll = content.get_parent()
+	if scroll == null:
+		return
+	var body = scroll.get_parent()
+	if not (body is VBoxContainer):
+		return
+	var body_v = body as VBoxContainer
+	body_v.remove_child(scroll)
+	scroll.queue_free()
+
+	var root = MarginContainer.new()
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("margin_left", FAQ_PAD_L)
+	root.add_theme_constant_override("margin_top", FAQ_PAD_T)
+	root.add_theme_constant_override("margin_right", FAQ_PAD_R)
+	root.add_theme_constant_override("margin_bottom", FAQ_PAD_B)
+	body_v.add_child(root)
+
+	var v = VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 10)
+	root.add_child(v)
+
+	faq_tab_host = TabContainer.new()
+	faq_tab_host.tabs_visible = false
+	faq_tab_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	faq_tab_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	faq_tab_host.clip_contents = true
+	faq_tab_host.gui_input.connect(_on_faq_swipe_input)
+	v.add_child(faq_tab_host)
+
+	var faq_pages = [
+		{"title":"What is this game?", "body":"Place offered blocks onto the board to fill lines and 3x3 areas. Make smart placements and keep space open for future shapes.", "image":"res://Assets/UI/faq/faq_1.png"},
+		{"title":"Drop Zone", "body":"Drop Zone is where incoming shapes appear. Plan around upcoming pieces and avoid locking yourself out of legal placements.", "image":"res://Assets/UI/faq/faq_2.png"},
+		{"title":"Board (Sudoku clear rules)", "body":"Clear full rows, full columns, and full 3x3 boxes. Combining multiple clears at once gives better momentum and score.", "image":"res://Assets/UI/faq/faq_3.png"},
+		{"title":"Well (benefits)", "body":"The Well stores utility items and progress tools. Use it to stabilize difficult runs and maintain board control.", "image":"res://Assets/UI/faq/faq_4.png"},
+		{"title":"Time Warp (hourglass)", "body":"Time Warp can slow pressure moments and gives breathing room to decide your next move when the board is tight.", "image":"res://Assets/UI/faq/faq_5.png"},
+		{"title":"Special blocks: Stone", "body":"Stone blocks are obstacles that require repeated clears around them to break. Prioritize nearby clears early.", "image":"res://Assets/UI/faq/faq_6.png"},
+		{"title":"Skills", "body":"Skills provide tactical effects to recover from bad situations or extend combos. Use them deliberately for maximum value.", "image":"res://Assets/UI/faq/faq_7.png"}
+	]
+
+	for i in range(faq_pages.size()):
+		var page = faq_pages[i]
+		faq_tab_host.add_child(_build_faq_page(page["title"], page["body"], page["image"], i + 1))
+
+	var dots_row = HBoxContainer.new()
+	dots_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	dots_row.add_theme_constant_override("separation", 8)
+	dots_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_child(dots_row)
+
+	for i in range(faq_pages.size()):
+		var dot = ColorRect.new()
+		dot.custom_minimum_size = Vector2(14, 14)
+		dot.color = Color(1, 1, 1, 0.3)
+		dots_row.add_child(dot)
+		faq_dots.append(dot)
+
+	faq_tab_host.tab_changed.connect(_update_faq_dots)
+	_update_faq_dots(faq_tab_host.current_tab)
+
+
+func _build_faq_page(title_text: String, body_text: String, image_path: String, page_index: int) -> Control:
+	var page = PanelContainer.new()
+	page.name = "FaqPage%d" % page_index
+	var page_style = StyleBoxFlat.new()
+	page_style.bg_color = Color(0.96, 0.93, 0.86, 0.98)
+	page_style.border_color = Color(0.45, 0.36, 0.24, 0.65)
+	page_style.border_width_left = 2
+	page_style.border_width_top = 2
+	page_style.border_width_right = 2
+	page_style.border_width_bottom = 2
+	page_style.corner_radius_top_left = 10
+	page_style.corner_radius_top_right = 10
+	page_style.corner_radius_bottom_left = 10
+	page_style.corner_radius_bottom_right = 10
+	page_style.shadow_color = Color(0, 0, 0, 0.18)
+	page_style.shadow_size = 6
+	page_style.shadow_offset = Vector2(0, 2)
+	page.add_theme_stylebox_override("panel", page_style)
+
+	var margin = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", FAQ_PAD_L)
+	margin.add_theme_constant_override("margin_top", FAQ_PAD_T)
+	margin.add_theme_constant_override("margin_right", FAQ_PAD_R)
+	margin.add_theme_constant_override("margin_bottom", FAQ_PAD_B)
+	page.add_child(margin)
+
+	var v = VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 10)
+	margin.add_child(v)
+
+	var title = Label.new()
+	title.text = title_text
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", Color(0.14, 0.10, 0.06, 1.0))
+	v.add_child(title)
+
+	var image_holder = Panel.new()
+	image_holder.custom_minimum_size = Vector2(0, FAQ_IMAGE_H)
+	image_holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var image_style = StyleBoxFlat.new()
+	image_style.bg_color = Color(1.0, 1.0, 1.0, 0.82)
+	image_style.border_color = Color(0.3, 0.3, 0.3, 0.3)
+	image_style.border_width_left = 1
+	image_style.border_width_top = 1
+	image_style.border_width_right = 1
+	image_style.border_width_bottom = 1
+	image_style.corner_radius_top_left = 8
+	image_style.corner_radius_top_right = 8
+	image_style.corner_radius_bottom_left = 8
+	image_style.corner_radius_bottom_right = 8
+	image_holder.add_theme_stylebox_override("panel", image_style)
+	v.add_child(image_holder)
+
+	var image_rect = TextureRect.new()
+	image_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	image_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	image_holder.add_child(image_rect)
+
+	var image_tex = _load_icon_any(image_path)
+	if image_tex != null:
+		image_rect.texture = image_tex
+	else:
+		var placeholder = Label.new()
+		placeholder.text = "Image placeholder: faq_%d.png" % page_index
+		placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		placeholder.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		placeholder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		placeholder.add_theme_color_override("font_color", Color(0.2, 0.2, 0.2, 0.85))
+		image_holder.add_child(placeholder)
+
+	var body = Label.new()
+	body.text = body_text
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_font_size_override("font_size", 22)
+	body.add_theme_color_override("font_color", Color(0.14, 0.10, 0.06, 1.0))
+	v.add_child(body)
+
+	return page
+
+
+func _on_faq_swipe_input(event: InputEvent) -> void:
+	if faq_tab_host == null:
+		return
+	if event is InputEventScreenTouch:
+		var touch = event as InputEventScreenTouch
+		if touch.pressed:
+			faq_swipe_active = true
+			faq_swipe_start = touch.position
+		elif faq_swipe_active:
+			faq_swipe_active = false
+			_handle_faq_swipe_delta(touch.position - faq_swipe_start)
+	elif event is InputEventMouseButton:
+		var mouse_button = event as InputEventMouseButton
+		if mouse_button.button_index == MOUSE_BUTTON_LEFT:
+			if mouse_button.pressed:
+				faq_swipe_active = true
+				faq_swipe_start = mouse_button.position
+			elif faq_swipe_active:
+				faq_swipe_active = false
+				_handle_faq_swipe_delta(mouse_button.position - faq_swipe_start)
+
+
+func _handle_faq_swipe_delta(delta: Vector2) -> void:
+	if abs(delta.x) <= FAQ_SWIPE_THRESHOLD:
+		return
+	if abs(delta.x) <= abs(delta.y):
+		return
+	if delta.x < 0:
+		_set_faq_page(faq_tab_host.current_tab + 1)
+	else:
+		_set_faq_page(faq_tab_host.current_tab - 1)
+
+
+func _set_faq_page(target_index: int) -> void:
+	if faq_tab_host == null:
+		return
+	var clamped_index = clamp(target_index, 0, faq_tab_host.get_tab_count() - 1)
+	faq_tab_host.current_tab = clamped_index
+	_update_faq_dots(clamped_index)
+
+
+func _update_faq_dots(active_index: int) -> void:
+	for i in range(faq_dots.size()):
+		var dot = faq_dots[i]
+		if dot is ColorRect:
+			(dot as ColorRect).color = Color(1, 1, 1, 0.9) if i == active_index else Color(1, 1, 1, 0.3)
+
 
 
 func _build_settings_content(panel: Panel) -> void:
