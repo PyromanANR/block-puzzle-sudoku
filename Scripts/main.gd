@@ -398,6 +398,35 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		call_deferred("_apply_safe_area_margins")
 		call_deferred("_sync_time_slow_column_width")
+		call_deferred("_apply_header_label_fits")
+
+
+func _fit_header_label(label: Label, min_size: int = 16, max_size: int = 32) -> void:
+	# Fit font size so current label.text fits label.size.x (with a small padding).
+	if label == null:
+		return
+	var font := label.get_theme_font("font")
+	if font == null:
+		return
+	var pad := 12.0
+	var available := max(10.0, label.size.x - pad)
+	var best := max_size
+	while best > min_size:
+		var w := font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, best).x
+		if w <= available:
+			break
+		best -= 1
+	label.add_theme_font_size_override("font_size", best)
+	# If still too long, trim with ellipsis instead of clipping first letters.
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+
+
+func _apply_header_label_fits() -> void:
+	_fit_header_label(lbl_score, 16, 32)
+	_fit_header_label(lbl_time, 16, 32)
+	_fit_header_label(lbl_speed, 16, 32)
+	_fit_header_label(lbl_level, 16, 32)
 
 
 func _apply_safe_area_margins() -> void:
@@ -1107,7 +1136,6 @@ func _build_ui() -> void:
 	lbl_score.add_theme_font_size_override("font_size", 32)
 	lbl_score.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_score.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lbl_score.clip_text = true
 	score_section.add_child(lbl_score)
 
 	var time_section = MarginContainer.new()
@@ -1131,7 +1159,6 @@ func _build_ui() -> void:
 	lbl_time.add_theme_font_size_override("font_size", 32)
 	lbl_time.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_time.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lbl_time.clip_text = true
 	time_section.add_child(lbl_time)
 
 	var speed_section = MarginContainer.new()
@@ -1155,7 +1182,6 @@ func _build_ui() -> void:
 	lbl_speed.add_theme_font_size_override("font_size", 32)
 	lbl_speed.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_speed.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lbl_speed.clip_text = true
 	speed_section.add_child(lbl_speed)
 
 	var level_section = MarginContainer.new()
@@ -1179,7 +1205,6 @@ func _build_ui() -> void:
 	lbl_level.add_theme_font_size_override("font_size", 32)
 	lbl_level.add_theme_color_override("font_color", _skin_color("text_primary", Color(0.10, 0.10, 0.10, 1)))
 	lbl_level.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lbl_level.clip_text = true
 	level_section.add_child(lbl_level)
 
 	var right_button_section = MarginContainer.new()
@@ -1208,6 +1233,8 @@ func _build_ui() -> void:
 	btn_settings.pressed.connect(_on_settings)
 	_wire_button_sfx(btn_settings)
 	right_button_section.add_child(btn_settings)
+
+	call_deferred("_apply_header_label_fits")
 
 	var root_margin = MarginContainer.new()
 	root_margin.name = "root_margin"
