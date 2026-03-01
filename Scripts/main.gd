@@ -2774,9 +2774,15 @@ func _compute_spawn_y_for_piece(piece, fall_top: float) -> float:
 	y = min(y, fully_hidden_y)
 	return y
 
+const DEBUG_FORCE_STICKY_100 := true
 
 func _spawn_falling_piece() -> void:
 	fall_piece = core.call("PopNextPieceForBoard", board)
+	
+	if OS.is_debug_build() and DEBUG_FORCE_STICKY_100 and fall_piece != null:
+		# Do NOT rely on piece.set("IsSticky", true) — can be non-writable
+		fall_piece.set_meta("debug_force_sticky", true)
+		
 	if fall_piece == null:
 		push_error("_spawn_falling_piece: PopNextPieceForBoard returned null")
 		pending_spawn_piece = false
