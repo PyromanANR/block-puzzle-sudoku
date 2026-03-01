@@ -403,6 +403,7 @@ func _ready() -> void:
 	_build_ui()
 	await get_tree().process_frame
 	_build_board_grid()
+	_log_global_tint_state_once()
 	_setup_skill_vfx_controller()
 
 	_start_round()
@@ -2804,7 +2805,8 @@ func _compute_spawn_y_for_piece(piece, fall_top: float) -> float:
 	y = min(y, fully_hidden_y)
 	return y
 
-const DEBUG_FORCE_STICKY_100 := true
+const DEBUG_FORCE_STICKY_100 := false
+const DEBUG_LOG_GLOBAL_TINT_STATE := false
 
 func _spawn_falling_piece() -> void:
 	fall_piece = core.call("PopNextPieceForBoard", board)
@@ -2838,6 +2840,19 @@ func _spawn_falling_piece() -> void:
 	if next_box != null:
 		next_box.queue_redraw()
 	_update_previews()
+
+
+func _log_global_tint_state_once() -> void:
+	if not OS.is_debug_build() or not DEBUG_LOG_GLOBAL_TINT_STATE:
+		return
+	var board_mat = board_panel.material if board_panel != null else null
+	var drop_mat = drop_zone_panel.material if drop_zone_panel != null else null
+	print("[TINT_DEBUG] board_panel modulate=", (board_panel.modulate if board_panel != null else "null"),
+		" self_modulate=", (board_panel.self_modulate if board_panel != null else "null"),
+		" material=", board_mat)
+	print("[TINT_DEBUG] drop_zone_panel modulate=", (drop_zone_panel.modulate if drop_zone_panel != null else "null"),
+		" self_modulate=", (drop_zone_panel.self_modulate if drop_zone_panel != null else "null"),
+		" material=", drop_mat)
 
 func _dual_drop_can_spawn(now_ms: int) -> bool:
 	if is_game_over:
