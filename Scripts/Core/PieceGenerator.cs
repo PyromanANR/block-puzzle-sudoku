@@ -136,6 +136,7 @@ public class PieceGenerator
 
         var forcedChance = GetForcedFitChance(difficulty, elapsedSeconds);
         bool forcedTriggered = _rng.Randf() < forcedChance;
+        int forcedCandidatesCount = 0;
         string forcedSelected = string.Empty;
 
         if (forcedTriggered)
@@ -148,6 +149,7 @@ public class PieceGenerator
                     forcedCandidates.Add(evaluated[i]);
             }
 
+            forcedCandidatesCount = forcedCandidates.Count;
             if (forcedCandidates.Count > 0)
             {
                 forcedCandidates.Sort((a, b) => b.score.CompareTo(a.score));
@@ -187,8 +189,8 @@ public class PieceGenerator
 #if DEBUG
         if (consume)
         {
-            var chosenPlacementCount = CountValidPlacements(board, MakePiece(selected));
-            GD.Print($"[FORCED_FIT] elapsed_seconds={elapsedSeconds:0.0}, difficulty={difficulty}, p_forced={forcedChance:0.000}, triggered={forcedTriggered && !string.IsNullOrEmpty(forcedSelected)}, placement_count={chosenPlacementCount}");
+            var forcedApplied = forcedTriggered && !string.IsNullOrEmpty(forcedSelected);
+            GD.Print($"[FORCED_FIT] elapsed_seconds={elapsedSeconds:0.0}, difficulty={difficulty}, p_forced={forcedChance:0.000}, forced_triggered={forcedApplied}, forced_candidates_count={forcedCandidatesCount}, selected_piece_id={selected}");
         }
 #endif
 
