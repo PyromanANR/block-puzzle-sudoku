@@ -30,6 +30,8 @@ const SettingsPanel = preload("res://Scripts/Modules/UI/Common/SettingsPanel.gd"
 const UIStyle = preload("res://Scripts/Modules/UI/Common/UIStyle.gd")
 const MAIN_MENU_SCENE = "res://Scenes/MainMenu.tscn"
 const MAIN_SCENE = "res://Scenes/Main.tscn"
+const STONE_OVERLAY_TEX_PATH = "res://Assets/Skins/Default/Blocks/stone_vine_overlay.png"
+const STONE_OVERLAY_SHADER_PATH = "res://Assets/Shaders/Skills/stone_vine_reveal.gdshader"
 
 # ============================================================
 # TETRIS SUDOKU (UI v2)
@@ -58,6 +60,7 @@ var cell_size: int = 54
 var board_start := Vector2.ZERO
 var board_cells := []
 var board_hl := []
+var board_stone_overlay := []
 var color_grid := []
 var board_grid_overlay: Control
 
@@ -2503,6 +2506,7 @@ func _build_board_grid() -> void:
 
 	board_cells.clear()
 	board_hl.clear()
+	board_stone_overlay.clear()
 	_clear_color_grid()
 
 	var board_px = min(board_panel.size.x - 160.0, board_panel.size.y) - 40.0
@@ -2542,6 +2546,7 @@ func _build_board_grid() -> void:
 	for y in range(BOARD_SIZE):
 		var row := []
 		var row2 := []
+		var row3 := []
 		for x in range(BOARD_SIZE):
 			var cell := Panel.new()
 			cell.position = board_start + Vector2(x * cell_size, y * cell_size)
@@ -2549,8 +2554,23 @@ func _build_board_grid() -> void:
 			cell.mouse_filter = Control.MOUSE_FILTER_STOP
 			cell.gui_input.connect(func(ev): _on_board_cell_input(ev, x, y))
 			cell.add_theme_stylebox_override("panel", _style_cell_empty(x, y))
+			var stone_overlay := TextureRect.new()
+			stone_overlay.name = "StoneOverlay"
+			stone_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			stone_overlay.offset_left = 2
+			stone_overlay.offset_top = 2
+			stone_overlay.offset_right = -2
+			stone_overlay.offset_bottom = -2
+			stone_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			stone_overlay.z_index = 3
+			stone_overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			stone_overlay.texture = _get_stone_overlay_tex()
+			stone_overlay.visible = stone_overlay.texture != null
+			_apply_stone_overlay_material(stone_overlay, 1.0, 0.12)
+			cell.add_child(stone_overlay)
 			board_panel.add_child(cell)
 			row.append(cell)
+			row3.append(stone_overlay)
 
 			var hl := ColorRect.new()
 			hl.position = cell.position
@@ -2562,6 +2582,7 @@ func _build_board_grid() -> void:
 
 		board_cells.append(row)
 		board_hl.append(row2)
+		board_stone_overlay.append(row3)
 
 	board_grid_overlay = BoardGridOverlay.new()
 	board_grid_overlay.position = board_start
@@ -2596,6 +2617,10 @@ func _refresh_board_visual() -> void:
 			else:
 				board_cells[y][x].add_theme_stylebox_override("panel", _style_cell_empty(x, y))
 				color_grid[y][x] = null
+
+			var stone_overlay = board_stone_overlay[y][x] as TextureRect
+			if stone_overlay != null:
+				stone_overlay.visible = v == 2 and stone_overlay.texture != null
 
 			board_hl[y][x].color = Color(0, 0, 0, 0)
 	if clear_flash_left > 0.0:
@@ -2658,8 +2683,9 @@ func _draw_preview(target: Panel, piece) -> void:
 	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var col = _color_for_kind(String(piece.get("Kind")))
+	var infected = bool(piece.get("IsSticky", false))
 	for c in piece.get("Cells"):
-		var b = _bevel_block(col, preview_cell_size - 2)
+		var b = _bevel_block(col, preview_cell_size - 2, infected)
 		b.position = offset + Vector2(int(c.x) * preview_cell_size, int(c.y) * preview_cell_size)
 		pv.add_child(b)
 
@@ -3633,6 +3659,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		var sy = int(spos.y)
 		if sx >= 0 and sx < BOARD_SIZE and sy >= 0 and sy < BOARD_SIZE:
 			color_grid[sy][sx] = COLOR_STONE
+			_reveal_stone_overlay_at(sx, sy)
 
 	score += int(piece.get("Cells").size())
 	var cleared_count = int(result.get("cleared_count", 0))
@@ -3957,10 +3984,11 @@ func _make_piece_preview(piece, mini: int, frame: Vector2 = Vector2(140, 90)) ->
 	var start_y := int((root.size.y - h) * 0.5)
 
 	var col := _color_for_kind(String(piece.get("Kind")))
+	var infected := bool(piece.get("IsSticky", false))
 	for c in piece.get("Cells"):
 		var px := int(c.x) - min_x
 		var py := int(c.y) - min_y
-		var b := _bevel_block(col, mini - 2)
+		var b := _bevel_block(col, mini - 2, infected)
 		b.position = Vector2(start_x + px * mini, start_y + py * mini)
 		root.add_child(b)
 
@@ -4237,7 +4265,7 @@ func _style_gamepad_button_pressed() -> StyleBoxFlat:
 	return s
 
 
-func _bevel_block(base: Color, size_px: int) -> Control:
+func _bevel_block(base: Color, size_px: int, infected: bool = false) -> Control:
 	var p := Panel.new()
 	p.size = Vector2(size_px, size_px)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -4249,7 +4277,73 @@ func _bevel_block(base: Color, size_px: int) -> Control:
 	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	inner.add_theme_stylebox_override("panel", _style_bevel_inner(base))
 	p.add_child(inner)
+	if infected:
+		var red_glow = ColorRect.new()
+		red_glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		red_glow.color = Color(1.0, 0.2, 0.2, 0.18)
+		red_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		red_glow.z_index = 2
+		p.add_child(red_glow)
+		var overlay = TextureRect.new()
+		overlay.name = "StoneVineOverlay"
+		overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		overlay.offset_left = 1
+		overlay.offset_top = 1
+		overlay.offset_right = -1
+		overlay.offset_bottom = -1
+		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		overlay.texture = _get_stone_overlay_tex()
+		overlay.visible = overlay.texture != null
+		overlay.z_index = 3
+		p.add_child(overlay)
 	return p
+
+
+func _get_stone_overlay_tex() -> Texture2D:
+	return _load_texture_or_null(STONE_OVERLAY_TEX_PATH)
+
+
+func _apply_stone_overlay_material(overlay: TextureRect, reveal: float = 1.0, pulse_strength: float = 0.12) -> void:
+	if overlay == null:
+		return
+	if overlay.texture == null:
+		overlay.material = null
+		return
+	var shader_res = _safe_load_resource(STONE_OVERLAY_SHADER_PATH)
+	if not (shader_res is Shader):
+		overlay.material = null
+		return
+	var mat := ShaderMaterial.new()
+	mat.shader = shader_res as Shader
+	mat.set_shader_parameter("u_reveal", clamp(reveal, 0.0, 1.0))
+	mat.set_shader_parameter("u_pulse_strength", pulse_strength)
+	overlay.material = mat
+
+
+func _reveal_stone_overlay_at(sx: int, sy: int) -> void:
+	if sy < 0 or sy >= board_stone_overlay.size():
+		return
+	var row = board_stone_overlay[sy]
+	if sx < 0 or sx >= row.size():
+		return
+	var overlay = row[sx] as TextureRect
+	if overlay == null:
+		return
+	if overlay.texture == null:
+		overlay.texture = _get_stone_overlay_tex()
+	if overlay.texture == null:
+		overlay.visible = false
+		return
+	overlay.visible = true
+	_apply_stone_overlay_material(overlay, 0.0, 0.12)
+	var mat = overlay.material as ShaderMaterial
+	if mat != null:
+		var tw = create_tween()
+		tw.tween_method(func(v): mat.set_shader_parameter("u_reveal", v), 0.0, 1.0, 0.25)
+	board_hl[sy][sx].color = Color(1.0, 0.35, 0.18, 0.34)
+	var hl_tw = create_tween()
+	hl_tw.tween_property(board_hl[sy][sx], "color", Color(0, 0, 0, 0), 0.12)
 
 
 func _style_bevel_outer(base: Color) -> StyleBoxFlat:
