@@ -156,6 +156,7 @@ var pending_invalid_root: Control
 var pending_invalid_until_ms = 0
 var pending_invalid_timer: Timer
 var next_piece_state_id: int = 1
+var expected_next_preview_kind: String = ""
 var grace_piece_by_id: Dictionary = {}
 var invalid_drop_slow_until_ms = 0
 var toast_layer: CanvasLayer
@@ -2615,6 +2616,10 @@ func _update_previews() -> void:
 	if next_box == null:
 		return
 	var next_piece = core.call("PeekNextPieceForBoard", board)
+	if next_piece != null:
+		expected_next_preview_kind = String(next_piece.get("Kind"))
+	else:
+		expected_next_preview_kind = ""
 	_draw_preview(next_box, next_piece)
 
 
@@ -2743,6 +2748,10 @@ func _spawn_falling_piece() -> void:
 		push_error("_spawn_falling_piece: PopNextPieceForBoard returned null")
 		pending_spawn_piece = false
 		return
+	if expected_next_preview_kind != "":
+		var spawned_kind = String(fall_piece.get("Kind"))
+		if spawned_kind != expected_next_preview_kind:
+			push_error("Preview/pop mismatch for primary spawn: expected=" + expected_next_preview_kind + ", got=" + spawned_kind)
 	# Spawn above the visible drop zone so it slides in
 	var geom = _well_geometry()
 	var fall_top = float(geom.get("fall_top", FALL_PAD))
@@ -2786,6 +2795,10 @@ func _spawn_second_falling_piece() -> void:
 		return
 	if fall_piece_2 != null:
 		return
+	var expected_piece = core.call("PeekNextPieceForBoard", board)
+	var expected_kind = ""
+	if expected_piece != null:
+		expected_kind = String(expected_piece.get("Kind"))
 	var p2 = core.call("PopNextPieceForBoard", board)
 	if p2 == null:
 		push_error("_spawn_second_falling_piece: PopNextPieceForBoard returned null")
@@ -2793,6 +2806,10 @@ func _spawn_second_falling_piece() -> void:
 		pending_dual_fallback_ms = 0
 		dual_drop_waiting_for_gap = false
 		return
+	if expected_kind != "":
+		var popped_kind = String(p2.get("Kind"))
+		if popped_kind != expected_kind:
+			push_error("Preview/pop mismatch for secondary spawn: expected=" + expected_kind + ", got=" + popped_kind)
 	if fall_piece == null:
 		fall_piece = p2
 		var geom = _well_geometry()
