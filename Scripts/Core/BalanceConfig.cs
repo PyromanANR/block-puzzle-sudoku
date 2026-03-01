@@ -130,6 +130,48 @@ public class BalanceConfig
     public int MaxRerollsPerRound = 0;
     public float CancelDragPenalty = 0.02f;
 
+
+
+    // Sticky piece (two-phase)
+    public float StickyChance90Easy = 0.0f;
+    public float StickyChance180Easy = 0.02f;
+    public float StickyChance360Easy = 0.03f;
+    public float StickyChance600Easy = 0.04f;
+    public float StickyChance90Medium = 0.0f;
+    public float StickyChance180Medium = 0.03f;
+    public float StickyChance360Medium = 0.05f;
+    public float StickyChance600Medium = 0.07f;
+    public float StickyChance90Hard = 0.0f;
+    public float StickyChance180Hard = 0.04f;
+    public float StickyChance360Hard = 0.07f;
+    public float StickyChance600Hard = 0.10f;
+    public int StickyDelayMoves = 2;
+    public int StickyStonesEasy = 1;
+    public int StickyStonesMedium = 1;
+    public int StickyStonesHard = 2;
+
+    // Dead-zone detector
+    public int DeadZoneWeightHole1x1 = 3;
+    public int DeadZoneWeightPocket1x2 = 2;
+    public int DeadZoneWeightOverhang = 1;
+    public int DeadZoneMargin = 2;
+
+    // Dead-zone penalty
+    public int DeadZoneThresholdEasy = 3;
+    public int DeadZoneThresholdMedium = 2;
+    public int DeadZoneThresholdHard = 1;
+    public int DeadZoneDebuffSpawnsEasy = 2;
+    public int DeadZoneDebuffSpawnsMedium = 3;
+    public int DeadZoneDebuffSpawnsHard = 4;
+    public float DeadZoneIdealMulEasy = 0.75f;
+    public float DeadZoneIdealMulMedium = 0.70f;
+    public float DeadZoneIdealMulHard = 0.60f;
+    public float DeadZoneForcedBonusEasy = 0.03f;
+    public float DeadZoneForcedBonusMedium = 0.04f;
+    public float DeadZoneForcedBonusHard = 0.05f;
+    public float DeadZoneIdealMulFloor = 0.35f;
+    public float DeadZoneForcedBonusCap = 0.20f;
+
     // Simulator
     public int SimulationMaxMoves = 320;
 

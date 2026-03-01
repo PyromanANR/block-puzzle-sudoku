@@ -171,6 +171,7 @@ var toast_label: Label
 # ----------------------------
 const COLOR_EMPTY := Color(0.15, 0.15, 0.15, 1.0)
 const COLOR_FILLED := Color(0.82, 0.82, 0.90, 1.0)
+const COLOR_STONE := Color(0.45, 0.45, 0.50, 1.0)
 const HL_OK := Color(0.10, 0.85, 0.20, 0.60)
 const HL_BAD := Color(0.95, 0.20, 0.20, 0.60)
 const RETRO_GRID_BASE := Color(0.21, 0.10, 0.04, 1.0)
@@ -2599,10 +2600,10 @@ func _refresh_board_visual() -> void:
 	for y in range(BOARD_SIZE):
 		for x in range(BOARD_SIZE):
 			var v := int(board.call("GetCell", x, y))
-			if v == 1:
+			if v == 1 or v == 2:
 				var c = color_grid[y][x]
 				if c == null:
-					c = COLOR_FILLED
+					c = COLOR_STONE if v == 2 else COLOR_FILLED
 				board_cells[y][x].add_theme_stylebox_override("panel", _style_cell_filled_colored(c))
 			else:
 				board_cells[y][x].add_theme_stylebox_override("panel", _style_cell_empty(x, y))
@@ -3611,7 +3612,20 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 			suppress_invalid_sfx_once = false # consume the suppression
 		return false
 
-	var result: Dictionary = board.call("PlaceAndClear", piece, ax, ay)
+	var w_hole = int(core.call("GetDeadZoneWeightHole1x1"))
+	var w_pocket = int(core.call("GetDeadZoneWeightPocket1x2"))
+	var w_overhang = int(core.call("GetDeadZoneWeightOverhang"))
+	var dz_margin = int(core.call("GetDeadZoneMargin"))
+	board.call("BeginDeadZoneEvaluation", piece, ax, ay, dz_margin, w_hole, w_pocket, w_overhang)
+
+	var sticky_delay_moves = int(core.call("GetStickyDelayMoves"))
+	var sticky_stones_to_create = 0
+	if bool(piece.get("IsSticky")):
+		sticky_stones_to_create = int(core.call("GetStickyStonesForPieceSize", int(piece.get("Cells").size())))
+
+	var result: Dictionary = board.call("PlaceAndClear", piece, ax, ay, sticky_delay_moves, sticky_stones_to_create)
+	var dead_zone_delta = int(board.call("EndDeadZoneEvaluation", w_hole, w_pocket, w_overhang))
+	core.call("RegisterDeadZoneDelta", dead_zone_delta)
 
 	# Paint placed cells
 	var kind = String(piece.get("Kind"))
@@ -3629,6 +3643,13 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		var py = int(pos.y)
 		if px >= 0 and px < BOARD_SIZE and py >= 0 and py < BOARD_SIZE:
 			color_grid[py][px] = null
+
+	var sticky_cells = result.get("sticky_triggered_cells", [])
+	for spos in sticky_cells:
+		var sx = int(spos.x)
+		var sy = int(spos.y)
+		if sx >= 0 and sx < BOARD_SIZE and sy >= 0 and sy < BOARD_SIZE:
+			color_grid[sy][sx] = COLOR_STONE
 
 	score += int(piece.get("Cells").size())
 	var cleared_count = int(result.get("cleared_count", 0))

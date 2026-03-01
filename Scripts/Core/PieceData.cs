@@ -9,4 +9,6 @@ public partial class PieceData : Resource
 
     // Cells relative to anchor (0,0)
     [Export] public Array<Vector2I> Cells { get; set; } = new();
+
+    public bool IsSticky { get; set; } = false;
 }

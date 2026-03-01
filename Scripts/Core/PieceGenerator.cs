@@ -21,6 +21,10 @@ public class PieceGenerator
     private bool _hasPeekedKind = false;
     private string _peekedKind = string.Empty;
 
+    private int _deadZoneRemainingSpawns = 0;
+    private float _deadZoneIdealMul = 1.0f;
+    private float _deadZoneForcedBonus = 0.0f;
+
     private static readonly HashSet<string> WellKinds = new()
     {
         "Dot", "DominoH", "DominoV", "TwoDotsA", "TwoDotsB", "TriLineH", "TriLineV", "TriL", "CornerBridge", "Square2"
@@ -90,13 +94,30 @@ public class PieceGenerator
         _spawnSincePity++;
         _piecesSinceWell++;
 
+        if (_deadZoneRemainingSpawns > 0)
+        {
+            _deadZoneRemainingSpawns--;
+            if (_deadZoneRemainingSpawns == 0)
+            {
+                _deadZoneIdealMul = 1.0f;
+                _deadZoneForcedBonus = 0.0f;
+            }
+        }
+
         if (IsWellKind(kind))
         {
             _piecesSinceWell = 0;
             _lastWellMs = Time.GetTicksMsec();
         }
 
-        return MakePiece(kind);
+        var piece = MakePiece(kind);
+        var stickyChance = GetStickyChance(difficulty, elapsedSeconds, _config);
+        var stickyRoll = _rng.Randf();
+        piece.IsSticky = stickyRoll < stickyChance;
+#if DEBUG
+        GD.Print($"[STICKY_SPAWN] elapsed_seconds={elapsedSeconds:0.0}, difficulty={difficulty}, sticky_chance={stickyChance:0.000}, sticky_roll={stickyRoll:0.000}, is_sticky={piece.IsSticky}");
+#endif
+        return piece;
     }
 
     private string PickKind(BoardModel board, float idealChance, bool consume, string difficulty, float elapsedSeconds)
@@ -134,7 +155,7 @@ public class PieceGenerator
 
         bool requestWell = forceWell || _rng.Randf() <= dynamicWellChance;
 
-        var forcedChance = GetForcedFitChance(difficulty, elapsedSeconds);
+        var forcedChance = Mathf.Clamp(GetForcedFitChance(difficulty, elapsedSeconds) + _deadZoneForcedBonus, 0f, 1f);
         bool forcedTriggered = _rng.Randf() < forcedChance;
         int forcedCandidatesCount = 0;
         string forcedSelected = string.Empty;
@@ -170,7 +191,8 @@ public class PieceGenerator
         }
         else
         {
-            bool useIdeal = pity || _rng.Randf() <= idealChance;
+            var adjustedIdealChance = Mathf.Clamp(idealChance * _deadZoneIdealMul, 0f, 1f);
+            bool useIdeal = pity || _rng.Randf() <= adjustedIdealChance;
             if (useIdeal)
             {
                 selected = evaluated[0].kind;
@@ -195,6 +217,66 @@ public class PieceGenerator
 #endif
 
         return selected;
+    }
+
+
+    public void ApplyDeadZonePenalty(int durationSpawns, float idealMultiplier, float forcedBonusAdd)
+    {
+        _deadZoneRemainingSpawns = Math.Max(_deadZoneRemainingSpawns, durationSpawns);
+        _deadZoneIdealMul = Mathf.Max(_config.DeadZoneIdealMulFloor, _deadZoneIdealMul * idealMultiplier);
+        _deadZoneForcedBonus = Mathf.Min(_config.DeadZoneForcedBonusCap, _deadZoneForcedBonus + forcedBonusAdd);
+    }
+
+    public Dictionary<string, float> GetDeadZoneDebuffSnapshot()
+    {
+        return new Dictionary<string, float>
+        {
+            { "remainingSpawns", _deadZoneRemainingSpawns },
+            { "idealMul", _deadZoneIdealMul },
+            { "forcedBonus", _deadZoneForcedBonus }
+        };
+    }
+
+    public static float GetStickyChance(string difficulty, float elapsedSeconds, BalanceConfig config)
+    {
+        float[,] points;
+        switch (difficulty)
+        {
+            case "Easy":
+                points = new float[,] {
+                    { 90f, config.StickyChance90Easy }, { 180f, config.StickyChance180Easy }, { 360f, config.StickyChance360Easy }, { 600f, config.StickyChance600Easy }
+                };
+                break;
+            case "Hard":
+                points = new float[,] {
+                    { 90f, config.StickyChance90Hard }, { 180f, config.StickyChance180Hard }, { 360f, config.StickyChance360Hard }, { 600f, config.StickyChance600Hard }
+                };
+                break;
+            default:
+                points = new float[,] {
+                    { 90f, config.StickyChance90Medium }, { 180f, config.StickyChance180Medium }, { 360f, config.StickyChance360Medium }, { 600f, config.StickyChance600Medium }
+                };
+                break;
+        }
+
+        if (elapsedSeconds <= points[0, 0])
+            return points[0, 1];
+
+        var t = Mathf.Clamp(elapsedSeconds, points[0, 0], points[3, 0]);
+        for (int i = 0; i < 3; i++)
+        {
+            var t0 = points[i, 0];
+            var t1 = points[i + 1, 0];
+            if (t <= t1)
+            {
+                var p = Mathf.Clamp((t - t0) / Mathf.Max(0.001f, t1 - t0), 0f, 1f);
+                var v0 = points[i, 1];
+                var v1 = points[i + 1, 1];
+                return Mathf.Lerp(v0, v1, p);
+            }
+        }
+
+        return points[3, 1];
     }
 
     private bool TryPickWellCandidate(List<(string kind, float score)> evaluated, out string kind)

@@ -61,7 +61,7 @@ public class SimulationRunner
                     break;
                 }
 
-                var result = board.PlaceAndClear(piece, ax, ay);
+                var result = board.PlaceAndClear(piece, ax, ay, config.StickyDelayMoves, 0);
                 int clearedCount = (int)result["cleared_count"];
 
                 moves++;

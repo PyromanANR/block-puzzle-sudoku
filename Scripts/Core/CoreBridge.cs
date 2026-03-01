@@ -109,18 +109,29 @@ public partial class CoreBridge : Node
 
         if (_holdPiece == null)
         {
-            _holdPiece = PieceGenerator.MakePiece(current.Kind);
+            _holdPiece = ClonePiece(current);
             return _generator.Pop(_activeBoard, ComputeIdealChance(), _difficulty, GetElapsedSeconds());
         }
 
         var outPiece = _holdPiece;
-        _holdPiece = PieceGenerator.MakePiece(current.Kind);
+        _holdPiece = ClonePiece(current);
         return outPiece;
     }
 
     public void ResetHoldUsage() => _holdUsed = false;
 
-    public PieceData GetHoldPiece() => _holdPiece == null ? null : PieceGenerator.MakePiece(_holdPiece.Kind);
+    private static PieceData ClonePiece(PieceData source)
+    {
+        if (source == null)
+            return null;
+
+        var copy = PieceGenerator.MakePiece(source.Kind);
+        copy.IsSticky = source.IsSticky;
+        return copy;
+    }
+
+
+    public PieceData GetHoldPiece() => _holdPiece == null ? null : ClonePiece(_holdPiece);
 
     public void RegisterSuccessfulPlacement(int clearedCount, float moveTimeSec, float boardFillRatio)
     {
@@ -132,6 +143,49 @@ public partial class CoreBridge : Node
 #if DEBUG
         var dbg = _generator.GetDebugSnapshot(ComputeIdealChance());
         GD.Print($"[BALANCE] secSinceWell={dbg["lastWellSecondsAgo"]:0.0}, piecesSinceWell={dbg["piecesSinceWell"]}, ideal={dbg["currentIdealChance"]:0.00}, pity={dbg["pityTriggers"]}, targetSpeed={_lastTargetSpeed:0.00}, displayedSpeed={_smoothedFallSpeed:0.00}");
+#endif
+    }
+
+
+    public void RegisterDeadZoneDelta(int delta)
+    {
+        int threshold;
+        int duration;
+        float idealMul;
+        float forcedBonus;
+
+        if (_difficulty == "Easy")
+        {
+            threshold = _config.DeadZoneThresholdEasy;
+            duration = _config.DeadZoneDebuffSpawnsEasy;
+            idealMul = _config.DeadZoneIdealMulEasy;
+            forcedBonus = _config.DeadZoneForcedBonusEasy;
+        }
+        else if (_difficulty == "Hard")
+        {
+            threshold = _config.DeadZoneThresholdHard;
+            duration = _config.DeadZoneDebuffSpawnsHard;
+            idealMul = _config.DeadZoneIdealMulHard;
+            forcedBonus = _config.DeadZoneForcedBonusHard;
+        }
+        else
+        {
+            threshold = _config.DeadZoneThresholdMedium;
+            duration = _config.DeadZoneDebuffSpawnsMedium;
+            idealMul = _config.DeadZoneIdealMulMedium;
+            forcedBonus = _config.DeadZoneForcedBonusMedium;
+        }
+
+        bool applied = delta > 0 && delta >= threshold;
+        if (applied)
+            _generator.ApplyDeadZonePenalty(duration, idealMul, forcedBonus);
+
+#if DEBUG
+        var debuff = _generator.GetDeadZoneDebuffSnapshot();
+        var remainingSpawns = debuff["remainingSpawns"];
+        var idealMulNow = debuff["idealMul"];
+        var forcedBonusNow = debuff["forcedBonus"];
+        GD.Print($"[DEAD_ZONE] delta={delta}, threshold={threshold}, applied={applied}, remaining_spawns={remainingSpawns}, ideal_mul={idealMulNow:0.000}, forced_bonus={forcedBonusNow:0.000}");
 #endif
     }
 
@@ -357,6 +411,25 @@ public partial class CoreBridge : Node
     public float GetWellFirstEntrySlowTimeScale() => _config.WellFirstEntrySlowTimeScale;
     public float GetPanicPulseSpeed() => _config.PanicPulseSpeed;
     public float GetPanicBlinkSpeed() => _config.PanicBlinkSpeed;
+
+    public int GetDeadZoneWeightHole1x1() => _config.DeadZoneWeightHole1x1;
+    public int GetDeadZoneWeightPocket1x2() => _config.DeadZoneWeightPocket1x2;
+    public int GetDeadZoneWeightOverhang() => _config.DeadZoneWeightOverhang;
+    public int GetDeadZoneMargin() => _config.DeadZoneMargin;
+    public int GetStickyDelayMoves() => _config.StickyDelayMoves;
+    public int GetStickyStonesForPieceSize(int footprintSize)
+    {
+        if (_difficulty == "Easy")
+            return _config.StickyStonesEasy;
+        if (_difficulty == "Hard")
+            return _config.StickyStonesHard;
+
+        var result = _config.StickyStonesMedium;
+        if (footprintSize >= 5 && _rng.Randf() < 0.5f)
+            result = 2;
+        return result;
+    }
+
     public float GetPanicBlinkThreshold() => _config.PanicBlinkThreshold;
     public float GetInvalidDropGraceSec() => _config.InvalidDropGraceSec;
     public float GetInvalidDropFailSlowSec() => _config.InvalidDropFailSlowSec;
