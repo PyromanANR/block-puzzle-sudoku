@@ -3,6 +3,10 @@
   "WorkspaceRootPath": "F:\\IT\\MyGame\\block-puzzle-sudoku\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|f:\\it\\mygame\\block-puzzle-sudoku\\scripts\\core\\piecedata.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|solutionrelative:scripts\\core\\piecedata.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|f:\\it\\mygame\\block-puzzle-sudoku\\scripts\\core\\boardmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|solutionrelative:scripts\\core\\boardmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -21,10 +25,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|f:\\it\\mygame\\block-puzzle-sudoku\\scripts\\core\\balanceconfig.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|solutionrelative:scripts\\core\\balanceconfig.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|f:\\it\\mygame\\block-puzzle-sudoku\\scripts\\core\\piecedata.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{7925B29B-A5E6-4DF6-9872-1C0C1BF60F31}|Block Puzzle Sudoku.csproj|solutionrelative:scripts\\core\\piecedata.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -34,7 +34,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 8,
+          "SelectedChildIndex": 9,
           "Children": [
             {
               "$type": "Bookmark",
@@ -58,7 +58,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 4,
               "Title": "DifficultyDirector.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\DifficultyDirector.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\DifficultyDirector.cs",
@@ -70,7 +70,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 5,
               "Title": "BalanceConfig.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\BalanceConfig.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\BalanceConfig.cs",
@@ -82,7 +82,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
               "Title": "PieceGenerator.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\PieceGenerator.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\PieceGenerator.cs",
@@ -90,12 +90,11 @@
               "RelativeToolTip": "Scripts\\Core\\PieceGenerator.cs",
               "ViewState": "AgIAABoAAAAAAAAAAAAAwA4AAAAkAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-23T05:18:05.812Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-23T05:18:05.812Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "BoardModel.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\BoardModel.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\BoardModel.cs",
@@ -108,19 +107,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 0,
               "Title": "PieceData.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\PieceData.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\PieceData.cs",
               "ToolTip": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\PieceData.cs",
               "RelativeToolTip": "Scripts\\Core\\PieceData.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAANAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-18T01:23:37.249Z"
+              "WhenOpened": "2026-02-18T01:23:37.249Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "CoreBridge.cs",
               "DocumentMoniker": "F:\\IT\\MyGame\\block-puzzle-sudoku\\Scripts\\Core\\CoreBridge.cs",
               "RelativeDocumentMoniker": "Scripts\\Core\\CoreBridge.cs",
