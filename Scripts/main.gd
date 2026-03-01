@@ -62,7 +62,11 @@ var board_cells := []
 var board_hl := []
 var board_stone_overlay := []
 var color_grid := []
+var sticky_grid := []
 var board_grid_overlay: Control
+var _stone_overlay_tex_cache: Texture2D
+var _stone_overlay_shader_cache: Shader
+var _stone_overlay_shader_checked := false
 
 # ----------------------------
 # Gameplay
@@ -2427,11 +2431,15 @@ func _on_exit_cancel() -> void:
 # ============================================================
 func _clear_color_grid() -> void:
 	color_grid.clear()
+	sticky_grid.clear()
 	for y in range(BOARD_SIZE):
 		var row := []
+		var sticky_row := []
 		for x in range(BOARD_SIZE):
 			row.append(null)
+			sticky_row.append(false)
 		color_grid.append(row)
+		sticky_grid.append(sticky_row)
 
 
 func _build_board_side_overlays(screen_bezel: Panel, board_px: float) -> void:
@@ -2617,10 +2625,11 @@ func _refresh_board_visual() -> void:
 			else:
 				board_cells[y][x].add_theme_stylebox_override("panel", _style_cell_empty(x, y))
 				color_grid[y][x] = null
+				sticky_grid[y][x] = false
 
 			var stone_overlay = board_stone_overlay[y][x] as TextureRect
 			if stone_overlay != null:
-				stone_overlay.visible = v == 2 and stone_overlay.texture != null
+				stone_overlay.visible = (v == 2 or sticky_grid[y][x]) and stone_overlay.texture != null
 
 			board_hl[y][x].color = Color(0, 0, 0, 0)
 	if clear_flash_left > 0.0:
@@ -2683,7 +2692,7 @@ func _draw_preview(target: Panel, piece) -> void:
 	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var col = _color_for_kind(String(piece.get("Kind")))
-	var infected = bool(piece.get("IsSticky", false))
+	var infected = _is_piece_sticky(piece)
 	for c in piece.get("Cells"):
 		var b = _bevel_block(col, preview_cell_size - 2, infected)
 		b.position = offset + Vector2(int(c.x) * preview_cell_size, int(c.y) * preview_cell_size)
@@ -3629,7 +3638,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 
 	var sticky_delay_moves = int(core.call("GetStickyDelayMoves"))
 	var sticky_stones_to_create = 0
-	if bool(piece.get("IsSticky")):
+	if _is_piece_sticky(piece):
 		sticky_stones_to_create = int(core.call("GetStickyStonesForPieceSize", int(piece.get("Cells").size())))
 
 	var result: Dictionary = board.call("PlaceAndClear", piece, ax, ay, sticky_delay_moves, sticky_stones_to_create)
@@ -3639,11 +3648,13 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 	# Paint placed cells
 	var kind = String(piece.get("Kind"))
 	var col = _color_for_kind(kind)
+	var is_sticky_piece := _is_piece_sticky(piece)
 	for c in piece.get("Cells"):
 		var x = ax + int(c.x)
 		var y = ay + int(c.y)
 		if x >= 0 and x < BOARD_SIZE and y >= 0 and y < BOARD_SIZE:
 			color_grid[y][x] = col
+			sticky_grid[y][x] = is_sticky_piece
 
 	# Clear colors for cleared cells
 	var cleared = result.get("cleared", [])
@@ -3652,6 +3663,7 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 		var py = int(pos.y)
 		if px >= 0 and px < BOARD_SIZE and py >= 0 and py < BOARD_SIZE:
 			color_grid[py][px] = null
+			sticky_grid[py][px] = false
 
 	var sticky_cells = result.get("sticky_triggered_cells", [])
 	for spos in sticky_cells:
@@ -3984,7 +3996,7 @@ func _make_piece_preview(piece, mini: int, frame: Vector2 = Vector2(140, 90)) ->
 	var start_y := int((root.size.y - h) * 0.5)
 
 	var col := _color_for_kind(String(piece.get("Kind")))
-	var infected := bool(piece.get("IsSticky", false))
+	var infected := _is_piece_sticky(piece)
 	for c in piece.get("Cells"):
 		var px := int(c.x) - min_x
 		var py := int(c.y) - min_y
@@ -3997,6 +4009,18 @@ func _make_piece_preview(piece, mini: int, frame: Vector2 = Vector2(140, 90)) ->
 
 func _color_for_kind(kind: String) -> Color:
 	return _skin_piece_color(kind)
+
+
+func _is_piece_sticky(piece) -> bool:
+	if piece == null:
+		return false
+	if piece.has_method("get"):
+		var sticky_value = piece.get("IsSticky")
+		if sticky_value != null:
+			return bool(sticky_value)
+	if piece.has_meta("debug_force_sticky"):
+		return bool(piece.get_meta("debug_force_sticky"))
+	return bool(piece.get_meta("IsSticky", false))
 
 
 # ============================================================
@@ -4292,16 +4316,48 @@ func _bevel_block(base: Color, size_px: int, infected: bool = false) -> Control:
 		overlay.offset_right = -1
 		overlay.offset_bottom = -1
 		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		overlay.texture = _get_stone_overlay_tex()
 		overlay.visible = overlay.texture != null
-		overlay.z_index = 3
+		overlay.z_index = 20
+		overlay.modulate = Color(1, 1, 1, 0.88)
+		_apply_stone_overlay_material(overlay, 1.0, 0.0)
 		p.add_child(overlay)
 	return p
 
 
 func _get_stone_overlay_tex() -> Texture2D:
-	return _load_texture_or_null(STONE_OVERLAY_TEX_PATH)
+	if _stone_overlay_tex_cache != null:
+		return _stone_overlay_tex_cache
+	if not ResourceLoader.exists(STONE_OVERLAY_TEX_PATH):
+		if OS.is_debug_build():
+			push_warning("Stone overlay texture not found: %s" % STONE_OVERLAY_TEX_PATH)
+		return null
+	var tex = load(STONE_OVERLAY_TEX_PATH)
+	if tex is Texture2D:
+		_stone_overlay_tex_cache = tex as Texture2D
+		return _stone_overlay_tex_cache
+	if OS.is_debug_build():
+		push_warning("Stone overlay texture is not Texture2D: %s" % STONE_OVERLAY_TEX_PATH)
+	return null
+
+
+func _get_stone_overlay_shader() -> Shader:
+	if _stone_overlay_shader_checked:
+		return _stone_overlay_shader_cache
+	_stone_overlay_shader_checked = true
+	if not ResourceLoader.exists(STONE_OVERLAY_SHADER_PATH):
+		if OS.is_debug_build():
+			push_warning("Stone overlay shader not found: %s" % STONE_OVERLAY_SHADER_PATH)
+		return null
+	var shader_res = load(STONE_OVERLAY_SHADER_PATH)
+	if shader_res is Shader:
+		_stone_overlay_shader_cache = shader_res as Shader
+		return _stone_overlay_shader_cache
+	if OS.is_debug_build():
+		push_warning("Stone overlay shader is not Shader: %s" % STONE_OVERLAY_SHADER_PATH)
+	return null
 
 
 func _apply_stone_overlay_material(overlay: TextureRect, reveal: float = 1.0, pulse_strength: float = 0.12) -> void:
@@ -4310,12 +4366,12 @@ func _apply_stone_overlay_material(overlay: TextureRect, reveal: float = 1.0, pu
 	if overlay.texture == null:
 		overlay.material = null
 		return
-	var shader_res = _safe_load_resource(STONE_OVERLAY_SHADER_PATH)
-	if not (shader_res is Shader):
+	var shader_res = _get_stone_overlay_shader()
+	if shader_res == null:
 		overlay.material = null
 		return
 	var mat := ShaderMaterial.new()
-	mat.shader = shader_res as Shader
+	mat.shader = shader_res
 	mat.set_shader_parameter("u_reveal", clamp(reveal, 0.0, 1.0))
 	mat.set_shader_parameter("u_pulse_strength", pulse_strength)
 	overlay.material = mat
