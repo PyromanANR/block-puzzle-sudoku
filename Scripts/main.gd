@@ -409,7 +409,7 @@ func _fit_header_label(label: Label, min_size: int = 16, max_size: int = 32) -> 
 	if font == null:
 		return
 	var pad := 12.0
-	var available := max(10.0, label.size.x - pad)
+	var available = max(10.0, label.size.x - pad)
 	var best := max_size
 	while best > min_size:
 		var w := font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, best).x
@@ -417,9 +417,6 @@ func _fit_header_label(label: Label, min_size: int = 16, max_size: int = 32) -> 
 			break
 		best -= 1
 	label.add_theme_font_size_override("font_size", best)
-	# If still too long, trim with ellipsis instead of clipping first letters.
-	label.clip_text = true
-	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
 
 func _apply_header_label_fits() -> void:
