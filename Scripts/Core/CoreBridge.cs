@@ -79,19 +79,19 @@ public partial class CoreBridge : Node
     }
 
     // Compatibility API for callers without explicit board argument.
-    public PieceData PeekNextPiece() => _generator.Peek(_activeBoard, ComputeIdealChance());
+    public PieceData PeekNextPiece() => _generator.Peek(_activeBoard, ComputeIdealChance(), _difficulty, GetElapsedSeconds());
 
     // Compatibility API for callers without explicit board argument.
-    public PieceData PopNextPiece() => _generator.Pop(_activeBoard, ComputeIdealChance());
+    public PieceData PopNextPiece() => _generator.Pop(_activeBoard, ComputeIdealChance(), _difficulty, GetElapsedSeconds());
 
     public PieceData PeekNextPieceForBoard(BoardModel board)
     {
-        return _generator.Peek(board, ComputeIdealChance());
+        return _generator.Peek(board, ComputeIdealChance(), _difficulty, GetElapsedSeconds());
     }
 
     public PieceData PopNextPieceForBoard(BoardModel board)
     {
-        return _generator.Pop(board, ComputeIdealChance());
+        return _generator.Pop(board, ComputeIdealChance(), _difficulty, GetElapsedSeconds());
     }
 
     private PieceData _holdPiece = null;
@@ -110,7 +110,7 @@ public partial class CoreBridge : Node
         if (_holdPiece == null)
         {
             _holdPiece = PieceGenerator.MakePiece(current.Kind);
-            return _generator.Pop(_activeBoard, ComputeIdealChance());
+            return _generator.Pop(_activeBoard, ComputeIdealChance(), _difficulty, GetElapsedSeconds());
         }
 
         var outPiece = _holdPiece;
@@ -392,5 +392,10 @@ public partial class CoreBridge : Node
     private float GetElapsedMinutes()
     {
         return Mathf.Max(0f, (Time.GetTicksMsec() - _startMs) / 60000.0f);
+    }
+
+    private float GetElapsedSeconds()
+    {
+        return Mathf.Max(0f, (Time.GetTicksMsec() - _startMs) / 1000.0f);
     }
 }
