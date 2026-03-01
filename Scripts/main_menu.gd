@@ -114,6 +114,11 @@ var quests_panel: Panel
 var shop_panel: Panel
 var debug_panel: Panel
 var popup_overlay: ColorRect
+var coming_soon_dim: ColorRect
+var coming_soon_card: Panel
+var coming_soon_timer: Timer
+var coming_soon_pending_panel: Control = null
+var coming_soon_active: bool = false
 
 var debug_body: VBoxContainer
 var lbl_cloud_status: Label
@@ -140,6 +145,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_apply_safe_area()
 		_sync_particles_to_viewport()
+		_update_coming_soon_card_layout()
 
 
 
@@ -871,8 +877,8 @@ func _build_bottom_nav() -> void:
 	safe_margin.add_child(nav_row)
 
 	_add_nav_button(nav_row, "Shop", ICON_SHOP_TRES, "🛍", func(): _open_panel(shop_panel))
-	_add_nav_button(nav_row, "Rewards", ICON_REWARDS_PNG, "🎁", func(): _open_panel(rewards_panel))
-	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD_TRES, "🏆", func(): _open_panel(leaderboard_panel))
+	_add_nav_button(nav_row, "Rewards", ICON_REWARDS_PNG, "🎁", func(): _open_panel_with_in_progress(rewards_panel))
+	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD_TRES, "🏆", func(): _open_panel_with_in_progress(leaderboard_panel))
 	_add_nav_button(nav_row, "Quests", ICON_QUESTS_TRES, "📜", func(): _open_panel(quests_panel))
 	if current_nav == "":
 		_set_active_nav("Shop")
@@ -942,6 +948,66 @@ func _build_modal_layer() -> void:
 			_close_all_panels()
 	)
 	modal_layer.add_child(popup_overlay)
+
+	coming_soon_dim = ColorRect.new()
+	coming_soon_dim.name = "ComingSoonDim"
+	coming_soon_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	coming_soon_dim.color = Color(0, 0, 0, 0.65)
+	coming_soon_dim.visible = false
+	coming_soon_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal_layer.add_child(coming_soon_dim)
+
+	coming_soon_card = Panel.new()
+	coming_soon_card.name = "ComingSoonCard"
+	coming_soon_card.anchor_left = 0.5
+	coming_soon_card.anchor_top = 0.5
+	coming_soon_card.anchor_right = 0.5
+	coming_soon_card.anchor_bottom = 0.5
+	coming_soon_card.visible = false
+	coming_soon_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UIStyle.apply_panel_9slice(coming_soon_card)
+	modal_layer.add_child(coming_soon_card)
+
+	var coming_soon_margin = MarginContainer.new()
+	coming_soon_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	coming_soon_margin.add_theme_constant_override("margin_left", 28)
+	coming_soon_margin.add_theme_constant_override("margin_top", 24)
+	coming_soon_margin.add_theme_constant_override("margin_right", 28)
+	coming_soon_margin.add_theme_constant_override("margin_bottom", 24)
+	coming_soon_card.add_child(coming_soon_margin)
+
+	var coming_soon_vbox = VBoxContainer.new()
+	coming_soon_vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	coming_soon_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	coming_soon_vbox.add_theme_constant_override("separation", 10)
+	coming_soon_margin.add_child(coming_soon_vbox)
+
+	var coming_soon_title = Label.new()
+	coming_soon_title.text = "IN PROGRESS"
+	coming_soon_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	coming_soon_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	coming_soon_title.add_theme_font_size_override("font_size", 54)
+	coming_soon_title.add_theme_color_override("font_color", _palette_color("text_primary", Color(1, 1, 1, 1)))
+	coming_soon_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	coming_soon_title.add_theme_constant_override("outline_size", 3)
+	coming_soon_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	coming_soon_vbox.add_child(coming_soon_title)
+
+	var coming_soon_subtitle = Label.new()
+	coming_soon_subtitle.text = "This feature will be available in a future update."
+	coming_soon_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	coming_soon_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	coming_soon_subtitle.add_theme_font_size_override("font_size", 22)
+	coming_soon_subtitle.add_theme_color_override("font_color", _palette_color("text_secondary", Color(0.85, 0.85, 0.9, 0.92)))
+	coming_soon_subtitle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	coming_soon_vbox.add_child(coming_soon_subtitle)
+
+	coming_soon_timer = Timer.new()
+	coming_soon_timer.one_shot = true
+	coming_soon_timer.wait_time = 5.0
+	coming_soon_timer.timeout.connect(_hide_in_progress_overlay_and_open_pending)
+	modal_layer.add_child(coming_soon_timer)
+	_update_coming_soon_card_layout()
 
 	rewards_panel = _create_modal_panel("Rewards")
 	leaderboard_panel = _create_modal_panel("Leaderboard")
@@ -1930,9 +1996,56 @@ func _open_panel(panel: Control) -> void:
 			(sync_settings as Callable).call()
 
 
+func _open_panel_with_in_progress(panel: Control) -> void:
+	if panel == null:
+		return
+	_close_all_panels()
+	coming_soon_pending_panel = panel
+	coming_soon_active = true
+	coming_soon_dim.visible = true
+	coming_soon_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	coming_soon_card.visible = true
+	_update_coming_soon_card_layout()
+	coming_soon_timer.stop()
+	coming_soon_timer.wait_time = 5.0
+	coming_soon_timer.start()
+
+
+func _hide_in_progress_overlay_and_open_pending() -> void:
+	coming_soon_active = false
+	coming_soon_dim.visible = false
+	coming_soon_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	coming_soon_card.visible = false
+	var pending = coming_soon_pending_panel
+	coming_soon_pending_panel = null
+	if pending != null:
+		_open_panel(pending)
+
+
+func _update_coming_soon_card_layout() -> void:
+	if coming_soon_card == null:
+		return
+	var vp = get_viewport_rect().size
+	var max_w = clamp(vp.x - (safe_left + safe_right + 40.0), 320.0, 720.0)
+	var max_h = clamp(vp.y - (safe_top + safe_bottom + 40.0), 180.0, 240.0)
+	coming_soon_card.offset_left = -max_w * 0.5
+	coming_soon_card.offset_right = max_w * 0.5
+	coming_soon_card.offset_top = -max_h * 0.5
+	coming_soon_card.offset_bottom = max_h * 0.5
+
+
 func _close_all_panels() -> void:
 	popup_overlay.visible = false
 	popup_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	coming_soon_active = false
+	coming_soon_pending_panel = null
+	if coming_soon_timer != null:
+		coming_soon_timer.stop()
+	if coming_soon_dim != null:
+		coming_soon_dim.visible = false
+		coming_soon_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if coming_soon_card != null:
+		coming_soon_card.visible = false
 	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
 		if p != null:
 			p.visible = false
