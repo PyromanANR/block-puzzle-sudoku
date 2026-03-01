@@ -62,6 +62,7 @@ var board_hl := []
 var board_block_faces := []
 var board_stone_overlay := []
 var board_stone_overlay_revealed := []
+var stone_hp_grid := []
 var color_grid := []
 var sticky_grid := []
 var board_grid_overlay: Control
@@ -169,6 +170,9 @@ var grace_piece_by_id: Dictionary = {}
 var invalid_drop_slow_until_ms = 0
 var next_punish_due_ms: int = 0
 var punish_interval_ms: int = 60000
+var speed_penalty_until_ms: int = 0
+var last_good_clear_ms: int = 0
+var next_auto_crack_check_ms: int = 0
 var toast_layer: CanvasLayer
 var toast_panel: Panel
 var toast_label: Label
@@ -178,6 +182,10 @@ var toast_label: Label
 # ----------------------------
 const COLOR_EMPTY := Color(0.15, 0.15, 0.15, 1.0)
 const COLOR_FILLED := Color(0.82, 0.82, 0.90, 1.0)
+const SPEED_PENALTY_SCALE := 1.10
+const SPEED_PENALTY_DURATION_MS := 6000
+const AUTO_CRACK_IDLE_MS := 60000
+const AUTO_CRACK_CHECK_INTERVAL_MS := 1000
 const COLOR_STONE := Color(0.45, 0.45, 0.50, 1.0)
 const HL_OK := Color(0.10, 0.85, 0.20, 0.60)
 const HL_BAD := Color(0.95, 0.20, 0.20, 0.60)
@@ -621,6 +629,9 @@ func _start_round() -> void:
 	var punish_now = Time.get_ticks_msec()
 	punish_interval_ms = 30000 if pile.size() == 0 else 60000
 	next_punish_due_ms = punish_now + punish_interval_ms
+	speed_penalty_until_ms = 0
+	last_good_clear_ms = punish_now
+	next_auto_crack_check_ms = punish_now + AUTO_CRACK_CHECK_INTERVAL_MS
 	board.call("Reset")
 	_clear_color_grid()
 	_refresh_board_visual()
@@ -2439,17 +2450,21 @@ func _on_exit_cancel() -> void:
 func _clear_color_grid() -> void:
 	color_grid.clear()
 	sticky_grid.clear()
+	stone_hp_grid.clear()
 	board_stone_overlay_revealed.clear()
 	for y in range(BOARD_SIZE):
 		var row := []
 		var sticky_row := []
+		var stone_hp_row := []
 		var stone_revealed_row := []
 		for x in range(BOARD_SIZE):
 			row.append(null)
 			sticky_row.append(false)
+			stone_hp_row.append(0)
 			stone_revealed_row.append(false)
 		color_grid.append(row)
 		sticky_grid.append(sticky_row)
+		stone_hp_grid.append(stone_hp_row)
 		board_stone_overlay_revealed.append(stone_revealed_row)
 
 
@@ -2664,23 +2679,11 @@ func _refresh_board_visual() -> void:
 				if face != null:
 					face.visible = false
 
-			var stone_overlay = board_stone_overlay[y][x] as TextureRect
-			if stone_overlay != null:
-				var is_stone_now = (v == 2)
-				if is_stone_now:
-					if stone_overlay.texture == null:
-						stone_overlay.texture = _get_stone_overlay_tex()
-					if board_stone_overlay_revealed[y][x] == false:
-						_animate_stone_overlay_show(stone_overlay, 1)
-						board_stone_overlay_revealed[y][x] = true
-					else:
-						stone_overlay.visible = stone_overlay.texture != null
-						stone_overlay.material = null
-						stone_overlay.modulate = Color(1, 1, 1, 1)
-						stone_overlay.scale = Vector2.ONE
-				else:
-					board_stone_overlay_revealed[y][x] = false
-					_hide_stone_overlay(stone_overlay)
+			if v != 2 and stone_hp_grid[y][x] > 0:
+				if OS.is_debug_build():
+					push_warning("stone_hp_grid sync reset at %d,%d" % [x, y])
+				stone_hp_grid[y][x] = 0
+			_apply_stone_overlay_state(x, y)
 
 			board_hl[y][x].color = Color(0, 0, 0, 0)
 	if clear_flash_left > 0.0:
@@ -3738,6 +3741,25 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 			sticky_grid[py][px] = false
 			cleared_map["%d,%d" % [px, py]] = true
 
+	for pos in cleared:
+		var px = int(pos.x)
+		var py = int(pos.y)
+		if px < 0 or px >= BOARD_SIZE or py < 0 or py >= BOARD_SIZE:
+			continue
+		if stone_hp_grid[py][px] >= 2:
+			stone_hp_grid[py][px] = 1
+			board.call("SetCell", px, py, 2)
+			color_grid[py][px] = COLOR_STONE
+			sticky_grid[py][px] = true
+			_apply_stone_overlay_state(px, py)
+			_pulse_stone_crack(px, py)
+		elif stone_hp_grid[py][px] == 1:
+			stone_hp_grid[py][px] = 0
+			board.call("SetCell", px, py, 0)
+			color_grid[py][px] = null
+			sticky_grid[py][px] = false
+			_apply_stone_overlay_state(px, py)
+
 	# If the piece is sticky: convert ALL its placed cells into stone (v=2), for all difficulties.
 	if is_sticky_piece:
 		for c in piece.get("Cells"):
@@ -3745,15 +3767,20 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 			var y2 = ay + int(c.y)
 			if x2 >= 0 and x2 < BOARD_SIZE and y2 >= 0 and y2 < BOARD_SIZE:
 				if not cleared_map.has("%d,%d" % [x2, y2]):
-					# Mark as stone in the core board model.
+					if _stone_ratio_on_board() >= _difficulty_stone_cap_ratio():
+						_apply_speed_penalty("Pressure rising")
+						sticky_grid[y2][x2] = false
+						continue
 					board.call("SetCell", x2, y2, 2)
-					# Force stone visuals.
+					stone_hp_grid[y2][x2] = 2
 					color_grid[y2][x2] = COLOR_STONE
 					sticky_grid[y2][x2] = true
 					_reveal_stone_overlay_at(x2, y2)
 
 	score += int(piece.get("Cells").size())
 	var cleared_count = int(result.get("cleared_count", 0))
+	if cleared_count >= 2:
+		last_good_clear_ms = Time.get_ticks_msec()
 	score += cleared_count * 2
 
 	# Remove from pile if it came from pile
@@ -3814,11 +3841,15 @@ func _maybe_trigger_no_well_entry_punish(now_ms: int) -> void:
 	if now_ms < next_punish_due_ms:
 		return
 	_do_board_shake()
-	_stoneify_random_filled_cells_by_difficulty()
+	var danger_state = _empty_count_on_board() < 8 or _non_stone_filled_count_on_board() < 10
+	if _stone_ratio_on_board() >= _difficulty_stone_cap_ratio() or danger_state:
+		_apply_speed_penalty("Pressure rising")
+	else:
+		_stoneify_random_filled_cells_by_difficulty()
 	next_punish_due_ms = now_ms + punish_interval_ms
 
 
-func _count_stone_cells_on_board() -> int:
+func _stone_count_on_board() -> int:
 	var count = 0
 	for y in range(BOARD_SIZE):
 		for x in range(BOARD_SIZE):
@@ -3827,12 +3858,56 @@ func _count_stone_cells_on_board() -> int:
 	return count
 
 
+func _stone_ratio_on_board() -> float:
+	return float(_stone_count_on_board()) / float(BOARD_SIZE * BOARD_SIZE)
+
+
+func _difficulty_stone_cap_ratio() -> float:
+	var diff = String(Save.get_current_difficulty()).to_lower()
+	if diff == "easy":
+		return 0.40
+	if diff == "medium":
+		return 0.50
+	if diff == "hard" or diff == "hardcore" or diff == "nomercy":
+		return 0.60
+	return 0.50
+
+
 func _max_stone_cells_allowed() -> int:
-	return int(floor(float(BOARD_SIZE * BOARD_SIZE) * 0.70))
+	return int(floor(float(BOARD_SIZE * BOARD_SIZE) * _difficulty_stone_cap_ratio()))
 
 
 func _stone_budget_remaining() -> int:
-	return max(0, _max_stone_cells_allowed() - _count_stone_cells_on_board())
+	return max(0, _max_stone_cells_allowed() - _stone_count_on_board())
+
+
+func _empty_count_on_board() -> int:
+	var count = 0
+	for y in range(BOARD_SIZE):
+		for x in range(BOARD_SIZE):
+			if int(board.call("GetCell", x, y)) == 0:
+				count += 1
+	return count
+
+
+func _non_stone_filled_count_on_board() -> int:
+	var count = 0
+	for y in range(BOARD_SIZE):
+		for x in range(BOARD_SIZE):
+			if int(board.call("GetCell", x, y)) == 1:
+				count += 1
+	return count
+
+
+func _stone_neighbor_count(x: int, y: int) -> int:
+	var count = 0
+	for ny in range(max(0, y - 1), min(BOARD_SIZE - 1, y + 1) + 1):
+		for nx in range(max(0, x - 1), min(BOARD_SIZE - 1, x + 1) + 1):
+			if nx == x and ny == y:
+				continue
+			if int(board.call("GetCell", nx, ny)) == 2:
+				count += 1
+	return count
 
 
 func _difficulty_stoneify_ratio() -> float:
@@ -3845,17 +3920,21 @@ func _difficulty_stoneify_ratio() -> float:
 
 
 func _stoneify_random_filled_cells_by_difficulty() -> void:
+	if _stone_ratio_on_board() >= _difficulty_stone_cap_ratio():
+		_apply_speed_penalty("Pressure rising")
+		return
 	var filled_non_stone: Array[Vector2i] = []
 	for y in range(BOARD_SIZE):
 		for x in range(BOARD_SIZE):
-			if int(board.call("GetCell", x, y)) == 1:
+			if int(board.call("GetCell", x, y)) == 1 and _stone_neighbor_count(x, y) < 3:
 				filled_non_stone.append(Vector2i(x, y))
 	if filled_non_stone.is_empty():
 		return
 	var stone_budget = _stone_budget_remaining()
 	if stone_budget <= 0:
+		_apply_speed_penalty("Pressure rising")
 		if OS.is_debug_build():
-			push_warning("Stoneify skipped: stone cap reached (%d/%d)." % [_count_stone_cells_on_board(), _max_stone_cells_allowed()])
+			push_warning("Stoneify skipped: stone cap reached (%d/%d)." % [_stone_count_on_board(), _max_stone_cells_allowed()])
 		return
 	var ratio = _difficulty_stoneify_ratio()
 	var requested_count = int(ceil(float(filled_non_stone.size()) * ratio))
@@ -3871,9 +3950,35 @@ func _stoneify_random_filled_cells_by_difficulty() -> void:
 	for i in range(count):
 		var pos = filled_non_stone[i]
 		board.call("SetCell", pos.x, pos.y, 2)
+		stone_hp_grid[pos.y][pos.x] = 2
 		color_grid[pos.y][pos.x] = COLOR_STONE
 		sticky_grid[pos.y][pos.x] = true
+		_reveal_stone_overlay_at(pos.x, pos.y)
 	_refresh_board_visual()
+
+
+func _apply_speed_penalty(status_text: String = "") -> void:
+	speed_penalty_until_ms = max(speed_penalty_until_ms, Time.get_ticks_msec() + SPEED_PENALTY_DURATION_MS)
+	if status_text != "":
+		_show_status_for_ms(status_text, STATUS_BAD, 650)
+
+
+func _crack_random_stones(min_n: int = 2, max_n: int = 4) -> void:
+	var stones: Array[Vector2i] = []
+	for y in range(BOARD_SIZE):
+		for x in range(BOARD_SIZE):
+			if int(board.call("GetCell", x, y)) == 2 and stone_hp_grid[y][x] >= 2:
+				stones.append(Vector2i(x, y))
+	if stones.is_empty():
+		return
+	stones.shuffle()
+	var crack_count = randi_range(min_n, max_n)
+	crack_count = min(crack_count, stones.size())
+	for i in range(crack_count):
+		var pos = stones[i]
+		stone_hp_grid[pos.y][pos.x] = 1
+		_apply_stone_overlay_state(pos.x, pos.y)
+		_pulse_stone_crack(pos.x, pos.y)
 
 
 func _do_board_shake() -> void:
@@ -3932,6 +4037,9 @@ func _process(delta: float) -> void:
 
 	# Falling speed is driven by DifficultyDirector + level curve from Core.
 	var fall_speed = float(core.call("GetFallSpeed", float(level)))
+	var now_ms = Time.get_ticks_msec()
+	if now_ms < speed_penalty_until_ms:
+		fall_speed *= SPEED_PENALTY_SCALE
 	speed_ui = fall_speed / max(0.001, float(core.call("GetBaseFallSpeed")))
 	lbl_speed.text = "Speed: %.2f" % speed_ui
 	if not speed_curve_warning_shown:
@@ -3944,8 +4052,12 @@ func _process(delta: float) -> void:
 				push_warning("Speed curve sanity: elapsed=%.2f min, speedMul=%.2f, expected>=%.2f" % [elapsed_min, speed_mul, expected_mul])
 				speed_curve_warning_shown = true
 
-	var now_ms = Time.get_ticks_msec()
 	_maybe_trigger_no_well_entry_punish(now_ms)
+	if now_ms >= next_auto_crack_check_ms:
+		next_auto_crack_check_ms = now_ms + AUTO_CRACK_CHECK_INTERVAL_MS
+		if _stone_ratio_on_board() > 0.35 and (now_ms - last_good_clear_ms) >= AUTO_CRACK_IDLE_MS:
+			_crack_random_stones(2, 4)
+			last_good_clear_ms = now_ms
 	if pending_spawn_piece and now_ms >= spawn_wait_until_ms:
 		_spawn_falling_piece()
 	if pending_dual_spawn_ms > 0 and _dual_drop_can_spawn(now_ms):
@@ -4535,6 +4647,47 @@ func _hide_stone_overlay(overlay: TextureRect) -> void:
 	overlay.scale = Vector2.ONE
 
 
+func _apply_stone_overlay_state(sx: int, sy: int) -> void:
+	if sy < 0 or sy >= board_stone_overlay.size():
+		return
+	if sx < 0 or sx >= board_stone_overlay[sy].size():
+		return
+	var overlay = board_stone_overlay[sy][sx] as TextureRect
+	if overlay == null:
+		return
+	var v = int(board.call("GetCell", sx, sy))
+	if v == 2:
+		if stone_hp_grid[sy][sx] <= 0:
+			stone_hp_grid[sy][sx] = 2
+		if overlay.texture == null:
+			overlay.texture = _get_stone_overlay_tex()
+		if board_stone_overlay_revealed[sy][sx] == false:
+			_animate_stone_overlay_show(overlay, 1)
+			board_stone_overlay_revealed[sy][sx] = true
+		overlay.visible = overlay.texture != null
+		overlay.material = null
+		overlay.scale = Vector2.ONE
+		overlay.modulate = Color(1.0, 0.85, 0.65, 1.0) if stone_hp_grid[sy][sx] == 1 else Color(1, 1, 1, 1)
+	else:
+		board_stone_overlay_revealed[sy][sx] = false
+		stone_hp_grid[sy][sx] = 0
+		_hide_stone_overlay(overlay)
+
+
+func _pulse_stone_crack(sx: int, sy: int) -> void:
+	if sy < 0 or sy >= board_stone_overlay.size():
+		return
+	if sx < 0 or sx >= board_stone_overlay[sy].size():
+		return
+	var overlay = board_stone_overlay[sy][sx] as TextureRect
+	if overlay == null or not overlay.visible:
+		return
+	var tw = create_tween()
+	overlay.scale = Vector2.ONE
+	tw.tween_property(overlay, "scale", Vector2(1.08, 1.08), 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(overlay, "scale", Vector2.ONE, 0.10).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+
 func _reveal_stone_overlay_at(sx: int, sy: int) -> void:
 	if sy < 0 or sy >= board_stone_overlay.size():
 		return
@@ -4549,9 +4702,11 @@ func _reveal_stone_overlay_at(sx: int, sy: int) -> void:
 	if overlay.texture == null:
 		overlay.visible = false
 		return
+	if stone_hp_grid[sy][sx] <= 0:
+		stone_hp_grid[sy][sx] = 2
 	if sy >= 0 and sy < board_stone_overlay_revealed.size() and sx >= 0 and sx < board_stone_overlay_revealed[sy].size():
 		board_stone_overlay_revealed[sy][sx] = false
-	_animate_stone_overlay_show(overlay, 1)
+	_apply_stone_overlay_state(sx, sy)
 	board_hl[sy][sx].color = Color(1.0, 0.35, 0.18, 0.34)
 	var hl_tw = create_tween()
 	hl_tw.tween_property(board_hl[sy][sx], "color", Color(0, 0, 0, 0), 0.12)
