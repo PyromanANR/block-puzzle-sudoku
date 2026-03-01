@@ -112,13 +112,14 @@ var settings_panel: Control
 var leaderboard_panel: Panel
 var quests_panel: Panel
 var shop_panel: Panel
+var skins_panel: Panel
+var faq_panel: Panel
 var debug_panel: Panel
 var popup_overlay: ColorRect
-var coming_soon_dim: ColorRect
-var coming_soon_card: Panel
-var coming_soon_timer: Timer
-var coming_soon_pending_panel: Control = null
-var coming_soon_active: bool = false
+var notify_overlay: ColorRect
+var notify_panel: Panel
+var notify_label: Label
+var notify_hide_at_ms: int = 0
 
 var debug_body: VBoxContainer
 var lbl_cloud_status: Label
@@ -137,6 +138,7 @@ func _ready() -> void:
 	_apply_audio_settings()
 	_audio_setup()
 	_build_ui()
+	set_process(true)
 	_refresh_all_ui()
 	_update_menu_fx()
 
@@ -145,7 +147,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_apply_safe_area()
 		_sync_particles_to_viewport()
-		_update_coming_soon_card_layout()
+		_update_notify_panel_layout()
 
 
 
@@ -502,9 +504,15 @@ func _build_top_bar() -> void:
 	right_slot.custom_minimum_size = Vector2(TOPBAR_SIDE_W, TOPBAR_H)
 	row.add_child(right_slot)
 
+	var left_v = VBoxContainer.new()
+	left_v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	left_v.add_theme_constant_override("separation", 6)
+	left_slot.add_child(left_v)
+
 	var level_chip = Button.new()
 	level_chip.text = ""
 	level_chip.custom_minimum_size = Vector2(int(TOPBAR_SIDE_W * 0.7), int(TOPBAR_H * 0.7))
+	level_chip.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	level_chip.anchor_left = 0.0
 	level_chip.anchor_top = 0.0
 	level_chip.anchor_right = 0.0
@@ -513,8 +521,8 @@ func _build_top_bar() -> void:
 	level_chip.offset_right = TOPBAR_SIDE_W
 	level_chip.mouse_entered.connect(func(): _play_sfx("ui_hover"))
 	level_chip.pressed.connect(func(): _play_sfx("ui_click"))
-	level_chip.pressed.connect(func(): _open_panel(rewards_panel))
-	left_slot.add_child(level_chip)
+	level_chip.pressed.connect(func(): _show_feature_soon_notice())
+	left_v.add_child(level_chip)
 	_apply_top_chip_style(level_chip)
 
 	var chip_margin = MarginContainer.new()
@@ -525,7 +533,7 @@ func _build_top_bar() -> void:
 	chip_margin.add_theme_constant_override("margin_bottom", 6)
 	level_chip.add_child(chip_margin)
 
-		# Replace the old chip_col layout with a 2-column layout: 40% badge / 60% info.
+	# Replace the old chip_col layout with a 2-column layout: 40% badge / 60% info.
 	var cols = HBoxContainer.new()
 	cols.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -603,7 +611,7 @@ func _build_top_bar() -> void:
 
 	# Row 3: RANK (centered to the same width as XP bar)
 	var rank_margin = MarginContainer.new()
-	rank_margin.add_theme_constant_override("margin_bottom", 25) 
+	rank_margin.add_theme_constant_override("margin_bottom", 25)
 	rank_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rank_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rank_margin.add_theme_constant_override("margin_left", bar_pad_l)
@@ -623,6 +631,15 @@ func _build_top_bar() -> void:
 	rank_label.add_theme_color_override("font_color", Color(0.22, 0.16, 0.10, 1.0))
 	rank_center.add_child(rank_label)
 
+	var btn_skins = Button.new()
+	btn_skins.custom_minimum_size = Vector2(int(TOPBAR_SIDE_W * 0.7), 52)
+	btn_skins.text = ""
+	_apply_button_style(btn_skins, "small")
+	_set_button_icon(btn_skins, "res://Assets/UI/icons/menu/skin.png", "🎨", "Skins", 28)
+	btn_skins.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	btn_skins.pressed.connect(func(): _play_sfx("ui_click"))
+	btn_skins.pressed.connect(func(): _open_panel(skins_panel))
+	left_v.add_child(btn_skins)
 
 	var center_spacer = Control.new()
 	center_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -638,14 +655,19 @@ func _build_top_bar() -> void:
 	right_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_slot.add_child(right_pad)
 
+	var right_v = VBoxContainer.new()
+	right_v.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right_v.add_theme_constant_override("separation", 6)
+	right_v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	right_pad.add_child(right_v)
+
 	var right_row = HBoxContainer.new()
 	right_row.alignment = BoxContainer.ALIGNMENT_END
 	right_row.add_theme_constant_override("separation", 8)
 	right_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-
-	right_pad.add_child(right_row)
+	right_v.add_child(right_row)
 
 	if _is_debug_panel_visible():
 		var btn_debug = Button.new()
@@ -669,8 +691,17 @@ func _build_top_bar() -> void:
 	btn_settings.pressed.connect(func(): _play_sfx("ui_click"))
 	btn_settings.pressed.connect(func(): _open_panel(settings_panel))
 	right_row.add_child(btn_settings)
-	
-	
+
+	var btn_faq = Button.new()
+	btn_faq.custom_minimum_size = Vector2(int(TOPBAR_SIDE_W * 0.7), 52)
+	btn_faq.text = ""
+	_apply_button_style(btn_faq, "small")
+	_set_button_icon(btn_faq, "res://Assets/UI/icons/menu/faq.png", "?", "FAQ", 28)
+	btn_faq.mouse_entered.connect(func(): _play_sfx("ui_hover"))
+	btn_faq.pressed.connect(func(): _play_sfx("ui_click"))
+	btn_faq.pressed.connect(func(): _open_panel(faq_panel))
+	right_v.add_child(btn_faq)
+
 
 func _build_play_card() -> void:
 	var card = Panel.new()
@@ -877,8 +908,8 @@ func _build_bottom_nav() -> void:
 	safe_margin.add_child(nav_row)
 
 	_add_nav_button(nav_row, "Shop", ICON_SHOP_TRES, "🛍", func(): _open_panel(shop_panel))
-	_add_nav_button(nav_row, "Rewards", ICON_REWARDS_PNG, "🎁", func(): _open_panel_with_in_progress(rewards_panel))
-	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD_TRES, "🏆", func(): _open_panel_with_in_progress(leaderboard_panel))
+	_add_nav_button(nav_row, "Rewards", ICON_REWARDS_PNG, "🎁", func(): _show_feature_soon_notice())
+	_add_nav_button(nav_row, "Leaderboard", ICON_LEADERBOARD_TRES, "🏆", func(): _show_feature_soon_notice())
 	_add_nav_button(nav_row, "Quests", ICON_QUESTS_TRES, "📜", func(): _open_panel(quests_panel))
 	if current_nav == "":
 		_set_active_nav("Shop")
@@ -949,70 +980,52 @@ func _build_modal_layer() -> void:
 	)
 	modal_layer.add_child(popup_overlay)
 
-	coming_soon_dim = ColorRect.new()
-	coming_soon_dim.name = "ComingSoonDim"
-	coming_soon_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	coming_soon_dim.color = Color(0, 0, 0, 0.65)
-	coming_soon_dim.visible = false
-	coming_soon_dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	modal_layer.add_child(coming_soon_dim)
+	notify_overlay = ColorRect.new()
+	notify_overlay.name = "FeatureSoonOverlay"
+	notify_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	notify_overlay.color = Color(0, 0, 0, 0.55)
+	notify_overlay.visible = false
+	notify_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	modal_layer.add_child(notify_overlay)
 
-	coming_soon_card = Panel.new()
-	coming_soon_card.name = "ComingSoonCard"
-	coming_soon_card.anchor_left = 0.5
-	coming_soon_card.anchor_top = 0.5
-	coming_soon_card.anchor_right = 0.5
-	coming_soon_card.anchor_bottom = 0.5
-	coming_soon_card.visible = false
-	coming_soon_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	UIStyle.apply_panel_9slice(coming_soon_card)
-	modal_layer.add_child(coming_soon_card)
+	notify_panel = Panel.new()
+	notify_panel.name = "FeatureSoonPanel"
+	notify_panel.anchor_left = 0.5
+	notify_panel.anchor_top = 0.5
+	notify_panel.anchor_right = 0.5
+	notify_panel.anchor_bottom = 0.5
+	notify_panel.visible = false
+	notify_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UIStyle.apply_panel_9slice(notify_panel)
+	modal_layer.add_child(notify_panel)
 
-	var coming_soon_margin = MarginContainer.new()
-	coming_soon_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	coming_soon_margin.add_theme_constant_override("margin_left", 28)
-	coming_soon_margin.add_theme_constant_override("margin_top", 24)
-	coming_soon_margin.add_theme_constant_override("margin_right", 28)
-	coming_soon_margin.add_theme_constant_override("margin_bottom", 24)
-	coming_soon_card.add_child(coming_soon_margin)
+	var notify_margin = MarginContainer.new()
+	notify_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	notify_margin.add_theme_constant_override("margin_left", 28)
+	notify_margin.add_theme_constant_override("margin_top", 24)
+	notify_margin.add_theme_constant_override("margin_right", 28)
+	notify_margin.add_theme_constant_override("margin_bottom", 24)
+	notify_panel.add_child(notify_margin)
 
-	var coming_soon_vbox = VBoxContainer.new()
-	coming_soon_vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	coming_soon_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	coming_soon_vbox.add_theme_constant_override("separation", 10)
-	coming_soon_margin.add_child(coming_soon_vbox)
-
-	var coming_soon_title = Label.new()
-	coming_soon_title.text = "IN PROGRESS"
-	coming_soon_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	coming_soon_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	coming_soon_title.add_theme_font_size_override("font_size", 54)
-	coming_soon_title.add_theme_color_override("font_color", _palette_color("text_primary", Color(1, 1, 1, 1)))
-	coming_soon_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-	coming_soon_title.add_theme_constant_override("outline_size", 3)
-	coming_soon_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	coming_soon_vbox.add_child(coming_soon_title)
-
-	var coming_soon_subtitle = Label.new()
-	coming_soon_subtitle.text = "This feature will be available in a future update."
-	coming_soon_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	coming_soon_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	coming_soon_subtitle.add_theme_font_size_override("font_size", 22)
-	coming_soon_subtitle.add_theme_color_override("font_color", _palette_color("text_secondary", Color(0.85, 0.85, 0.9, 0.92)))
-	coming_soon_subtitle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	coming_soon_vbox.add_child(coming_soon_subtitle)
-
-	coming_soon_timer = Timer.new()
-	coming_soon_timer.one_shot = true
-	coming_soon_timer.wait_time = 5.0
-	coming_soon_timer.timeout.connect(_hide_in_progress_overlay_and_open_pending)
-	modal_layer.add_child(coming_soon_timer)
-	_update_coming_soon_card_layout()
+	notify_label = Label.new()
+	notify_label.text = "Feature will be available soon"
+	notify_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	notify_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	notify_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	notify_label.add_theme_font_size_override("font_size", 34)
+	notify_label.add_theme_color_override("font_color", Color(0, 0, 0, 1))
+	notify_label.add_theme_constant_override("outline_size", 0)
+	notify_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	notify_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	notify_margin.add_child(notify_label)
+	_update_notify_panel_layout()
 
 	rewards_panel = _create_modal_panel("Rewards")
 	leaderboard_panel = _create_modal_panel("Leaderboard")
 	quests_panel = _create_modal_panel("Quests")
 	shop_panel = _create_modal_panel("Shop")
+	skins_panel = _create_modal_panel("Skins")
+	faq_panel = _create_modal_panel("FAQ")
 	debug_panel = _create_modal_panel("Debug")
 
 	settings_panel = SettingsPanel.build(modal_layer, Callable(self, "_close_all_panels"), {
@@ -1038,6 +1051,8 @@ func _build_modal_layer() -> void:
 	_build_leaderboard_content(leaderboard_panel)
 	_build_quests_content(quests_panel)
 	_build_shop_content(shop_panel)
+	_build_skins_content(skins_panel)
+	_build_faq_content(faq_panel)
 	_build_debug_content(debug_panel)
 
 
@@ -1200,6 +1215,28 @@ func _build_shop_content(panel: Panel) -> void:
 		label.text = "%s\nComing soon" % item_name
 		UIStyle.apply_label_text_palette(label, "body")
 		card.add_child(label)
+
+
+func _build_skins_content(panel: Panel) -> void:
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
+	var label = Label.new()
+	label.text = "Coming soon"
+	UIStyle.apply_label_text_palette(label, "body")
+	content.add_child(label)
+
+
+func _build_faq_content(panel: Panel) -> void:
+	var content = _ensure_panel_content(panel)
+	if content == null:
+		push_error("Menu panel content is null: " + panel.name)
+		return
+	var label = Label.new()
+	label.text = "Coming soon"
+	UIStyle.apply_label_text_palette(label, "body")
+	content.add_child(label)
 
 
 func _build_settings_content(panel: Panel) -> void:
@@ -1985,7 +2022,7 @@ func _open_panel(panel: Control) -> void:
 		return
 	popup_overlay.visible = true
 	popup_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
+	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, skins_panel, faq_panel, debug_panel]:
 		if p != null:
 			p.visible = (p == panel)
 	if settings_panel != null:
@@ -1996,57 +2033,49 @@ func _open_panel(panel: Control) -> void:
 			(sync_settings as Callable).call()
 
 
-func _open_panel_with_in_progress(panel: Control) -> void:
-	if panel == null:
+func _show_feature_soon_notice() -> void:
+	if notify_overlay == null or notify_panel == null or notify_label == null:
 		return
-	_close_all_panels()
-	coming_soon_pending_panel = panel
-	coming_soon_active = true
-	coming_soon_dim.visible = true
-	coming_soon_dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	coming_soon_card.visible = true
-	_update_coming_soon_card_layout()
-	coming_soon_timer.stop()
-	coming_soon_timer.wait_time = 5.0
-	coming_soon_timer.start()
+	notify_label.text = "Feature will be available soon"
+	notify_overlay.visible = true
+	notify_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	notify_panel.visible = true
+	_update_notify_panel_layout()
+	notify_hide_at_ms = Time.get_ticks_msec() + 2000
 
 
-func _hide_in_progress_overlay_and_open_pending() -> void:
-	coming_soon_active = false
-	coming_soon_dim.visible = false
-	coming_soon_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coming_soon_card.visible = false
-	var pending = coming_soon_pending_panel
-	coming_soon_pending_panel = null
-	if pending != null:
-		_open_panel(pending)
-
-
-func _update_coming_soon_card_layout() -> void:
-	if coming_soon_card == null:
+func _update_notify_panel_layout() -> void:
+	if notify_panel == null:
 		return
 	var vp = get_viewport_rect().size
 	var max_w = clamp(vp.x - (safe_left + safe_right + 40.0), 320.0, 720.0)
-	var max_h = clamp(vp.y - (safe_top + safe_bottom + 40.0), 180.0, 240.0)
-	coming_soon_card.offset_left = -max_w * 0.5
-	coming_soon_card.offset_right = max_w * 0.5
-	coming_soon_card.offset_top = -max_h * 0.5
-	coming_soon_card.offset_bottom = max_h * 0.5
+	var max_h = clamp(vp.y - (safe_top + safe_bottom + 40.0), 180.0, 260.0)
+	notify_panel.offset_left = -max_w * 0.5
+	notify_panel.offset_right = max_w * 0.5
+	notify_panel.offset_top = -max_h * 0.5
+	notify_panel.offset_bottom = max_h * 0.5
+
+
+func _process(_delta: float) -> void:
+	if notify_hide_at_ms > 0 and Time.get_ticks_msec() >= notify_hide_at_ms:
+		notify_hide_at_ms = 0
+		if notify_overlay != null:
+			notify_overlay.visible = false
+			notify_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if notify_panel != null:
+			notify_panel.visible = false
 
 
 func _close_all_panels() -> void:
 	popup_overlay.visible = false
 	popup_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coming_soon_active = false
-	coming_soon_pending_panel = null
-	if coming_soon_timer != null:
-		coming_soon_timer.stop()
-	if coming_soon_dim != null:
-		coming_soon_dim.visible = false
-		coming_soon_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if coming_soon_card != null:
-		coming_soon_card.visible = false
-	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, debug_panel]:
+	notify_hide_at_ms = 0
+	if notify_overlay != null:
+		notify_overlay.visible = false
+		notify_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if notify_panel != null:
+		notify_panel.visible = false
+	for p in [rewards_panel, leaderboard_panel, quests_panel, shop_panel, skins_panel, faq_panel, debug_panel]:
 		if p != null:
 			p.visible = false
 	if settings_panel != null:
