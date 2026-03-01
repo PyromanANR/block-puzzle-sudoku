@@ -31,7 +31,6 @@ const UIStyle = preload("res://Scripts/Modules/UI/Common/UIStyle.gd")
 const MAIN_MENU_SCENE = "res://Scenes/MainMenu.tscn"
 const MAIN_SCENE = "res://Scenes/Main.tscn"
 const STONE_OVERLAY_TEX_PATH = "res://Assets/Skins/Default/Blocks/stone_vine_overlay.png"
-const STONE_OVERLAY_SHADER_PATH = "res://Assets/Shaders/Skills/stone_vine_reveal.gdshader"
 
 # ============================================================
 # TETRIS SUDOKU (UI v2)
@@ -62,13 +61,12 @@ var board_cells := []
 var board_hl := []
 var board_block_faces := []
 var board_stone_overlay := []
+var board_stone_overlay_revealed := []
 var color_grid := []
 var sticky_grid := []
 var board_grid_overlay: Control
 var board_content_root: Control
 var _stone_overlay_tex_cache: Texture2D
-var _stone_overlay_shader_cache: Shader
-var _stone_overlay_shader_checked := false
 var _sticky_piece_access_warned := false
 
 # ----------------------------
@@ -2440,14 +2438,18 @@ func _on_exit_cancel() -> void:
 func _clear_color_grid() -> void:
 	color_grid.clear()
 	sticky_grid.clear()
+	board_stone_overlay_revealed.clear()
 	for y in range(BOARD_SIZE):
 		var row := []
 		var sticky_row := []
+		var stone_revealed_row := []
 		for x in range(BOARD_SIZE):
 			row.append(null)
 			sticky_row.append(false)
+			stone_revealed_row.append(false)
 		color_grid.append(row)
 		sticky_grid.append(sticky_row)
+		board_stone_overlay_revealed.append(stone_revealed_row)
 
 
 func _build_board_side_overlays(screen_bezel: Panel, board_px: float) -> void:
@@ -2588,16 +2590,19 @@ func _build_board_grid() -> void:
 			var stone_overlay := TextureRect.new()
 			stone_overlay.name = "StoneOverlay"
 			stone_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			stone_overlay.offset_left = 2
-			stone_overlay.offset_top = 2
-			stone_overlay.offset_right = -2
-			stone_overlay.offset_bottom = -2
+			stone_overlay.offset_left = 0
+			stone_overlay.offset_top = 0
+			stone_overlay.offset_right = 0
+			stone_overlay.offset_bottom = 0
 			stone_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			stone_overlay.z_index = 50
-			stone_overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			stone_overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			stone_overlay.stretch_mode = TextureRect.STRETCH_SCALE
+			stone_overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			stone_overlay.texture = _get_stone_overlay_tex()
+			stone_overlay.material = null
+			stone_overlay.modulate = Color(1, 1, 1, 0)
 			stone_overlay.visible = false
-			_apply_stone_overlay_material(stone_overlay, 1.0, 0.65)
 			cell.add_child(stone_overlay)
 			board_content_root.add_child(cell)
 			row.append(cell)
@@ -2660,7 +2665,21 @@ func _refresh_board_visual() -> void:
 
 			var stone_overlay = board_stone_overlay[y][x] as TextureRect
 			if stone_overlay != null:
-				stone_overlay.visible = (v == 2 or sticky_grid[y][x]) and stone_overlay.texture != null
+				var is_stone_now := (v == 2) or sticky_grid[y][x]
+				if is_stone_now:
+					if stone_overlay.texture == null:
+						stone_overlay.texture = _get_stone_overlay_tex()
+					if board_stone_overlay_revealed[y][x] == false:
+						_animate_stone_overlay_show(stone_overlay, 0.72)
+						board_stone_overlay_revealed[y][x] = true
+					else:
+						stone_overlay.visible = stone_overlay.texture != null
+						stone_overlay.material = null
+						stone_overlay.modulate = Color(1, 1, 1, 0.72)
+						stone_overlay.scale = Vector2.ONE
+				else:
+					board_stone_overlay_revealed[y][x] = false
+					_hide_stone_overlay(stone_overlay)
 
 			board_hl[y][x].color = Color(0, 0, 0, 0)
 	if clear_flash_left > 0.0:
@@ -4423,11 +4442,12 @@ func _bevel_block(base: Color, size_px: int, infected: bool = false) -> Control:
 		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		overlay.texture = _get_stone_overlay_tex()
 		overlay.visible = overlay.texture != null
 		overlay.z_index = 50
+		overlay.material = null
 		overlay.modulate = Color(1, 1, 1, 0.72)
-		_make_or_apply_stone_overlay_material(overlay, 1.0, 0.65)
 		p.add_child(overlay)
 	return p
 
@@ -4448,46 +4468,33 @@ func _get_stone_overlay_tex() -> Texture2D:
 	return null
 
 
-func _get_stone_overlay_shader() -> Shader:
-	if _stone_overlay_shader_checked:
-		return _stone_overlay_shader_cache
-	_stone_overlay_shader_checked = true
-	if not ResourceLoader.exists(STONE_OVERLAY_SHADER_PATH):
-		if OS.is_debug_build():
-			push_warning("Stone overlay shader not found: %s" % STONE_OVERLAY_SHADER_PATH)
-		return null
-	var shader_res = load(STONE_OVERLAY_SHADER_PATH)
-	if shader_res is Shader:
-		_stone_overlay_shader_cache = shader_res as Shader
-		return _stone_overlay_shader_cache
-	if OS.is_debug_build():
-		push_warning("Stone overlay shader is not Shader: %s" % STONE_OVERLAY_SHADER_PATH)
-	return null
-
-
-func _make_or_apply_stone_overlay_material(overlay: TextureRect, reveal: float = 1.0, base_alpha: float = 0.65) -> ShaderMaterial:
+func _animate_stone_overlay_show(overlay: TextureRect, target_alpha: float = 0.72) -> void:
 	if overlay == null:
-		return null
-	if overlay.texture == null:
-		overlay.material = null
-		return null
-	var shader_res = _get_stone_overlay_shader()
-	if shader_res == null:
-		overlay.material = null
-		return null
-	var mat = overlay.material as ShaderMaterial
-	if mat == null:
-		mat = ShaderMaterial.new()
-		mat.shader = shader_res
-		overlay.material = mat
-	else:
-		mat.shader = shader_res
-	mat.set_shader_parameter("u_reveal", clamp(reveal, 0.0, 1.0))
-	mat.set_shader_parameter("u_pulse_strength", clamp(base_alpha, 0.0, 1.0))
-	return mat
+		return
+	overlay.visible = true
+	overlay.material = null
+	var prev_tw = overlay.get_meta("stone_tw", null)
+	if prev_tw is Tween:
+		(prev_tw as Tween).kill()
+	overlay.modulate = Color(1, 1, 1, 0)
+	overlay.scale = Vector2(0.92, 0.92)
+	var tw = create_tween()
+	tw.tween_property(overlay, "modulate:a", target_alpha, 0.20).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(overlay, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	overlay.set_meta("stone_tw", tw)
 
-func _apply_stone_overlay_material(overlay: TextureRect, reveal: float = 1.0, pulse_strength: float = 0.12) -> void:
-	_make_or_apply_stone_overlay_material(overlay, reveal, pulse_strength)
+
+func _hide_stone_overlay(overlay: TextureRect) -> void:
+	if overlay == null:
+		return
+	var prev_tw = overlay.get_meta("stone_tw", null)
+	if prev_tw is Tween:
+		(prev_tw as Tween).kill()
+	overlay.set_meta("stone_tw", null)
+	overlay.material = null
+	overlay.visible = false
+	overlay.modulate = Color(1, 1, 1, 0)
+	overlay.scale = Vector2.ONE
 
 
 func _reveal_stone_overlay_at(sx: int, sy: int) -> void:
@@ -4504,12 +4511,9 @@ func _reveal_stone_overlay_at(sx: int, sy: int) -> void:
 	if overlay.texture == null:
 		overlay.visible = false
 		return
-	overlay.visible = true
-	_apply_stone_overlay_material(overlay, 0.0, 0.12)
-	var mat = overlay.material as ShaderMaterial
-	if mat != null:
-		var tw = create_tween()
-		tw.tween_method(func(v): mat.set_shader_parameter("u_reveal", v), 0.0, 1.0, 0.25)
+	if sy >= 0 and sy < board_stone_overlay_revealed.size() and sx >= 0 and sx < board_stone_overlay_revealed[sy].size():
+		board_stone_overlay_revealed[sy][sx] = false
+	_animate_stone_overlay_show(overlay, 0.72)
 	board_hl[sy][sx].color = Color(1.0, 0.35, 0.18, 0.34)
 	var hl_tw = create_tween()
 	hl_tw.tween_property(board_hl[sy][sx], "color", Color(0, 0, 0, 0), 0.12)
