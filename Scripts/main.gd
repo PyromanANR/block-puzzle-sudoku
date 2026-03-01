@@ -167,8 +167,8 @@ var next_piece_state_id: int = 1
 var expected_next_preview_kind: String = ""
 var grace_piece_by_id: Dictionary = {}
 var invalid_drop_slow_until_ms = 0
-var last_well_entry_ms: int = 0
-var last_punish_ms: int = -999999
+var next_punish_due_ms: int = 0
+var punish_interval_ms: int = 60000
 var toast_layer: CanvasLayer
 var toast_panel: Panel
 var toast_label: Label
@@ -614,12 +614,13 @@ func _start_round() -> void:
 	_apply_audio_settings()
 	_update_skill_icon_states()
 	_sync_skill_ready_latches()
-	last_well_entry_ms = Time.get_ticks_msec()
-	last_punish_ms = -999999
 	if music_manager != null:
 		music_manager.on_new_run_resume()
 
 	pile.clear()
+	var punish_now = Time.get_ticks_msec()
+	punish_interval_ms = 30000 if pile.size() == 0 else 60000
+	next_punish_due_ms = punish_now + punish_interval_ms
 	board.call("Reset")
 	_clear_color_grid()
 	_refresh_board_visual()
@@ -3551,7 +3552,6 @@ func _commit_piece_to_well(piece) -> void:
 	stored.set_meta("is_in_grace", false)
 	stored.set_meta("grace_blocked", false) # in the well it must be pickable
 	pile.append(stored)
-	last_well_entry_ms = Time.get_ticks_msec()
 	_play_sfx("well_enter")
 	_try_trigger_first_well_entry_slow()
 	_trigger_micro_freeze()
@@ -3807,13 +3807,32 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 func _maybe_trigger_no_well_entry_punish(now_ms: int) -> void:
 	if _is_gameplay_input_blocked() or is_game_over:
 		return
-	if now_ms - last_well_entry_ms < 30000:
+	var interval_ms = 30000 if pile.size() == 0 else 60000
+	if interval_ms != punish_interval_ms:
+		punish_interval_ms = interval_ms
+		next_punish_due_ms = now_ms + punish_interval_ms
+	if now_ms < next_punish_due_ms:
 		return
-	if now_ms - last_punish_ms < 60000:
-		return
-	last_punish_ms = now_ms
 	_do_board_shake()
 	_stoneify_random_filled_cells_by_difficulty()
+	next_punish_due_ms = now_ms + punish_interval_ms
+
+
+func _count_stone_cells_on_board() -> int:
+	var count = 0
+	for y in range(BOARD_SIZE):
+		for x in range(BOARD_SIZE):
+			if int(board.call("GetCell", x, y)) == 2:
+				count += 1
+	return count
+
+
+func _max_stone_cells_allowed() -> int:
+	return int(floor(float(BOARD_SIZE * BOARD_SIZE) * 0.70))
+
+
+func _stone_budget_remaining() -> int:
+	return max(0, _max_stone_cells_allowed() - _count_stone_cells_on_board())
 
 
 func _difficulty_stoneify_ratio() -> float:
@@ -3833,9 +3852,21 @@ func _stoneify_random_filled_cells_by_difficulty() -> void:
 				filled_non_stone.append(Vector2i(x, y))
 	if filled_non_stone.is_empty():
 		return
+	var stone_budget = _stone_budget_remaining()
+	if stone_budget <= 0:
+		if OS.is_debug_build():
+			push_warning("Stoneify skipped: stone cap reached (%d/%d)." % [_count_stone_cells_on_board(), _max_stone_cells_allowed()])
+		return
 	var ratio = _difficulty_stoneify_ratio()
-	var count = int(ceil(float(filled_non_stone.size()) * ratio))
-	count = max(1, min(count, filled_non_stone.size()))
+	var requested_count = int(ceil(float(filled_non_stone.size()) * ratio))
+	var count = max(1, min(requested_count, filled_non_stone.size()))
+	count = min(count, stone_budget)
+	if count <= 0:
+		if OS.is_debug_build():
+			push_warning("Stoneify skipped: clamped to 0 by stone cap.")
+		return
+	if OS.is_debug_build() and count < requested_count:
+		push_warning("Stoneify clamped by stone cap: requested %d, applied %d." % [requested_count, count])
 	filled_non_stone.shuffle()
 	for i in range(count):
 		var pos = filled_non_stone[i]
