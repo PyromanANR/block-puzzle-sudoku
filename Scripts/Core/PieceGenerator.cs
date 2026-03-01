@@ -20,6 +20,8 @@ public class PieceGenerator
     private ulong _lastWellMs;
     private bool _hasPeekedKind = false;
     private string _peekedKind = string.Empty;
+    private string _lastPoppedKind = string.Empty;
+    private int _lastPoppedKindStreak = 0;
 
     private int _deadZoneRemainingSpawns = 0;
     private float _deadZoneIdealMul = 1.0f;
@@ -77,8 +79,8 @@ public class PieceGenerator
     public PieceData Peek(BoardModel board, float idealChance, string difficulty = "Medium", float elapsedSeconds = 0f)
     {
         _peekedKind = PickKind(board, idealChance, consume: false, difficulty, elapsedSeconds);
-        _hasPeekedKind = true;
-        return MakePiece(_peekedKind);
+        _hasPeekedKind = !string.IsNullOrEmpty(_peekedKind);
+        return string.IsNullOrEmpty(_peekedKind) ? null : MakePiece(_peekedKind);
     }
 
     public PieceData Pop(BoardModel board, float idealChance, string difficulty = "Medium", float elapsedSeconds = 0f)
@@ -89,8 +91,15 @@ public class PieceGenerator
 
         _hasPeekedKind = false;
         _peekedKind = string.Empty;
-        BurnQueueToken();
+
+        if (string.IsNullOrEmpty(kind))
+            return null;
+
+        if (board == null)
+            BurnQueueToken();
+
         RegisterGeneratedKind(kind);
+        RegisterPoppedKind(kind);
         _spawnSincePity++;
         _piecesSinceWell++;
 
@@ -133,12 +142,7 @@ public class PieceGenerator
 
         var evaluated = EvaluateKinds(board);
         if (evaluated.Count == 0)
-        {
-            EnsureQueue(1);
-            var fallback = _queue.Peek();
-            if (consume) _queue.Dequeue();
-            return fallback;
-        }
+            return string.Empty;
 
         evaluated.Sort((a, b) => b.score.CompareTo(a.score));
 
@@ -206,7 +210,7 @@ public class PieceGenerator
             }
         }
 
-        selected = EnforceMaxStreak(selected, evaluated);
+        selected = EnforceRepeatLimit(selected, evaluated);
 
 #if DEBUG
         if (consume)
@@ -307,6 +311,9 @@ public class PieceGenerator
         foreach (var kind in GetEnabledKinds())
         {
             var piece = MakePiece(kind);
+            if (!HasAnyValidPlacement(board, piece))
+                continue;
+
             float best = float.NegativeInfinity;
             for (int y = 0; y < board.Size; y++)
             for (int x = 0; x < board.Size; x++)
@@ -320,6 +327,11 @@ public class PieceGenerator
                 list.Add((kind, best));
         }
         return list;
+    }
+
+    private bool HasAnyValidPlacement(BoardModel board, PieceData piece)
+    {
+        return CountValidPlacements(board, piece, 1) > 0;
     }
 
     private int CountValidPlacements(BoardModel board, PieceData piece, int maxCount = int.MaxValue)
@@ -467,7 +479,7 @@ public class PieceGenerator
                 {
                     var kinds = GetEnabledKinds();
                     kind = kinds[_rng.RandiRange(0, kinds.Count - 1)];
-                    kind = EnforceMaxStreak(kind, null);
+                    kind = EnforceRepeatLimit(kind, null);
                 }
             }
             _queue.Enqueue(kind);
@@ -511,41 +523,41 @@ public class PieceGenerator
         return kinds;
     }
 
-    private bool WouldExceedStreak(string kind)
+    private bool WouldExceedRepeatLimit(string kind)
     {
-        var maxSame = Math.Max(1, _config.GeneratorMaxSameInRow);
-        int streak = 0;
-        for (int i = _recentKinds.Count - 1; i >= 0; i--)
-        {
-            if (_recentKinds[i] != kind)
-                break;
-            streak++;
-        }
-        return streak >= maxSame;
+        if (string.IsNullOrEmpty(kind))
+            return false;
+        return _lastPoppedKindStreak >= 2 && _lastPoppedKind == kind;
     }
 
-    private string EnforceMaxStreak(string selected, List<(string kind, float score)> evaluated)
+    private string EnforceRepeatLimit(string selected, List<(string kind, float score)> evaluated)
     {
-        if (!WouldExceedStreak(selected))
+        if (!WouldExceedRepeatLimit(selected))
             return selected;
 
         if (evaluated != null)
         {
             foreach (var item in evaluated)
             {
-                if (!WouldExceedStreak(item.kind))
+                if (!WouldExceedRepeatLimit(item.kind))
                     return item.kind;
             }
+#if DEBUG
+            GD.Print($"[GENERATOR] repeat-limit relaxed for kind={selected}");
+#endif
             return selected;
         }
 
         var enabled = GetEnabledKinds();
         for (int i = 0; i < enabled.Count; i++)
         {
-            if (!WouldExceedStreak(enabled[i]))
+            if (!WouldExceedRepeatLimit(enabled[i]))
                 return enabled[i];
         }
 
+#if DEBUG
+        GD.Print($"[GENERATOR] repeat-limit relaxed for kind={selected}");
+#endif
         return selected;
     }
 
@@ -556,11 +568,11 @@ public class PieceGenerator
 
         int idx = _rng.RandiRange(0, _bag.Count - 1);
         var candidate = _bag[idx];
-        if (WouldExceedStreak(candidate))
+        if (WouldExceedRepeatLimit(candidate))
         {
             for (int i = 0; i < _bag.Count; i++)
             {
-                if (!WouldExceedStreak(_bag[i]))
+                if (!WouldExceedRepeatLimit(_bag[i]))
                 {
                     idx = i;
                     candidate = _bag[i];
@@ -578,6 +590,17 @@ public class PieceGenerator
         var maxHistory = Math.Max(1, _config.GeneratorHistoryLen);
         while (_recentKinds.Count > maxHistory)
             _recentKinds.RemoveAt(0);
+    }
+
+    private void RegisterPoppedKind(string kind)
+    {
+        if (_lastPoppedKind == kind)
+            _lastPoppedKindStreak++;
+        else
+        {
+            _lastPoppedKind = kind;
+            _lastPoppedKindStreak = 1;
+        }
     }
 
     public void RegisterMoveOutcome(int clearedCount)
