@@ -170,6 +170,8 @@ var grace_piece_by_id: Dictionary = {}
 var invalid_drop_slow_until_ms = 0
 var next_punish_due_ms: int = 0
 var punish_interval_ms: int = 60000
+var last_well_entry_ms: int = 0
+var last_punish_ms: int = 0
 var speed_penalty_until_ms: int = 0
 var last_good_clear_ms: int = 0
 var next_auto_crack_check_ms: int = 0
@@ -627,8 +629,10 @@ func _start_round() -> void:
 
 	pile.clear()
 	var punish_now = Time.get_ticks_msec()
-	punish_interval_ms = 30000 if pile.size() == 0 else 60000
+	punish_interval_ms = 25000 if pile.size() == 0 else 45000
 	next_punish_due_ms = punish_now + punish_interval_ms
+	last_well_entry_ms = punish_now
+	last_punish_ms = punish_now
 	speed_penalty_until_ms = 0
 	last_good_clear_ms = punish_now
 	next_auto_crack_check_ms = punish_now + AUTO_CRACK_CHECK_INTERVAL_MS
@@ -3504,6 +3508,7 @@ func _commit_piece_to_well(piece) -> void:
 	_ensure_piece_state(piece)
 	if bool(piece.get_meta("is_committed", false)):
 		return
+	var is_sticky = _is_piece_sticky(piece)
 	piece.set_meta("is_committed", true)
 	# Block grace re-grab ONLY if this piece is currently part of the grace flow.
 	var was_in_grace = bool(piece.get_meta("is_in_grace", false)) or (pending_invalid_piece == piece)
@@ -3550,11 +3555,18 @@ func _commit_piece_to_well(piece) -> void:
 	_assert_piece_state_invariant(piece)
 	var stored = piece.duplicate(true)
 	_ensure_piece_state(stored)
+	if is_sticky:
+		stored.set_meta("IsSticky", true)
+		if piece.has_meta("debug_force_sticky") and bool(piece.get_meta("debug_force_sticky")):
+			stored.set_meta("debug_force_sticky", true)
 	stored.set_meta("is_committed", true)
 	stored.set_meta("is_in_hand", false)
 	stored.set_meta("is_in_grace", false)
 	stored.set_meta("grace_blocked", false) # in the well it must be pickable
 	pile.append(stored)
+	last_well_entry_ms = Time.get_ticks_msec()
+	if OS.is_debug_build() and is_sticky and not _is_piece_sticky(stored):
+		push_error("Sticky transfer invariant failed for piece_id=%d kind=%s" % [piece_id, String(piece.get("Kind"))])
 	_play_sfx("well_enter")
 	_try_trigger_first_well_entry_slow()
 	_trigger_micro_freeze()
@@ -3834,10 +3846,14 @@ func _try_place_piece(piece, ax: int, ay: int) -> bool:
 func _maybe_trigger_no_well_entry_punish(now_ms: int) -> void:
 	if _is_gameplay_input_blocked() or is_game_over:
 		return
-	var interval_ms = 30000 if pile.size() == 0 else 60000
+	var interval_ms = 25000 if pile.size() == 0 else 45000
 	if interval_ms != punish_interval_ms:
 		punish_interval_ms = interval_ms
 		next_punish_due_ms = now_ms + punish_interval_ms
+	if (now_ms - last_well_entry_ms) < interval_ms:
+		return
+	if (now_ms - last_punish_ms) < interval_ms:
+		return
 	if now_ms < next_punish_due_ms:
 		return
 	_do_board_shake()
@@ -3846,6 +3862,7 @@ func _maybe_trigger_no_well_entry_punish(now_ms: int) -> void:
 		_apply_speed_penalty("Pressure rising")
 	else:
 		_stoneify_random_filled_cells_by_difficulty()
+	last_punish_ms = now_ms
 	next_punish_due_ms = now_ms + punish_interval_ms
 
 
