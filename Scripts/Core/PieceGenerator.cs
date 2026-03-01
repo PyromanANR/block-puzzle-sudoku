@@ -18,6 +18,8 @@ public class PieceGenerator
 
     private int _piecesSinceWell = 0;
     private ulong _lastWellMs;
+    private bool _hasPeekedKind = false;
+    private string _peekedKind = string.Empty;
 
     private static readonly HashSet<string> WellKinds = new()
     {
@@ -68,14 +70,22 @@ public class PieceGenerator
         EnsureQueue(2);
     }
 
-    public PieceData Peek(BoardModel board, float idealChance)
+    public PieceData Peek(BoardModel board, float idealChance, string difficulty = "Medium", float elapsedSeconds = 0f)
     {
-        return MakePiece(PickKind(board, idealChance, consume: false));
+        _peekedKind = PickKind(board, idealChance, consume: false, difficulty, elapsedSeconds);
+        _hasPeekedKind = true;
+        return MakePiece(_peekedKind);
     }
 
-    public PieceData Pop(BoardModel board, float idealChance)
+    public PieceData Pop(BoardModel board, float idealChance, string difficulty = "Medium", float elapsedSeconds = 0f)
     {
-        var kind = PickKind(board, idealChance, consume: true);
+        var kind = _hasPeekedKind
+            ? _peekedKind
+            : PickKind(board, idealChance, consume: true, difficulty, elapsedSeconds);
+
+        _hasPeekedKind = false;
+        _peekedKind = string.Empty;
+        BurnQueueToken();
         RegisterGeneratedKind(kind);
         _spawnSincePity++;
         _piecesSinceWell++;
@@ -89,7 +99,7 @@ public class PieceGenerator
         return MakePiece(kind);
     }
 
-    private string PickKind(BoardModel board, float idealChance, bool consume)
+    private string PickKind(BoardModel board, float idealChance, bool consume, string difficulty, float elapsedSeconds)
     {
         if (board == null)
         {
@@ -124,7 +134,34 @@ public class PieceGenerator
 
         bool requestWell = forceWell || _rng.Randf() <= dynamicWellChance;
 
+        var forcedChance = GetForcedFitChance(difficulty, elapsedSeconds);
+        bool forcedTriggered = _rng.Randf() < forcedChance;
+        string forcedSelected = string.Empty;
+
+        if (forcedTriggered)
+        {
+            var forcedCandidates = new List<(string kind, float score)>();
+            for (int i = 0; i < evaluated.Count; i++)
+            {
+                var placementCount = CountValidPlacements(board, MakePiece(evaluated[i].kind), maxCount: 2);
+                if (placementCount == 1)
+                    forcedCandidates.Add(evaluated[i]);
+            }
+
+            if (forcedCandidates.Count > 0)
+            {
+                forcedCandidates.Sort((a, b) => b.score.CompareTo(a.score));
+                int topBand = Math.Min(_config.CandidateTopBand, forcedCandidates.Count);
+                forcedSelected = forcedCandidates[_rng.RandiRange(0, topBand - 1)].kind;
+            }
+        }
+
         string selected;
+        if (!string.IsNullOrEmpty(forcedSelected))
+        {
+            selected = forcedSelected;
+        }
+        else
         if (requestWell && TryPickWellCandidate(evaluated, out var wellKind))
         {
             selected = wellKind;
@@ -147,8 +184,13 @@ public class PieceGenerator
 
         selected = EnforceMaxStreak(selected, evaluated);
 
+#if DEBUG
         if (consume)
-            BurnQueueToken();
+        {
+            var chosenPlacementCount = CountValidPlacements(board, MakePiece(selected));
+            GD.Print($"[FORCED_FIT] elapsed_seconds={elapsedSeconds:0.0}, difficulty={difficulty}, p_forced={forcedChance:0.000}, triggered={forcedTriggered && !string.IsNullOrEmpty(forcedSelected)}, placement_count={chosenPlacementCount}");
+        }
+#endif
 
         return selected;
     }
@@ -194,6 +236,59 @@ public class PieceGenerator
                 list.Add((kind, best));
         }
         return list;
+    }
+
+    private int CountValidPlacements(BoardModel board, PieceData piece, int maxCount = int.MaxValue)
+    {
+        if (board == null || piece == null)
+            return 0;
+
+        int count = 0;
+        for (int y = 0; y < board.Size; y++)
+        for (int x = 0; x < board.Size; x++)
+        {
+            if (!board.CanPlace(piece, x, y))
+                continue;
+
+            count++;
+            if (count >= maxCount)
+                return count;
+        }
+
+        return count;
+    }
+
+    public static float GetForcedFitChance(string difficulty, float elapsedSeconds)
+    {
+        float[,] points;
+        switch (difficulty)
+        {
+            case "Easy":
+                points = new float[,] { { 90f, 0.00f }, { 180f, 0.08f }, { 360f, 0.12f }, { 600f, 0.15f } };
+                break;
+            case "Hard":
+                points = new float[,] { { 90f, 0.05f }, { 180f, 0.12f }, { 360f, 0.18f }, { 600f, 0.25f } };
+                break;
+            default:
+                points = new float[,] { { 90f, 0.03f }, { 180f, 0.10f }, { 360f, 0.15f }, { 600f, 0.20f } };
+                break;
+        }
+
+        var t = Mathf.Clamp(elapsedSeconds, points[0, 0], points[3, 0]);
+        for (int i = 0; i < 3; i++)
+        {
+            var t0 = points[i, 0];
+            var t1 = points[i + 1, 0];
+            if (t <= t1)
+            {
+                var p = Mathf.Clamp((t - t0) / Mathf.Max(0.001f, t1 - t0), 0f, 1f);
+                var v0 = points[i, 1];
+                var v1 = points[i + 1, 1];
+                return Mathf.Lerp(v0, v1, p);
+            }
+        }
+
+        return points[3, 1];
     }
 
     private static float EvaluatePlacement(BoardModel board, PieceData piece, int ax, int ay)

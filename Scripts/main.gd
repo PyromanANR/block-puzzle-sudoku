@@ -85,6 +85,9 @@ var ghost_layer: Control
 var ghost_root: Control
 var ghost_bbox_size := Vector2.ZERO
 var ghost_valid_state: int = 0
+var hint_overlay_root: Control
+var hint_should_show_for_current_hold: bool = false
+var held_piece_counter: int = 0
 
 # ----------------------------
 # UI nodes
@@ -156,6 +159,7 @@ var pending_invalid_root: Control
 var pending_invalid_until_ms = 0
 var pending_invalid_timer: Timer
 var next_piece_state_id: int = 1
+var expected_next_preview_kind: String = ""
 var grace_piece_by_id: Dictionary = {}
 var invalid_drop_slow_until_ms = 0
 var toast_layer: CanvasLayer
@@ -617,6 +621,9 @@ func _start_round() -> void:
 	drag_trail.clear()
 	ghost_valid_state = 0
 	ghost_root.visible = false
+	hint_should_show_for_current_hold = false
+	held_piece_counter = 0
+	_clear_hint_overlay()
 	_clear_highlight()
 
 	_spawn_falling_piece()
@@ -1503,6 +1510,12 @@ func _build_ui() -> void:
 	ghost_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ghost_root.visible = false
 	ghost_layer.add_child(ghost_root)
+
+	hint_overlay_root = Control.new()
+	hint_overlay_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint_overlay_root.visible = false
+	hint_overlay_root.z_index = 900
+	ghost_layer.add_child(hint_overlay_root)
 
 	fx_layer = CanvasLayer.new()
 	fx_layer.layer = -20
@@ -2612,6 +2625,10 @@ func _update_previews() -> void:
 	if next_box == null:
 		return
 	var next_piece = core.call("PeekNextPieceForBoard", board)
+	if next_piece != null:
+		expected_next_preview_kind = String(next_piece.get("Kind"))
+	else:
+		expected_next_preview_kind = ""
 	_draw_preview(next_box, next_piece)
 
 
@@ -2740,6 +2757,10 @@ func _spawn_falling_piece() -> void:
 		push_error("_spawn_falling_piece: PopNextPieceForBoard returned null")
 		pending_spawn_piece = false
 		return
+	if expected_next_preview_kind != "":
+		var spawned_kind = String(fall_piece.get("Kind"))
+		if spawned_kind != expected_next_preview_kind:
+			push_error("Preview/pop mismatch for primary spawn: expected=" + expected_next_preview_kind + ", got=" + spawned_kind)
 	# Spawn above the visible drop zone so it slides in
 	var geom = _well_geometry()
 	var fall_top = float(geom.get("fall_top", FALL_PAD))
@@ -2783,6 +2804,10 @@ func _spawn_second_falling_piece() -> void:
 		return
 	if fall_piece_2 != null:
 		return
+	var expected_piece = core.call("PeekNextPieceForBoard", board)
+	var expected_kind = ""
+	if expected_piece != null:
+		expected_kind = String(expected_piece.get("Kind"))
 	var p2 = core.call("PopNextPieceForBoard", board)
 	if p2 == null:
 		push_error("_spawn_second_falling_piece: PopNextPieceForBoard returned null")
@@ -2790,6 +2815,10 @@ func _spawn_second_falling_piece() -> void:
 		pending_dual_fallback_ms = 0
 		dual_drop_waiting_for_gap = false
 		return
+	if expected_kind != "":
+		var popped_kind = String(p2.get("Kind"))
+		if popped_kind != expected_kind:
+			push_error("Preview/pop mismatch for secondary spawn: expected=" + expected_kind + ", got=" + popped_kind)
 	if fall_piece == null:
 		fall_piece = p2
 		var geom = _well_geometry()
@@ -3192,6 +3221,8 @@ func _start_drag_selected() -> void:
 		selected_from_pile_index = -1
 		return
 	_set_piece_in_hand_state(selected_piece, true)
+	held_piece_counter += 1
+	hint_should_show_for_current_hold = _should_show_hint_for_hold_index(held_piece_counter)
 	if selected_from_pile_index >= 0:
 		rescue_from_well_pending = true
 		rescue_eligible_until_ms = Time.get_ticks_msec() + int(float(core.call("GetRescueWindowSec")) * 1000.0)
@@ -3202,6 +3233,7 @@ func _start_drag_selected() -> void:
 	drag_trail.append(get_viewport().get_mouse_position())
 	_build_ghost_for_piece(selected_piece)
 	ghost_root.visible = true
+	_update_hint_overlay_for_selected_piece()
 	_set_drop_status("Dragging…", STATUS_NEUTRAL)
 
 
@@ -3561,6 +3593,8 @@ func _force_cancel_drag(reason: String = "", committed: bool = false) -> void:
 	dragging = false
 	ghost_root.visible = false
 	drag_anchor = Vector2i(-999, -999)
+	hint_should_show_for_current_hold = false
+	_clear_hint_overlay()
 	_clear_highlight()
 	if committed:
 		selected_piece = null
@@ -3754,6 +3788,7 @@ func _process(delta: float) -> void:
 
 		if cell.x == -1:
 			drag_anchor = Vector2i(-999, -999)
+			_update_hint_overlay_for_selected_piece()
 			_clear_highlight()
 			if ghost_valid_state != 0:
 				ghost_valid_state = 0
@@ -3776,6 +3811,7 @@ func _process(delta: float) -> void:
 				ghost_shake_phase = 0.0
 			_set_ghost_validity(not is_invalid_anchor)
 			_highlight_piece(selected_piece, cell.x, cell.y)
+			_update_hint_overlay_for_selected_piece()
 
 		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			_finish_drag()
@@ -3893,6 +3929,80 @@ func _build_ghost_for_piece(piece) -> void:
 		var b := _bevel_block(ghost_col, cell_size - 6)
 		b.position = Vector2(px * cell_size, py * cell_size)
 		ghost_root.add_child(b)
+
+
+func _clear_hint_overlay() -> void:
+	if hint_overlay_root == null:
+		return
+	hint_overlay_root.visible = false
+	for ch in hint_overlay_root.get_children():
+		ch.queue_free()
+
+
+func _show_hint_overlay(piece, ax: int, ay: int) -> void:
+	if hint_overlay_root == null:
+		return
+	_clear_hint_overlay()
+	if piece == null:
+		return
+	for c in piece.get("Cells"):
+		var x := ax + int(c.x)
+		var y := ay + int(c.y)
+		if x < 0 or x >= BOARD_SIZE or y < 0 or y >= BOARD_SIZE:
+			continue
+		var marker = ColorRect.new()
+		marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		marker.color = Color(0.25, 0.95, 1.0, 0.30)
+		marker.custom_minimum_size = Vector2(cell_size - 4, cell_size - 4)
+		marker.size = marker.custom_minimum_size
+		marker.global_position = board_panel.global_position + board_start + Vector2(x * cell_size + 2, y * cell_size + 2)
+		hint_overlay_root.add_child(marker)
+	hint_overlay_root.visible = hint_overlay_root.get_child_count() > 0
+
+
+func _count_piece_placements(piece, stop_after: int = 99999) -> Dictionary:
+	var result := {
+		"count": 0,
+		"first": Vector2i(-1, -1)
+	}
+	if piece == null:
+		return result
+	for y in range(BOARD_SIZE):
+		for x in range(BOARD_SIZE):
+			if not bool(board.call("CanPlace", piece, x, y)):
+				continue
+			if int(result["count"]) == 0:
+				result["first"] = Vector2i(x, y)
+			result["count"] = int(result["count"]) + 1
+			if int(result["count"]) >= stop_after:
+				return result
+	return result
+
+
+func _should_show_hint_for_hold_index(hold_index: int) -> bool:
+	if hold_index <= 0:
+		return false
+	var cadence = 3
+	var difficulty = Save.get_current_difficulty()
+	if difficulty == "Easy":
+		cadence = 2
+	elif difficulty == "Hard":
+		cadence = 5
+	return hold_index % cadence == 0
+
+
+func _update_hint_overlay_for_selected_piece() -> void:
+	if not dragging or selected_piece == null or not hint_should_show_for_current_hold:
+		_clear_hint_overlay()
+		return
+	var placements = _count_piece_placements(selected_piece, 2)
+	var placement_count = int(placements.get("count", 0))
+	if placement_count == 1:
+		var only_anchor: Vector2i = placements.get("first", Vector2i(-1, -1))
+		if only_anchor.x >= 0 and bool(board.call("CanPlace", selected_piece, only_anchor.x, only_anchor.y)):
+			_show_hint_overlay(selected_piece, only_anchor.x, only_anchor.y)
+			return
+	_clear_hint_overlay()
 
 
 # ============================================================
